@@ -41,14 +41,53 @@ npm run build       # 型チェック → dist/client へビルド
 
 ## デプロイ
 
+初回は次の1本で完了します（D1 の作成 → `wrangler.toml` への ID 書き込み → スキーマ適用 →
+`SESSION_SECRET` の生成と登録 → ビルド → デプロイ）。何度実行しても同じ状態に収束します。
+
 ```bash
-npx wrangler secret put SESSION_SECRET   # 匿名IDクッキーの署名鍵（必須）
+npx wrangler login          # ブラウザが開きます。ヘッドレス環境では代わりに
+                            # CLOUDFLARE_API_TOKEN を設定してください
+./scripts/setup-cloudflare.sh
+```
+
+2回目以降、コードだけを更新する場合は次で十分です。
+
+```bash
+npm run deploy
+```
+
+手動で行う場合は以下と同等です。
+
+```bash
+npx wrangler d1 create drink-status      # 出力された database_id を wrangler.toml に記入
 npm run db:migrate:remote
+npx wrangler secret put SESSION_SECRET   # 匿名IDクッキーの署名鍵（必須）
 npm run deploy
 ```
 
 `SESSION_SECRET` を設定しないと開発用の既定値が使われ、クッキーの署名を誰でも偽造できます。
-本番では必ず設定してください。
+本番では必ず設定してください。セットアップスクリプトは未設定の場合のみ、ランダムな32バイトを
+生成して登録します。
+
+### CI やヘッドレス環境からデプロイする場合
+
+`wrangler login` は対話的な OAuth なので使えません。API トークンを環境変数で渡してください。
+
+```bash
+export CLOUDFLARE_API_TOKEN=...   # 履歴に残さないよう注意
+./scripts/setup-cloudflare.sh
+```
+
+トークンに必要な権限（Cloudflare ダッシュボード → My Profile → API Tokens → Create Token →
+Create Custom Token）:
+
+| 種別 | 権限 | レベル |
+| --- | --- | --- |
+| Account | Workers Scripts | Edit |
+| Account | D1 | Edit |
+| Account | Account Settings | Read |
+
+ネットワークが制限された環境では、`api.cloudflare.com` への外向き通信を許可する必要があります。
 
 ## つくり
 
