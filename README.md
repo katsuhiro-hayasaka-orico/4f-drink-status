@@ -11,31 +11,47 @@ Vite + React + TypeScript のフロントエンドと、Cloudflare Workers + D1 
 
 ## 動かす
 
+初回だけ、依存の取得とローカルDBの用意が要ります。
+
 ```bash
 npm install
-
-# ① D1 データベースを作り、出力された database_id を wrangler.toml に書く
-npx wrangler d1 create drink-status
-
-# ② スキーマを流す（ローカル）
-npm run db:migrate:local
-
-# ③ 開発用のサンプル投稿を入れる（任意）
-npm run db:seed:local
+npm run db:migrate:local    # ローカル D1 にスキーマを作る
+npm run db:seed:local       # サンプル投稿を入れる（任意・何度でも実行可）
 ```
 
-開発サーバーは2通りあります。
+> `db:migrate:local` は `wrangler.toml` の `database_id` を見ません（ローカルのSQLiteを使う）ので、
+> デプロイ前でもそのまま動きます。
 
-| コマンド | 用途 |
-| --- | --- |
-| `npm run dev` | Vite の HMR で UI を作り込むとき。`/api` は `wrangler dev` にプロキシされるので、**別ターミナルで `npm run dev:worker` も起動**してください |
-| `npm run dev:worker` | Worker と D1 をローカルで動かす（`http://localhost:8787`）。`npm run build` 済みなら本番と同じ構成で通しで確認できます |
+起動は目的で使い分けます。
+
+**動作を検証する（本番と同じ構成）**
+
+```bash
+npm run build
+npm run dev:worker
+```
+
+→ http://localhost:8787 　Worker・D1・静的アセットまで含めて本番と同じ経路で動きます。
+
+**UIを編集しながら見る（HMR）**
+
+ターミナルを2つ使います。
+
+```bash
+npm run dev:worker    # 1つめ：APIとDB（8787番）
+npm run dev           # 2つめ：Vite の開発サーバー
+```
+
+→ http://localhost:5173 　`/api` は 8787 にプロキシされます。保存すると即座に反映されます。
+
+**注意**: `npm run dev:worker` はアセット一覧を起動時に読み込みます。`public/` にファイルを
+足したときや `npm run build` をやり直したときは、Worker を再起動してください。
 
 その他:
 
 ```bash
 npm run typecheck   # アプリと Worker の両方を型チェック
-npm test            # 集計ロジックのユニットテスト
+npm test            # 集計ロジックのユニットテスト（41件）
 npm run build       # 型チェック → dist/client へビルド
 ```
 
