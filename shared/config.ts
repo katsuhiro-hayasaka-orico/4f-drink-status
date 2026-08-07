@@ -22,6 +22,16 @@ export const CONFIG = {
   undoWindowMs: 5_000,
   /** Rows kept in the 投稿の内訳 table. */
   reportTableLimit: 20,
+
+  /**
+   * When the 4F lounge is open, as JST wall-clock hours. Every day — if this
+   * ever needs to be weekdays only, `loungeHours` in shared/hours.ts is the
+   * one place that decides.
+   */
+  openHour: 9,
+  closeHour: 17,
+  /** How long before closing the board starts saying 「まもなく終了」. */
+  closingSoonMin: 30,
 } as const;
 
 export const OBSERVATION_WINDOW_MS = CONFIG.observationWindowMin * 60_000;

@@ -8,12 +8,37 @@
     <meta name="theme-color" content="#1d1712" media="(prefers-color-scheme: dark)" />
     <meta name="description" content="弘済ビル4Fラウンジのドリンクマシンの状態を、みんなの投稿から集約してお知らせします。" />
     <title>4Fドリンク速報｜集合知</title>
+    <!-- SVG が第一候補。対応しないブラウザは 32px PNG に落ちます。
+         apple-touch-icon は iOS 側が角丸マスクをかけるので角なしの正方形です。 -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap"
       rel="stylesheet"
     />
+    <script>
+      /*
+       * Resolve the theme before the first paint. Without this the page renders
+       * light and then flips, which is worse on a dark-mode device than having
+       * no dark mode at all. Kept inline and tiny so it blocks for a moment
+       * rather than a round trip.
+       */
+      (function () {
+        try {
+          var saved = localStorage.getItem('drink-status-theme'); // 'light' | 'dark' | 'system' | null
+          var dark =
+            saved === 'dark' ||
+            (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

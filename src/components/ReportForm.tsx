@@ -12,6 +12,7 @@ import {
   type SubjectKey,
 } from '../../shared/domain.js';
 import { CONFIG } from '../../shared/config.js';
+import type { LoungeHours } from '../../shared/hours.js';
 import { PALETTE, statusColor } from '../lib/palette.js';
 import { SubjectIcon } from './SubjectIcon.js';
 
@@ -50,6 +51,7 @@ const QUEUE_CHOICES: Choice[] = QUEUE_LEVELS.map((l) => ({
 }));
 
 export interface ReportFormProps {
+  hours: LoungeHours;
   selected: SubjectKey;
   onSelect: (subject: SubjectKey) => void;
   onPost: (value: ReportValue) => void;
@@ -62,7 +64,7 @@ export interface ReportFormProps {
  * Step 2 swaps its buttons based on step 1: stock states for the materials,
  * head counts for the queue. Same two taps either way.
  */
-export function ReportForm({ selected, onSelect, onPost, posting }: ReportFormProps) {
+export function ReportForm({ hours, selected, onSelect, onPost, posting }: ReportFormProps) {
   const isQueue = selected === QUEUE_SUBJECT;
   const choices = isQueue ? QUEUE_CHOICES : SUPPLY_CHOICES;
 
@@ -73,6 +75,14 @@ export function ReportForm({ selected, onSelect, onPost, posting }: ReportFormPr
           <h2 className="section__title">今の状態をおしえてください</h2>
           <span className="section__note">4Fで確認した状態を、1タップで共有</span>
         </div>
+
+        {/* Posting stays available outside opening hours — restocking happens
+            then, and 「補充された」 is worth recording whenever it is seen. */}
+        {hours.state === 'closed' && (
+          <p className="report__closed" role="note">
+            いまは開放時間外です（{hours.rangeLabel}）。補充などで状態が変わった場合は投稿できます。
+          </p>
+        )}
 
         <div className="report__step">
           <span className="report__step-no" aria-hidden="true">

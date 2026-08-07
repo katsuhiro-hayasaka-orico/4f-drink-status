@@ -13,6 +13,7 @@ import {
   type ConfidenceKey,
   type SubjectKey,
 } from '../shared/domain.js';
+import { loungeHours } from '../shared/hours.js';
 import { relativeTime } from '../shared/time.js';
 
 import { AboutDialog } from './components/AboutDialog.js';
@@ -28,6 +29,7 @@ import { Section } from './components/Section.js';
 import { SummaryPanel, type Metric } from './components/SummaryPanel.js';
 import { ToastBar } from './components/ToastBar.js';
 import { useDrinkStatus } from './hooks/useDrinkStatus.js';
+import { useTheme } from './hooks/useTheme.js';
 import { PALETTE } from './lib/palette.js';
 
 const CONFIDENCE_SHORT: Record<ConfidenceKey, string> = {
@@ -71,6 +73,7 @@ export function App() {
   const { reports, me, now, loadError, posting, toast, autoOn, toggleAuto, post, undo } =
     useDrinkStatus();
 
+  const { preference: themePreference, choose: chooseTheme } = useTheme();
   const [selectedSubject, setSelectedSubject] = useState<SubjectKey>('coffeeBeans');
   const [filter, setFilter] = useState<FilterKey>('all');
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -80,6 +83,7 @@ export function App() {
     const overall = overallState(statuses, SUBJECT_LABELS);
     const focus = focusSummary(summaries, statuses);
     const queue = summarizeQueue(reports, now);
+    const hours = loungeHours(now);
 
     const latest = reports.reduce<number | null>(
       (max, r) => (max === null || r.createdAt > max ? r.createdAt : max),
@@ -106,6 +110,7 @@ export function App() {
       levels,
       overall,
       queue,
+      hours,
       lastUpdated,
       metrics: buildMetrics(focus, lastUpdated, validVotes, recentPeople, dayPeople),
     };
@@ -113,7 +118,14 @@ export function App() {
 
   return (
     <div className="page">
-      <Header lastUpdated={view.lastUpdated} autoOn={autoOn} onToggleAuto={toggleAuto} />
+      <Header
+        lastUpdated={view.lastUpdated}
+        autoOn={autoOn}
+        onToggleAuto={toggleAuto}
+        hours={view.hours}
+        themePreference={themePreference}
+        onThemeChange={chooseTheme}
+      />
 
       <main className="main">
         {loadError && (
@@ -128,7 +140,7 @@ export function App() {
               <MachineIllustration levels={view.levels} />
             </div>
           )}
-          <SummaryPanel overall={view.overall} metrics={view.metrics} />
+          <SummaryPanel overall={view.overall} metrics={view.metrics} hours={view.hours} />
         </section>
 
         <Section
@@ -148,6 +160,7 @@ export function App() {
         </Section>
 
         <ReportForm
+          hours={view.hours}
           selected={selectedSubject}
           onSelect={setSelectedSubject}
           onPost={(action) => void post(selectedSubject, action)}

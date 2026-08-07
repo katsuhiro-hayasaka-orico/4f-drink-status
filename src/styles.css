@@ -80,65 +80,68 @@
  * text that sits on top of them flips from cream to near-black to stay
  * readable. The offset "shadow" under cards becomes an actual shadow instead
  * of the lighter-than-surface colour it is on a light page.
+ *
+ * Keyed on an attribute rather than the media query directly: an inline script
+ * in index.html resolves the OS preference (or the user's saved override) into
+ * `data-theme` before the first paint, so the values live in one place and the
+ * switcher in the header is just another way of setting the same attribute.
  */
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
+:root[data-theme='dark'] {
+  color-scheme: dark;
 
-    --page: #14100c;
-    --card: #221c16;
-    --panel: #2b241c;
+  --page: #14100c;
+  --card: #221c16;
+  --panel: #2b241c;
 
-    --ink: #f2e8d8;
-    --body-text: #c9b9a4;
-    --muted: #9d8b76;
+  --ink: #f2e8d8;
+  --body-text: #c9b9a4;
+  --muted: #9d8b76;
 
-    --line: #453a2e;
-    --drop: #0c0907;
-    --track: #362c22;
+  --line: #453a2e;
+  --drop: #0c0907;
+  --track: #362c22;
 
-    --header-bg: #1d1712;
-    --header-fg: #f2e8d8;
-    --header-hairline: rgba(242, 232, 216, 0.35);
-    --header-wash: rgba(242, 232, 216, 0.1);
+  --header-bg: #1d1712;
+  --header-fg: #f2e8d8;
+  --header-hairline: rgba(242, 232, 216, 0.35);
+  --header-wash: rgba(242, 232, 216, 0.1);
 
-    --selected-bg: #d98a52;
-    --selected-fg: #1a1410;
+  --selected-bg: #d98a52;
+  --selected-fg: #1a1410;
 
-    --overlay-bg: #322a22;
-    --overlay-fg: #f2e8d8;
-    --scrim: rgba(8, 6, 4, 0.7);
+  --overlay-bg: #322a22;
+  --overlay-fg: #f2e8d8;
+  --scrim: rgba(8, 6, 4, 0.7);
 
-    --accent: #d98a52;
-    --accent-light: #e8a570;
-    --selection: #4a3a2a;
+  --accent: #d98a52;
+  --accent-light: #e8a570;
+  --selection: #4a3a2a;
 
-    --available: #8fb069;
-    --low: #d98a52;
-    --unavailable: #e07a62;
-    --none: #9d8b76;
-    --on-status: #17120e;
+  --available: #8fb069;
+  --low: #d98a52;
+  --unavailable: #e07a62;
+  --none: #9d8b76;
+  --on-status: #17120e;
 
-    --vessel: #2a231c;
-    --vessel-rim: #52463a;
-    /* Lifted off the card so the cabinet keeps an outline on a dark surface. */
-    --machine-body: #3a2e24;
-    --machine-edge: #120d09;
-    --machine-lid: #46372a;
-    /* The cup is white china; sinking it into the cabinet reads as a hole. */
-    --cup: #d5c8b4;
-    --cup-rim: #9c8d78;
+  --vessel: #2a231c;
+  --vessel-rim: #52463a;
+  /* Lifted off the card so the cabinet keeps an outline on a dark surface. */
+  --machine-body: #3a2e24;
+  --machine-edge: #120d09;
+  --machine-lid: #46372a;
+  /* The cup is white china; sinking it into the cabinet reads as a hole. */
+  --cup: #d5c8b4;
+  --cup-rim: #9c8d78;
 
-    --hot-fg: #e8a06a;
-    --hot-bg: #3a281c;
-    --hot-line: #5c412c;
-    --iced-fg: #96c2d8;
-    --iced-bg: #1e2c33;
-    --iced-line: #365260;
+  --hot-fg: #e8a06a;
+  --hot-bg: #3a281c;
+  --hot-line: #5c412c;
+  --iced-fg: #96c2d8;
+  --iced-bg: #1e2c33;
+  --iced-line: #365260;
 
-    --toast-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
-    --dialog-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
-  }
+  --toast-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
+  --dialog-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
 }
 
 * {
@@ -1174,4 +1177,90 @@ a:focus-visible {
 .fig-label {
   fill: var(--ink);
   stroke: var(--vessel);
+}
+
+/* -------------------------------------------------------- opening hours -- */
+
+.header__hours {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.header__hours-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Open is the unremarkable case, so it stays in the header's own colour. */
+.header__hours--open {
+  color: var(--header-fg);
+}
+
+.header__hours--closingSoon,
+.header__hours--closed {
+  color: var(--accent-light);
+}
+
+.header__hours-range {
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+/* ------------------------------------------------------- theme switcher -- */
+
+.theme-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1.5px solid var(--header-hairline);
+  border-radius: 99px;
+}
+
+.theme-switch__button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 99px;
+  background: none;
+  color: var(--header-fg);
+  opacity: 0.6;
+}
+
+.theme-switch__button:hover {
+  opacity: 1;
+  background: var(--header-wash);
+}
+
+.theme-switch__button[aria-pressed='true'] {
+  opacity: 1;
+  background: var(--header-fg);
+  color: var(--header-bg);
+}
+
+.summary__headline--closed {
+  color: var(--muted);
+}
+
+.summary__aside {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.report__closed {
+  margin: 14px 0 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1.5px dashed var(--line);
+  font-size: 13px;
+  color: var(--body-text);
+  line-height: 1.6;
 }
