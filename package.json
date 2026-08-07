@@ -14,7 +14,8 @@
     "db:migrate:local": "wrangler d1 migrations apply drink-status --local",
     "db:migrate:remote": "wrangler d1 migrations apply drink-status --remote",
     "db:seed:local": "node scripts/seed.mjs > .seed.sql && wrangler d1 execute drink-status --local --file .seed.sql && rm -f .seed.sql",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "predeploy": "node scripts/preflight.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
