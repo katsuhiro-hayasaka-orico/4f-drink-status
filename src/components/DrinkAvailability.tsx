@@ -1,6 +1,7 @@
 import { RECIPES, drinkAvailability, type Recipe } from '../../shared/drinks.js';
 import type { StatusKey, SupplySubjectKey } from '../../shared/domain.js';
 import { statusColor } from '../lib/palette.js';
+import { DrinkFigure } from './DrinkFigure.js';
 
 /**
  * Hot and iced are shown as separate groups.
@@ -55,17 +56,26 @@ export function DrinkAvailability({ statuses }: DrinkAvailabilityProps) {
               const d = drinkAvailability(recipe, statuses);
               const color = statusColor(d.status);
               return (
-                <div className="card" key={d.name}>
-                  <div className="drink__head">
-                    <span className="drink__mark" style={{ background: color }} aria-hidden="true">
-                      {d.mark}
-                    </span>
-                    <span className="drink__name">{d.name}</span>
+                <div className="card drink" key={d.name}>
+                  <div className="drink__top">
+                    <div className="drink__info">
+                      <div className="drink__head">
+                        <span
+                          className="drink__mark"
+                          style={{ background: color }}
+                          aria-hidden="true"
+                        >
+                          {d.mark}
+                        </span>
+                        <span className="drink__name">{d.name}</span>
+                      </div>
+                      <div className="drink__state" style={{ color }}>
+                        {d.stateText}
+                      </div>
+                      <p className="drink__reason">{d.reason}</p>
+                    </div>
+                    <DrinkFigure base={recipe.base} iced={recipe.iced} status={d.status} />
                   </div>
-                  <div className="drink__state" style={{ color }}>
-                    {d.stateText}
-                  </div>
-                  <p className="drink__reason">{d.reason}</p>
                   <div className="drink__required">
                     <strong>必要な材料</strong>　{d.requiredLabel}
                   </div>

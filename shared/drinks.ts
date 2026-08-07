@@ -5,21 +5,30 @@ import {
   type SupplySubjectKey,
 } from './domain.js';
 
+/** Which liquid ends up in the cup — drives the colour in the illustration. */
+export type DrinkBase = 'coffee' | 'cocoa' | 'auLait';
+
 /** What the machine can pour, and what each pour consumes. */
 export interface Recipe {
   name: string;
   requires: readonly MaterialKey[];
   /** Iced drinks additionally depend on the ice maker. */
   iced: boolean;
+  base: DrinkBase;
 }
 
 export const RECIPES: readonly Recipe[] = [
-  { name: 'コーヒー', requires: ['coffeeBeans'], iced: false },
-  { name: 'ココア', requires: ['cocoaPowder'], iced: false },
-  { name: 'カフェオレ', requires: ['coffeeBeans', 'milkPowder'], iced: false },
-  { name: 'アイスコーヒー', requires: ['coffeeBeans', 'ice'], iced: true },
-  { name: 'アイスココア', requires: ['cocoaPowder', 'ice'], iced: true },
-  { name: 'アイスカフェオレ', requires: ['coffeeBeans', 'milkPowder', 'ice'], iced: true },
+  { name: 'コーヒー', requires: ['coffeeBeans'], iced: false, base: 'coffee' },
+  { name: 'ココア', requires: ['cocoaPowder'], iced: false, base: 'cocoa' },
+  { name: 'カフェオレ', requires: ['coffeeBeans', 'milkPowder'], iced: false, base: 'auLait' },
+  { name: 'アイスコーヒー', requires: ['coffeeBeans', 'ice'], iced: true, base: 'coffee' },
+  { name: 'アイスココア', requires: ['cocoaPowder', 'ice'], iced: true, base: 'cocoa' },
+  {
+    name: 'アイスカフェオレ',
+    requires: ['coffeeBeans', 'milkPowder', 'ice'],
+    iced: true,
+    base: 'auLait',
+  },
 ];
 
 export interface DrinkAvailability {

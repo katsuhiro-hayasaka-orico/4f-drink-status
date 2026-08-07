@@ -430,6 +430,27 @@ a:focus-visible {
   color: var(--muted);
 }
 
+.drink__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.drink__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.drink-figure {
+  flex: none;
+  margin-top: -2px;
+}
+
+/* An empty cup shouldn't compete with the ones you can actually order. */
+.drink-figure--empty {
+  opacity: 0.4;
+}
+
 .drink__state {
   font-size: 20px;
   font-weight: 900;
