@@ -1,28 +1,144 @@
 /*
  * 4Fドリンク速報 — 「カフェの温かみ」テーマ
- * Values here are the design's inline styles lifted verbatim into tokens.
+ *
+ * Light values are the design's inline styles lifted verbatim into tokens.
+ * Tokens are named for the role they play rather than the colour they hold,
+ * because the two diverge in dark mode: a selected chip is the darkest thing
+ * on a light page and the brightest on a dark one.
  */
 :root {
-  --cream: #f5edde; /* page canvas */
+  color-scheme: light;
+
+  /* surfaces */
+  --page: #f5edde; /* page canvas */
   --card: #fffaf0; /* raised surfaces */
   --panel: #efe3cd; /* the report form's sunken panel */
-  --espresso: #2b1f18; /* header, primary buttons */
+
+  /* text */
   --ink: #33261c; /* headings / body */
   --body-text: #6a5240; /* paragraphs */
   --muted: #8a6a50; /* labels, captions */
+
+  /* lines and decoration */
   --line: #d9c8ac; /* hairlines & control borders */
   --drop: #e3d5bd; /* the flat offset shadow under cards */
   --track: #eee0c8; /* meter troughs */
+
+  /* the dark bar at the top */
+  --header-bg: #2b1f18;
+  --header-fg: #f5edde;
+  --header-hairline: rgba(245, 237, 222, 0.45);
+  --header-wash: rgba(245, 237, 222, 0.14);
+
+  /* pressed chips and filters, and primary buttons */
+  --selected-bg: #2b1f18;
+  --selected-fg: #f5edde;
+
+  /* toasts and the about dialog */
+  --overlay-bg: #2b1f18;
+  --overlay-fg: #f5edde;
+  --scrim: rgba(43, 31, 24, 0.55);
+
   --accent: #b4552d;
   --accent-light: #c96f42;
+  --selection: #eed9b8;
 
   --available: #5e7a4a;
   --low: #b4552d;
   --unavailable: #a63c28;
   --none: #8a6a50;
+  /* text placed on top of a filled status colour */
+  --on-status: #fffaf0;
+
+  /* the illustrations: vessel interiors and their rims */
+  --vessel: #fdf8ee;
+  --vessel-rim: #d9c8ac;
+  --machine-body: #2b1f18;
+  --machine-edge: #1a100b;
+  --machine-lid: #2b1f18;
+  --cup: #fffaf0;
+  --cup-rim: #d9c8ac;
+
+  /* HOT / ICE group badges */
+  --hot-fg: #a8502a;
+  --hot-bg: #f6e4d7;
+  --hot-line: #e0bfa6;
+  --iced-fg: #4a6b7c;
+  --iced-bg: #dce9f0;
+  --iced-line: #a3c2d3;
+
+  --toast-shadow: 0 14px 34px rgba(43, 31, 24, 0.35);
+  --dialog-shadow: 0 20px 60px rgba(43, 31, 24, 0.35);
 
   --shell: 1200px;
   --card-shadow: 0 4px 0 var(--drop);
+}
+
+/*
+ * Dark mode. The status colours are lightened rather than reused — the light
+ * greens and reds are legible on cream but muddy on a dark surface — and the
+ * text that sits on top of them flips from cream to near-black to stay
+ * readable. The offset "shadow" under cards becomes an actual shadow instead
+ * of the lighter-than-surface colour it is on a light page.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --page: #14100c;
+    --card: #221c16;
+    --panel: #2b241c;
+
+    --ink: #f2e8d8;
+    --body-text: #c9b9a4;
+    --muted: #9d8b76;
+
+    --line: #453a2e;
+    --drop: #0c0907;
+    --track: #362c22;
+
+    --header-bg: #1d1712;
+    --header-fg: #f2e8d8;
+    --header-hairline: rgba(242, 232, 216, 0.35);
+    --header-wash: rgba(242, 232, 216, 0.1);
+
+    --selected-bg: #d98a52;
+    --selected-fg: #1a1410;
+
+    --overlay-bg: #322a22;
+    --overlay-fg: #f2e8d8;
+    --scrim: rgba(8, 6, 4, 0.7);
+
+    --accent: #d98a52;
+    --accent-light: #e8a570;
+    --selection: #4a3a2a;
+
+    --available: #8fb069;
+    --low: #d98a52;
+    --unavailable: #e07a62;
+    --none: #9d8b76;
+    --on-status: #17120e;
+
+    --vessel: #2a231c;
+    --vessel-rim: #52463a;
+    /* Lifted off the card so the cabinet keeps an outline on a dark surface. */
+    --machine-body: #3a2e24;
+    --machine-edge: #120d09;
+    --machine-lid: #46372a;
+    /* The cup is white china; sinking it into the cabinet reads as a hole. */
+    --cup: #d5c8b4;
+    --cup-rim: #9c8d78;
+
+    --hot-fg: #e8a06a;
+    --hot-bg: #3a281c;
+    --hot-line: #5c412c;
+    --iced-fg: #96c2d8;
+    --iced-bg: #1e2c33;
+    --iced-line: #365260;
+
+    --toast-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
+    --dialog-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  }
 }
 
 * {
@@ -35,7 +151,7 @@ body {
 }
 
 body {
-  background: var(--cream);
+  background: var(--page);
   color: var(--ink);
   font-family: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', 'Hiragino Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -57,13 +173,13 @@ a:hover {
 }
 
 ::selection {
-  background: #eed9b8;
+  background: var(--selection);
 }
 
 button:focus-visible,
 select:focus-visible,
 a:focus-visible {
-  outline: 3px solid rgba(180, 85, 45, 0.5);
+  outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
   outline-offset: 2px;
 }
 
@@ -82,7 +198,7 @@ a:focus-visible {
 
 .page {
   min-height: 100vh;
-  background: var(--cream);
+  background: var(--page);
 }
 
 .shell {
@@ -106,8 +222,8 @@ a:focus-visible {
 /* --------------------------------------------------------------- header -- */
 
 .header {
-  background: var(--espresso);
-  color: var(--cream);
+  background: var(--header-bg);
+  color: var(--header-fg);
 }
 
 .header__inner {
@@ -149,7 +265,7 @@ a:focus-visible {
   font-weight: 700;
   padding: 3px 10px;
   border-radius: 99px;
-  border: 1.5px solid rgba(245, 237, 222, 0.45);
+  border: 1.5px solid var(--header-hairline);
   opacity: 0.9;
   white-space: nowrap;
 }
@@ -172,17 +288,17 @@ a:focus-visible {
 
 .header__toggle {
   background: none;
-  border: 1.5px solid rgba(245, 237, 222, 0.45);
+  border: 1.5px solid var(--header-hairline);
   border-radius: 99px;
   padding: 6px 14px;
   font-weight: 700;
   font-size: 12px;
-  color: var(--cream);
+  color: var(--header-fg);
   white-space: nowrap;
 }
 
 .header__toggle:hover {
-  background: rgba(245, 237, 222, 0.14);
+  background: var(--header-wash);
 }
 
 /* ------------------------------------------------------------- overview -- */
@@ -378,7 +494,7 @@ a:focus-visible {
   border-radius: 50%;
   font-weight: 900;
   font-size: 15px;
-  color: var(--card);
+  color: var(--on-status);
 }
 
 .drink__name {
@@ -408,15 +524,15 @@ a:focus-visible {
 }
 
 .drink-group__badge--hot {
-  color: #a8502a;
-  background: #f6e4d7;
-  border: 1.5px solid #e0bfa6;
+  color: var(--hot-fg);
+  background: var(--hot-bg);
+  border: 1.5px solid var(--hot-line);
 }
 
 .drink-group__badge--iced {
-  color: #4a6b7c;
-  background: #dce9f0;
-  border: 1.5px solid #a3c2d3;
+  color: var(--iced-fg);
+  background: var(--iced-bg);
+  border: 1.5px solid var(--iced-line);
 }
 
 .drink-group__label {
@@ -504,7 +620,7 @@ a:focus-visible {
   height: 24px;
   border-radius: 50%;
   background: var(--accent);
-  color: var(--card);
+  color: var(--on-status);
   font-size: 13px;
 }
 
@@ -544,15 +660,15 @@ a:focus-visible {
 }
 
 .chip[aria-pressed='true'] {
-  border-color: var(--espresso);
-  background: var(--espresso);
-  color: var(--cream);
+  border-color: var(--selected-bg);
+  background: var(--selected-bg);
+  color: var(--selected-fg);
   font-weight: 900;
 }
 
 .chip[aria-pressed='true'] .chip__icon {
-  color: var(--cream);
-  --icon-bg: var(--espresso);
+  color: var(--selected-fg);
+  --icon-bg: var(--selected-bg);
 }
 
 .chip:hover:not([aria-pressed='true']) {
@@ -599,7 +715,7 @@ a:focus-visible {
   border-radius: 50%;
   font-weight: 900;
   font-size: 16px;
-  color: var(--card);
+  color: var(--on-status);
   background: var(--tone);
 }
 
@@ -793,9 +909,9 @@ a:focus-visible {
 }
 
 .filter[aria-pressed='true'] {
-  border-color: var(--espresso);
-  background: var(--espresso);
-  color: var(--cream);
+  border-color: var(--selected-bg);
+  background: var(--selected-bg);
+  color: var(--selected-fg);
   font-weight: 900;
 }
 
@@ -891,10 +1007,10 @@ a:focus-visible {
   gap: 16px;
   padding: 14px 18px;
   border-radius: 16px;
-  background: var(--espresso);
-  color: var(--cream);
+  background: var(--overlay-bg);
+  color: var(--overlay-fg);
   animation: toastin 0.18s ease;
-  box-shadow: 0 14px 34px rgba(43, 31, 24, 0.35);
+  box-shadow: var(--toast-shadow);
 }
 
 .toast__text {
@@ -907,7 +1023,7 @@ a:focus-visible {
   background: none;
   border: 2px solid var(--accent-light);
   border-radius: 99px;
-  color: var(--cream);
+  color: var(--overlay-fg);
   padding: 7px 14px;
   font-weight: 900;
   font-size: 12px;
@@ -930,7 +1046,7 @@ a:focus-visible {
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(43, 31, 24, 0.55);
+  background: var(--scrim);
 }
 
 .dialog {
@@ -938,7 +1054,7 @@ a:focus-visible {
   padding: 28px;
   background: var(--card);
   border-radius: 22px;
-  box-shadow: 0 20px 60px rgba(43, 31, 24, 0.35);
+  box-shadow: var(--dialog-shadow);
 }
 
 .dialog__head {
@@ -979,8 +1095,8 @@ a:focus-visible {
 }
 
 .dialog__close {
-  background: var(--espresso);
-  color: var(--cream);
+  background: var(--selected-bg);
+  color: var(--selected-fg);
   border: none;
   border-radius: 99px;
   padding: 11px 22px;
@@ -1013,4 +1129,49 @@ a:focus-visible {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* ------------------------------------------------------- illustrations -- */
+
+/*
+ * The two illustrations share these. Vessels and the machine cabinet follow
+ * the theme so they don't glow on a dark page; what is *inside* them (beans,
+ * powder, ice, liquid) keeps its real colour in both schemes, because that is
+ * what the picture is reporting.
+ */
+.fig-vessel {
+  fill: var(--vessel);
+  stroke: var(--vessel-rim);
+}
+
+.fig-vessel-line {
+  fill: none;
+  stroke: var(--vessel);
+}
+
+.fig-lid {
+  fill: var(--machine-lid);
+}
+
+.fig-body {
+  fill: var(--machine-body);
+  stroke: var(--machine-edge);
+}
+
+/* The cup under the spout stays light in both schemes — it is white china,
+   and matching it to the cabinet turned it into a silhouette. */
+.fig-cup {
+  fill: var(--cup);
+  stroke: var(--cup-rim);
+}
+
+.fig-cup-line {
+  fill: none;
+  stroke: var(--cup);
+}
+
+/* Sits on top of the vessel, so it takes the vessel as its knockout colour. */
+.fig-label {
+  fill: var(--ink);
+  stroke: var(--vessel);
 }

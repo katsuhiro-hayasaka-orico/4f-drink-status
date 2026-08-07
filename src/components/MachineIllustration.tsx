@@ -112,8 +112,7 @@ function LevelLabel({ x, pct }: { x: number; pct: number }) {
       textAnchor="middle"
       fontSize={19}
       fontWeight={800}
-      fill="#33261c"
-      stroke="#fdf8ee"
+      className="fig-label"
       strokeWidth={5}
       paintOrder="stroke"
       strokeLinejoin="round"
@@ -137,14 +136,14 @@ function DrinkMachineUnit({ levels, clip }: UnitProps) {
   return (
     <g transform={`translate(${MACHINE_SHIFT} 0)`}>
       {/* hopper shells */}
-      <rect x={74} y={44} width={132} height={174} rx={12} fill="#fdf8ee" stroke="#d9c8ac" strokeWidth={3} />
-      <rect x={214} y={44} width={132} height={174} rx={12} fill="#fdf8ee" stroke="#d9c8ac" strokeWidth={3} />
-      <rect x={354} y={44} width={132} height={174} rx={12} fill="#fdf8ee" stroke="#d9c8ac" strokeWidth={3} />
+      <rect x={74} y={44} width={132} height={174} rx={12} className="fig-vessel" strokeWidth={3} />
+      <rect x={214} y={44} width={132} height={174} rx={12} className="fig-vessel" strokeWidth={3} />
+      <rect x={354} y={44} width={132} height={174} rx={12} className="fig-vessel" strokeWidth={3} />
 
       {/* hopper lids */}
-      <rect x={69} y={32} width={142} height={20} rx={8} fill="#2b1f18" />
-      <rect x={209} y={32} width={142} height={20} rx={8} fill="#2b1f18" />
-      <rect x={349} y={32} width={142} height={20} rx={8} fill="#2b1f18" />
+      <rect x={69} y={32} width={142} height={20} rx={8} className="fig-lid" />
+      <rect x={209} y={32} width={142} height={20} rx={8} className="fig-lid" />
+      <rect x={349} y={32} width={142} height={20} rx={8} className="fig-lid" />
 
       {/* contents */}
       <g clipPath={`url(#${clip('coffee')})`}>
@@ -202,7 +201,7 @@ function DrinkMachineUnit({ levels, clip }: UnitProps) {
       <LevelLabel x={420} pct={clamp(levels.milkPowder)} />
 
       {/* cabinet */}
-      <rect x={55} y={200} width={450} height={276} rx={28} fill="#2b1f18" stroke="#1a100b" strokeWidth={5} />
+      <rect x={55} y={200} width={450} height={276} rx={28} className="fig-body" strokeWidth={5} />
       <rect x={89} y={232} width={382} height={150} rx={15} fill="#1d1510" stroke="#120b07" strokeWidth={4} />
 
       {/* selection buttons */}
@@ -229,14 +228,12 @@ function DrinkMachineUnit({ levels, clip }: UnitProps) {
       <ellipse cx={280} cy={437} rx={86} ry={12} fill="#241811" />
       <path
         d="M236 385h88v52c0 42-18 55-44 55s-44-13-44-55z"
-        fill="#fffaf0"
-        stroke="#d9c8ac"
+        className="fig-cup"
         strokeWidth={3}
       />
       <path
         d="M324 402c28 0 38 14 34 31-4 17-18 23-35 18"
-        fill="none"
-        stroke="#fffaf0"
+        className="fig-cup-line"
         strokeWidth={10}
         strokeLinecap="round"
       />
@@ -251,8 +248,8 @@ function IceMakerUnit({ levels, clip }: UnitProps) {
   return (
     <g>
       {/* hopper shell and lid, matching the machine's height exactly */}
-      <rect x={55} y={44} width={150} height={174} rx={12} fill="#fdf8ee" stroke="#d9c8ac" strokeWidth={3} />
-      <rect x={50} y={32} width={160} height={20} rx={8} fill="#2b1f18" />
+      <rect x={55} y={44} width={150} height={174} rx={12} className="fig-vessel" strokeWidth={3} />
+      <rect x={50} y={32} width={160} height={20} rx={8} className="fig-lid" />
 
       <g clipPath={`url(#${clip('ice')})`}>
         {icePct > 0 && (
@@ -285,7 +282,7 @@ function IceMakerUnit({ levels, clip }: UnitProps) {
       <LevelLabel x={130} pct={icePct} />
 
       {/* cabinet, scoop chute, and dispense tray */}
-      <rect x={55} y={200} width={150} height={276} rx={28} fill="#2b1f18" stroke="#1a100b" strokeWidth={5} />
+      <rect x={55} y={200} width={150} height={276} rx={28} className="fig-body" strokeWidth={5} />
       <rect x={77} y={232} width={106} height={110} rx={12} fill="#1d1510" stroke="#120b07" strokeWidth={4} />
       <rect x={103} y={258} width={54} height={40} rx={6} fill="#4a6b7c" />
       <rect x={115} y={268} width={30} height={20} rx={3} fill="#dce9f0" opacity={0.85} />

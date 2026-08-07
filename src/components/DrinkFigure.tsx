@@ -32,8 +32,8 @@ const FILL: Record<StatusKey, number> = {
   unavailable: 0,
 };
 
-const VESSEL = '#fffaf0';
-const RIM = '#d9c8ac';
+const VESSEL = 'var(--vessel)';
+const RIM = 'var(--vessel-rim)';
 
 /** Top edge of a floating cube: `rise` above the surface, but never above the rim. */
 function cubeTop(surfaceY: number, rise: number): number {
@@ -95,8 +95,7 @@ export function DrinkFigure({ base, iced, status }: DrinkFigureProps) {
           />
           <path
             d="M17 19h26l-2.4 39a5 5 0 0 1-5 4.7H24.4a5 5 0 0 1-5-4.7z"
-            fill={VESSEL}
-            stroke={RIM}
+            style={{ fill: VESSEL, stroke: RIM }}
             strokeWidth={2.4}
             strokeLinejoin="round"
           />
@@ -132,7 +131,7 @@ export function DrinkFigure({ base, iced, status }: DrinkFigureProps) {
               </>
             )}
           </g>
-          <path d="M17 19h26" stroke={RIM} strokeWidth={2.4} strokeLinecap="round" />
+          <path d="M17 19h26" style={{ stroke: RIM }} strokeWidth={2.4} strokeLinecap="round" />
         </>
       ) : (
         <>
@@ -140,21 +139,20 @@ export function DrinkFigure({ base, iced, status }: DrinkFigureProps) {
           <path
             d="M41 30c9 0 12 4.5 11 10.5-1 5.5-6 7.5-11.5 6.5"
             fill="none"
-            stroke={VESSEL}
+            style={{ stroke: VESSEL }}
             strokeWidth={6}
             strokeLinecap="round"
           />
           <path
             d="M41 30c9 0 12 4.5 11 10.5-1 5.5-6 7.5-11.5 6.5"
             fill="none"
-            stroke={RIM}
+            style={{ stroke: RIM }}
             strokeWidth={2.4}
             strokeLinecap="round"
           />
           <path
             d="M11 24h30v25a12 12 0 0 1-12 12h-6a12 12 0 0 1-12-12z"
-            fill={VESSEL}
-            stroke={RIM}
+            style={{ fill: VESSEL, stroke: RIM }}
             strokeWidth={2.4}
             strokeLinejoin="round"
           />
@@ -166,9 +164,9 @@ export function DrinkFigure({ base, iced, status }: DrinkFigureProps) {
               </>
             )}
           </g>
-          <path d="M11 24h30" stroke={RIM} strokeWidth={2.4} strokeLinecap="round" />
+          <path d="M11 24h30" style={{ stroke: RIM }} strokeWidth={2.4} strokeLinecap="round" />
           {/* saucer */}
-          <rect x={8} y={64} width={36} height={4.5} rx={2.25} fill={RIM} />
+          <rect x={8} y={64} width={36} height={4.5} rx={2.25} style={{ fill: RIM }} />
         </>
       )}
     </svg>

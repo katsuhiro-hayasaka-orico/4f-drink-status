@@ -3,7 +3,7 @@ import type { QueueSummary } from '../../shared/aggregate.js';
 import { CONFIG } from '../../shared/config.js';
 import { QUEUE_META, type ConfidenceKey } from '../../shared/domain.js';
 import { relativeTime } from '../../shared/time.js';
-import { PALETTE, statusColor } from '../lib/palette.js';
+import { NEUTRAL_LINE, ON_STATUS, PALETTE, statusColor } from '../lib/palette.js';
 
 const CONFIDENCE_LABEL: Record<ConfidenceKey, string> = {
   high: '確からしさ：高',
@@ -15,13 +15,13 @@ const CONFIDENCE_LABEL: Record<ConfidenceKey, string> = {
 function confidenceStyle(confidence: ConfidenceKey): CSSProperties {
   switch (confidence) {
     case 'high':
-      return { background: PALETTE.available, color: '#fffaf0' };
+      return { background: PALETTE.available, color: ON_STATUS };
     case 'medium':
       return { border: `2px solid ${PALETTE.low}`, color: PALETTE.low };
     case 'low':
       return { border: `2px solid ${PALETTE.unavailable}`, color: PALETTE.unavailable };
     case 'none':
-      return { border: '2px solid #d9c8ac', color: '#8a6a50' };
+      return { border: `2px solid ${NEUTRAL_LINE}`, color: PALETTE.none };
   }
 }
 
@@ -29,8 +29,8 @@ function confidenceStyle(confidence: ConfidenceKey): CSSProperties {
 function Figure({ color, faded }: { color: string; faded?: boolean }) {
   return (
     <svg viewBox="0 0 22 34" width={22} height={34} aria-hidden="true" style={{ opacity: faded ? 0.35 : 1 }}>
-      <circle cx={11} cy={7} r={6} fill={color} />
-      <path d="M11 15c6 0 9 4 9 10v9H2v-9c0-6 3-10 9-10z" fill={color} />
+      <circle cx={11} cy={7} r={6} style={{ fill: color }} />
+      <path d="M11 15c6 0 9 4 9 10v9H2v-9c0-6 3-10 9-10z" style={{ fill: color }} />
     </svg>
   );
 }
@@ -93,7 +93,7 @@ export function QueuePanel({ summary, now }: QueuePanelProps) {
           <div
             style={{
               width: `${summary.agreement}%`,
-              background: summary.level ? color : '#d9c8ac',
+              background: summary.level ? color : NEUTRAL_LINE,
             }}
           />
         </div>

@@ -1,0 +1,51 @@
+name: Deploy
+
+# main への push で本番へ出ます。手動実行も可能です。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 同時に走らせない。後から来た push が先の deploy を追い越さないようにします。
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # デプロイ前に落とせるものはここで落とします。壊れたものを本番に出すより、
+      # デプロイしないほうがましです。
+      - name: テスト
+        run: npm test
+
+      # build は typecheck を含みます（package.json 参照）。
+      - name: 型チェックとビルド
+        run: npm run build
+
+      # マイグレーションは CREATE TABLE IF NOT EXISTS で冪等、かつ wrangler が
+      # 適用済みのものを飛ばすため、毎回実行しても安全です。スキーマ変更を
+      # 手で流し忘れてデプロイが壊れるほうが起きやすい事故です。
+      - name: D1 マイグレーション適用
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: d1 migrations apply drink-status --remote
+
+      - name: デプロイ
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # ビルド済みの dist/client をそのまま使うので、ここでは deploy だけ。
+          command: deploy

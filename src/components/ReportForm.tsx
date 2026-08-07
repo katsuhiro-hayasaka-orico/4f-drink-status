@@ -20,7 +20,7 @@ const ACTION_TONE: Record<ActionKey, string> = {
   available: PALETTE.available,
   low: PALETTE.low,
   unavailable: PALETTE.unavailable,
-  refilled: '#8a6a50',
+  refilled: 'var(--muted)',
 };
 
 /** 「取れた 70％／残り少なめ 30％／…」, kept in step with ACTION_META. */

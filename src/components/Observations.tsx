@@ -3,7 +3,7 @@ import type { Summary } from '../../shared/aggregate.js';
 import { CONFIG } from '../../shared/config.js';
 import { SUBJECT_LABELS, type ConfidenceKey, type StatusOrNone } from '../../shared/domain.js';
 import { relativeTime } from '../../shared/time.js';
-import { PALETTE, statusColor } from '../lib/palette.js';
+import { NEUTRAL_LINE, ON_STATUS, PALETTE, statusColor } from '../lib/palette.js';
 
 const STATUS_TEXT: Record<StatusOrNone, string> = {
   available: '利用できます',
@@ -31,13 +31,13 @@ const CONFIDENCE_LABEL: Record<ConfidenceKey, string> = {
 function confidenceStyle(confidence: ConfidenceKey): CSSProperties {
   switch (confidence) {
     case 'high':
-      return { background: PALETTE.available, color: '#fffaf0' };
+      return { background: PALETTE.available, color: ON_STATUS };
     case 'medium':
       return { border: `2px solid ${PALETTE.low}`, color: PALETTE.low };
     case 'low':
       return { border: `2px solid ${PALETTE.unavailable}`, color: PALETTE.unavailable };
     case 'none':
-      return { border: '2px solid #d9c8ac', color: '#8a6a50' };
+      return { border: `2px solid ${NEUTRAL_LINE}`, color: PALETTE.none };
   }
 }
 
@@ -80,7 +80,7 @@ export function Observations({ summaries, now }: ObservationsProps) {
               <div
                 style={{
                   width: `${s.agreement}%`,
-                  background: s.status === 'none' ? '#d9c8ac' : statusColor(s.status),
+                  background: s.status === 'none' ? NEUTRAL_LINE : statusColor(s.status),
                 }}
               />
             </div>

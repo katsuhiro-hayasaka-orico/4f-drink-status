@@ -14,7 +14,7 @@ import {
   type SubjectKey,
 } from '../../shared/domain.js';
 import { relativeTime } from '../../shared/time.js';
-import { PALETTE, statusColor } from '../lib/palette.js';
+import { ON_STATUS, PALETTE, statusColor } from '../lib/palette.js';
 
 export type FilterKey = SubjectKey | 'all';
 
@@ -28,13 +28,13 @@ function tagStyle(subject: SubjectKey, value: ReportValue): CSSProperties {
   if (subject === QUEUE_SUBJECT) {
     const tone = QUEUE_META[value as QueueLevel].tone;
     return tone === 'unavailable'
-      ? { background: PALETTE.unavailable, color: '#fffaf0' }
+      ? { background: PALETTE.unavailable, color: ON_STATUS }
       : { border: `2px solid ${statusColor(tone)}`, color: statusColor(tone) };
   }
   const action = value as ActionKey;
-  if (action === 'refilled') return { border: '2px solid #8a6a50', color: '#8a6a50' };
+  if (action === 'refilled') return { border: '2px solid var(--muted)', color: 'var(--muted)' };
   const status = toStatus(action);
-  if (status === 'unavailable') return { background: PALETTE.unavailable, color: '#fffaf0' };
+  if (status === 'unavailable') return { background: PALETTE.unavailable, color: ON_STATUS };
   return { border: `2px solid ${PALETTE[status]}`, color: PALETTE[status] };
 }
 

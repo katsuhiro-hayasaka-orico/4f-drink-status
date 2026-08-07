@@ -26,7 +26,9 @@ const COMMON = {
   className: 'chip__icon',
 };
 
-const KNOCKOUT = 'var(--icon-bg)';
+/* Set through `style`, not a fill attribute: presentation attributes are
+   parsed before the cascade and cannot resolve var(). */
+const KNOCKOUT = { fill: 'var(--icon-bg)' } as const;
 
 /** Two beans, each with the split that makes a bean a bean. */
 function CoffeeBeans() {
@@ -37,7 +39,7 @@ function CoffeeBeans() {
         <path
           d="M8.2 3.4c-1.5 2.4-1.5 8 0 10.4"
           fill="none"
-          stroke={KNOCKOUT}
+          style={{ stroke: 'var(--icon-bg)' }}
           strokeWidth="1.5"
           strokeLinecap="round"
         />
@@ -47,7 +49,7 @@ function CoffeeBeans() {
         <path
           d="M15.8 10.2c-1.5 2.4-1.5 8 0 10.4"
           fill="none"
-          stroke={KNOCKOUT}
+          style={{ stroke: 'var(--icon-bg)' }}
           strokeWidth="1.5"
           strokeLinecap="round"
         />
@@ -84,7 +86,7 @@ function Milk() {
   return (
     <svg {...COMMON} fill="currentColor">
       <path d="M9.4 2h5.2v2.9l1.7 2.6a4 4 0 0 1 .7 2.2V20a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V9.7a4 4 0 0 1 .7-2.2l1.7-2.6z" />
-      <rect x="8.6" y="12.4" width="6.8" height="4.6" rx="0.8" fill={KNOCKOUT} />
+      <rect x="8.6" y="12.4" width="6.8" height="4.6" rx="0.8" style={KNOCKOUT} />
     </svg>
   );
 }
@@ -101,7 +103,7 @@ function Ice() {
         height="10.4"
         rx="2.6"
         transform="rotate(15 16.6 8.8)"
-        stroke={KNOCKOUT}
+        style={{ stroke: 'var(--icon-bg)' }}
         strokeWidth="1.6"
       />
     </svg>
@@ -116,8 +118,8 @@ function Machine() {
       <rect x="9.7" y="2" width="4.6" height="5.2" rx="1.1" />
       <rect x="15.8" y="2" width="4.6" height="5.2" rx="1.1" />
       <rect x="2.4" y="8.6" width="19.2" height="13.4" rx="2.4" />
-      <path d="M9.2 13.4h5.6v3.4a2.8 2.8 0 0 1-5.6 0z" fill={KNOCKOUT} />
-      <rect x="5.4" y="18.8" width="13.2" height="1.6" rx="0.8" fill={KNOCKOUT} />
+      <path d="M9.2 13.4h5.6v3.4a2.8 2.8 0 0 1-5.6 0z" style={KNOCKOUT} />
+      <rect x="5.4" y="18.8" width="13.2" height="1.6" rx="0.8" style={KNOCKOUT} />
     </svg>
   );
 }
