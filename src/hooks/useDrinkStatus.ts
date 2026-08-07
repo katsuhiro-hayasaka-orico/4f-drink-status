@@ -2,9 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CONFIG } from '../../shared/config.js';
 import {
   ACTION_META,
+  QUEUE_META,
+  QUEUE_SUBJECT,
   SUBJECT_LABELS,
   type ActionKey,
+  type QueueLevel,
   type Report,
+  type ReportValue,
   type SubjectKey,
 } from '../../shared/domain.js';
 import { ApiError, deleteReport, fetchReports, postReport } from '../lib/api.js';
@@ -12,6 +16,16 @@ import { ApiError, deleteReport, fetchReports, postReport } from '../lib/api.js'
 export interface Toast {
   kind: 'undo' | 'error';
   text: string;
+}
+
+/** Confirms what was posted, and what it changed. */
+function postedToast(subject: SubjectKey, value: ReportValue): string {
+  if (subject === QUEUE_SUBJECT) {
+    return `行列を「${QUEUE_META[value as QueueLevel].label}」で投稿しました。いまの混雑を再集計しました`;
+  }
+  const action = value as ActionKey;
+  const levelNote = subject === 'machine' ? '' : `（推定残量 ${ACTION_META[action].level}%）`;
+  return `${SUBJECT_LABELS[subject]}を「${ACTION_META[action].label}」で投稿しました。みんなの観測を再集計しました${levelNote}`;
 }
 
 /**
@@ -88,7 +102,7 @@ export function useDrinkStatus() {
   }, []);
 
   const post = useCallback(
-    async (subject: SubjectKey, action: ActionKey) => {
+    async (subject: SubjectKey, action: ReportValue) => {
       if (posting) return;
       setPosting(true);
 
@@ -103,12 +117,7 @@ export function useDrinkStatus() {
       };
       setReports((prev) => [optimistic, ...prev]);
 
-      const levelNote =
-        subject === 'machine' ? '' : `（推定残量 ${ACTION_META[action].level}%）`;
-      setToast({
-        kind: 'undo',
-        text: `${SUBJECT_LABELS[subject]}を「${ACTION_META[action].label}」で投稿しました。みんなの観測を再集計しました${levelNote}`,
-      });
+      setToast({ kind: 'undo', text: postedToast(subject, action) });
 
       undoTargetId.current = null;
       undoRequested.current = false;

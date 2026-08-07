@@ -1,9 +1,9 @@
 import { RECIPES, drinkAvailability } from '../../shared/drinks.js';
-import type { StatusKey, SubjectKey } from '../../shared/domain.js';
+import type { StatusKey, SupplySubjectKey } from '../../shared/domain.js';
 import { statusColor } from '../lib/palette.js';
 
 export interface DrinkAvailabilityProps {
-  statuses: Record<SubjectKey, StatusKey>;
+  statuses: Record<SupplySubjectKey, StatusKey>;
 }
 
 export function DrinkAvailability({ statuses }: DrinkAvailabilityProps) {
@@ -19,6 +19,11 @@ export function DrinkAvailability({ statuses }: DrinkAvailabilityProps) {
                 {d.mark}
               </span>
               <span className="drink__name">{d.name}</span>
+              {recipe.iced && (
+                <span className="drink__badge" aria-hidden="true">
+                  ICE
+                </span>
+              )}
             </div>
             <div className="drink__state" style={{ color }}>
               {d.stateText}

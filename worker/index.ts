@@ -11,7 +11,13 @@
  * built by Vite.
  */
 
-import { isActionKey, isSubjectKey, type Report, type ReportsResponse } from '../shared/domain.js';
+import {
+  QUEUE_SUBJECT,
+  isSubjectKey,
+  isValidReportValue,
+  type Report,
+  type ReportsResponse,
+} from '../shared/domain.js';
 import type { Env } from './env.js';
 import { resolveIdentity, withIdentityCookie, type Identity } from './identity.js';
 import {
@@ -65,7 +71,12 @@ async function handlePost(
 
   const { subject, action } = (payload ?? {}) as { subject?: unknown; action?: unknown };
   if (!isSubjectKey(subject)) return fail(400, '対象の指定が正しくありません');
-  if (!isActionKey(action)) return fail(400, '状態の指定が正しくありません');
+  if (!isValidReportValue(subject, action)) {
+    return fail(
+      400,
+      subject === QUEUE_SUBJECT ? '待ち人数の指定が正しくありません' : '状態の指定が正しくありません',
+    );
+  }
 
   const recent = await env.DB.prepare(
     'SELECT COUNT(*) AS n FROM reports WHERE user_id = ?1 AND created_at >= ?2',

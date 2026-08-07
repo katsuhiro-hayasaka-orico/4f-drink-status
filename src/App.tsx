@@ -3,10 +3,16 @@ import {
   aggregate,
   focusSummary,
   overallState,
+  summarizeQueue,
   type Summary,
 } from '../shared/aggregate.js';
 import { CONFIG, OBSERVATION_WINDOW_MS } from '../shared/config.js';
-import { SUBJECT_LABELS, type ConfidenceKey, type SubjectKey } from '../shared/domain.js';
+import {
+  QUEUE_SUBJECT,
+  SUBJECT_LABELS,
+  type ConfidenceKey,
+  type SubjectKey,
+} from '../shared/domain.js';
 import { relativeTime } from '../shared/time.js';
 
 import { AboutDialog } from './components/AboutDialog.js';
@@ -15,6 +21,7 @@ import { Header } from './components/Header.js';
 import { IngredientLevels } from './components/IngredientLevels.js';
 import { MachineIllustration } from './components/MachineIllustration.js';
 import { Observations } from './components/Observations.js';
+import { QueuePanel } from './components/QueuePanel.js';
 import { ReportBreakdown, type FilterKey } from './components/ReportBreakdown.js';
 import { ReportForm } from './components/ReportForm.js';
 import { Section } from './components/Section.js';
@@ -72,6 +79,7 @@ export function App() {
     const { summaries, statuses, levels } = aggregate(reports, now);
     const overall = overallState(statuses, SUBJECT_LABELS);
     const focus = focusSummary(summaries, statuses);
+    const queue = summarizeQueue(reports, now);
 
     const latest = reports.reduce<number | null>(
       (max, r) => (max === null || r.createdAt > max ? r.createdAt : max),
@@ -79,9 +87,14 @@ export function App() {
     );
     const lastUpdated = latest === null ? '情報なし' : relativeTime(latest, now);
 
+    // Both halves of 「N票・M人」 count supply reports only, so the metric stays
+    // internally consistent — queue reports live on a different window and are
+    // surfaced by the queue panel instead.
     const validVotes = summaries.reduce((sum, s) => sum + s.total, 0);
     const recentPeople = new Set(
-      reports.filter((r) => now - r.createdAt <= OBSERVATION_WINDOW_MS).map((r) => r.userId),
+      reports
+        .filter((r) => r.subject !== QUEUE_SUBJECT && now - r.createdAt <= OBSERVATION_WINDOW_MS)
+        .map((r) => r.userId),
     ).size;
     const dayPeople = new Set(
       reports.filter((r) => now - r.createdAt <= 86_400_000).map((r) => r.userId),
@@ -92,6 +105,7 @@ export function App() {
       statuses,
       levels,
       overall,
+      queue,
       lastUpdated,
       metrics: buildMetrics(focus, lastUpdated, validVotes, recentPeople, dayPeople),
     };
@@ -117,11 +131,19 @@ export function App() {
           <SummaryPanel overall={view.overall} metrics={view.metrics} />
         </section>
 
+        <Section
+          title="行列の待ち状況"
+          note={`過去${CONFIG.queueWindowMin}分の投稿から集約`}
+          footnote="混雑はすぐ変わるため、材料より短い集計ウィンドウを使い、新しい投稿ほど強く重み付けしています。"
+        >
+          <QueuePanel summary={view.queue} now={now} />
+        </Section>
+
         <Section title="材料の推定残量" note="みんなの投稿に基づく目安です">
           <IngredientLevels statuses={view.statuses} levels={view.levels} />
         </Section>
 
-        <Section title="ドリンクの作成可否">
+        <Section title="ドリンクの作成可否" note="アイスは氷の残量にも左右されます">
           <DrinkAvailability statuses={view.statuses} />
         </Section>
 

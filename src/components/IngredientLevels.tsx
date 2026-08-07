@@ -3,7 +3,7 @@ import {
   SUBJECT_LABELS,
   type MaterialKey,
   type StatusKey,
-  type SubjectKey,
+  type SupplySubjectKey,
 } from '../../shared/domain.js';
 import { statusColor } from '../lib/palette.js';
 
@@ -14,7 +14,7 @@ const DESCRIPTION: Record<StatusKey, string> = {
 };
 
 export interface IngredientLevelsProps {
-  statuses: Record<SubjectKey, StatusKey>;
+  statuses: Record<SupplySubjectKey, StatusKey>;
   levels: Record<MaterialKey, number>;
 }
 

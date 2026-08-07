@@ -2,15 +2,19 @@ import type { CSSProperties } from 'react';
 import { toStatus } from '../../shared/aggregate.js';
 import { CONFIG } from '../../shared/config.js';
 import {
-  ACTION_META,
+  QUEUE_META,
+  QUEUE_SUBJECT,
   SUBJECT_KEYS,
   SUBJECT_LABELS,
+  reportValueQuote,
   type ActionKey,
+  type QueueLevel,
   type Report,
+  type ReportValue,
   type SubjectKey,
 } from '../../shared/domain.js';
 import { relativeTime } from '../../shared/time.js';
-import { PALETTE } from '../lib/palette.js';
+import { PALETTE, statusColor } from '../lib/palette.js';
 
 export type FilterKey = SubjectKey | 'all';
 
@@ -20,7 +24,14 @@ const FILTERS: readonly { key: FilterKey; label: string }[] = [
 ];
 
 /** 作れない is filled rather than outlined — it's the one worth spotting. */
-function tagStyle(action: ActionKey): CSSProperties {
+function tagStyle(subject: SubjectKey, value: ReportValue): CSSProperties {
+  if (subject === QUEUE_SUBJECT) {
+    const tone = QUEUE_META[value as QueueLevel].tone;
+    return tone === 'unavailable'
+      ? { background: PALETTE.unavailable, color: '#fffaf0' }
+      : { border: `2px solid ${statusColor(tone)}`, color: statusColor(tone) };
+  }
+  const action = value as ActionKey;
   if (action === 'refilled') return { border: '2px solid #8a6a50', color: '#8a6a50' };
   const status = toStatus(action);
   if (status === 'unavailable') return { background: PALETTE.unavailable, color: '#fffaf0' };
@@ -67,8 +78,8 @@ export function ReportBreakdown({ reports, me, now, filter, onFilter }: ReportBr
             <div className="reports__row" key={r.id}>
               <span className="reports__subject">{SUBJECT_LABELS[r.subject]}</span>
               <span>
-                <span className="tag" style={tagStyle(r.action)}>
-                  {ACTION_META[r.action].quote}
+                <span className="tag" style={tagStyle(r.subject, r.action)}>
+                  {reportValueQuote(r.subject, r.action)}
                 </span>
               </span>
               <span className="reports__muted">{relativeTime(r.createdAt, now)}</span>

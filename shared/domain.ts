@@ -1,22 +1,45 @@
 /**
  * Domain vocabulary shared by the Worker API and the React client.
  *
- * Everything a report can be *about* (`SubjectKey`) and everything it can
- * *say* (`ActionKey`) is enumerated here, so the API can validate payloads
- * against the same table the UI renders from.
+ * Reports come in two kinds, and keeping them apart matters:
+ *
+ *   - **Supply reports** say something about stock or the machine itself
+ *     (取れた / 残り少なめ / 作れない / 補充された).
+ *   - **Queue reports** say how many people are waiting.
+ *
+ * They share a table and a voting model, but nothing else: 「補充された」 is
+ * meaningless for a queue, 「6人以上」 is meaningless for cocoa, and a queue
+ * observation goes stale in minutes where a stock observation stays useful
+ * for half an hour. The types below keep the two from being mixed up, and
+ * the API validates against exactly these tables.
  */
 
-export const SUBJECT_KEYS = ['coffeeBeans', 'cocoaPowder', 'milkPowder', 'machine'] as const;
-export type SubjectKey = (typeof SUBJECT_KEYS)[number];
-
-/** The three consumables, in display order. `machine` is deliberately excluded. */
-export const MATERIAL_KEYS = ['coffeeBeans', 'cocoaPowder', 'milkPowder'] as const;
+/** Consumables with a level, in display order. */
+export const MATERIAL_KEYS = ['coffeeBeans', 'cocoaPowder', 'milkPowder', 'ice'] as const;
 export type MaterialKey = (typeof MATERIAL_KEYS)[number];
+
+/** Everything reported with an `ActionKey`: the materials plus the machine. */
+export const SUPPLY_SUBJECT_KEYS = [...MATERIAL_KEYS, 'machine'] as const;
+export type SupplySubjectKey = (typeof SUPPLY_SUBJECT_KEYS)[number];
+
+/** The queue is reported with a `QueueLevel` instead. */
+export const QUEUE_SUBJECT = 'queue';
+
+/** Every subject a report can be about — used for chips and filters. */
+export const SUBJECT_KEYS = [...SUPPLY_SUBJECT_KEYS, QUEUE_SUBJECT] as const;
+export type SubjectKey = (typeof SUBJECT_KEYS)[number];
 
 export const ACTION_KEYS = ['available', 'low', 'unavailable', 'refilled'] as const;
 export type ActionKey = (typeof ACTION_KEYS)[number];
 
-/** What an aggregated subject resolves to. `none` means "no usable reports". */
+/** How busy the machine is. `none` here means "nobody waiting", not "no data". */
+export const QUEUE_LEVELS = ['empty', 'short', 'medium', 'long'] as const;
+export type QueueLevel = (typeof QUEUE_LEVELS)[number];
+
+/** What a report's `action` column can hold, depending on its subject. */
+export type ReportValue = ActionKey | QueueLevel;
+
+/** What an aggregated supply subject resolves to. `none` means "no usable reports". */
 export type StatusKey = 'available' | 'low' | 'unavailable';
 export type StatusOrNone = StatusKey | 'none';
 
@@ -26,7 +49,9 @@ export const SUBJECT_LABELS: Record<SubjectKey, string> = {
   coffeeBeans: 'コーヒー豆',
   cocoaPowder: 'ココア',
   milkPowder: 'ミルク',
+  ice: '氷',
   machine: 'マシン全体',
+  queue: '行列',
 };
 
 export interface ActionMeta {
@@ -46,19 +71,108 @@ export const ACTION_META: Record<ActionKey, ActionMeta> = {
   refilled: { label: '補充された', quote: '補充された', level: 100, mark: '↻' },
 };
 
+export interface QueueMeta {
+  /** Button copy in the report form. */
+  label: string;
+  /** Short form for the breakdown table. */
+  quote: string;
+  /** Headline copy in the queue panel. */
+  headline: string;
+  /** Rough wait, phrased as a range because the estimate deserves no more precision. */
+  wait: string;
+  mark: string;
+  /** Reuses the status palette rather than inventing a second colour scale. */
+  tone: StatusKey;
+  /** Representative head count, for the illustration and for ordering. */
+  people: number;
+}
+
+/**
+ * Wait estimates assume roughly 45 seconds per drink, which is about what the
+ * machine takes including the walk-up. Deliberately coarse — nobody needs to
+ * know whether it's 3 or 4 minutes, only whether it's worth going now.
+ */
+export const QUEUE_META: Record<QueueLevel, QueueMeta> = {
+  empty: {
+    label: '誰も並んでいない',
+    quote: '0人',
+    headline: '待たずに使えます',
+    wait: '待ち時間なし',
+    mark: '○',
+    tone: 'available',
+    people: 0,
+  },
+  short: {
+    label: '1〜2人待ち',
+    quote: '1〜2人',
+    headline: '少し待ちます',
+    wait: '目安 1〜2分',
+    mark: '1',
+    tone: 'available',
+    people: 2,
+  },
+  medium: {
+    label: '3〜5人待ち',
+    quote: '3〜5人',
+    headline: '混んでいます',
+    wait: '目安 3〜4分',
+    mark: '3',
+    tone: 'low',
+    people: 4,
+  },
+  long: {
+    label: '6人以上待ち',
+    quote: '6人以上',
+    headline: 'かなり混んでいます',
+    wait: '目安 5分以上',
+    mark: '6',
+    tone: 'unavailable',
+    people: 6,
+  },
+};
+
 export function isSubjectKey(v: unknown): v is SubjectKey {
   return typeof v === 'string' && (SUBJECT_KEYS as readonly string[]).includes(v);
+}
+
+export function isSupplySubjectKey(v: unknown): v is SupplySubjectKey {
+  return typeof v === 'string' && (SUPPLY_SUBJECT_KEYS as readonly string[]).includes(v);
 }
 
 export function isActionKey(v: unknown): v is ActionKey {
   return typeof v === 'string' && (ACTION_KEYS as readonly string[]).includes(v);
 }
 
+export function isQueueLevel(v: unknown): v is QueueLevel {
+  return typeof v === 'string' && (QUEUE_LEVELS as readonly string[]).includes(v);
+}
+
+/**
+ * The one place that decides whether a (subject, value) pair makes sense.
+ * Both the API and the client go through here, so a queue report can never
+ * carry 「補充された」 and cocoa can never be 「6人以上」.
+ */
+export function isValidReportValue(subject: SubjectKey, value: unknown): value is ReportValue {
+  return subject === QUEUE_SUBJECT ? isQueueLevel(value) : isActionKey(value);
+}
+
+export function isQueueReport(report: { subject: SubjectKey }): boolean {
+  return report.subject === QUEUE_SUBJECT;
+}
+
+/** The label shown for a report's value in the breakdown table. */
+export function reportValueQuote(subject: SubjectKey, value: ReportValue): string {
+  return subject === QUEUE_SUBJECT
+    ? QUEUE_META[value as QueueLevel].quote
+    : ACTION_META[value as ActionKey].quote;
+}
+
 /** A single observation posted by one person. */
 export interface Report {
   id: string;
   subject: SubjectKey;
-  action: ActionKey;
+  /** An `ActionKey` for supply subjects, a `QueueLevel` for the queue. */
+  action: ReportValue;
   /** Opaque per-device identifier; the unit of "one vote". */
   userId: string;
   /** Human-readable name shown in the breakdown table, e.g. 利用者A. */

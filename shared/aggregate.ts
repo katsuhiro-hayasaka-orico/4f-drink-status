@@ -15,16 +15,21 @@
 import {
   ACTION_META,
   MATERIAL_KEYS,
-  SUBJECT_KEYS,
+  QUEUE_LEVELS,
+  QUEUE_META,
+  QUEUE_SUBJECT,
+  SUPPLY_SUBJECT_KEYS,
   type ActionKey,
   type ConfidenceKey,
   type MaterialKey,
+  type QueueLevel,
   type Report,
   type StatusKey,
   type StatusOrNone,
   type SubjectKey,
+  type SupplySubjectKey,
 } from './domain.js';
-import { OBSERVATION_WINDOW_MS } from './config.js';
+import { OBSERVATION_WINDOW_MS, QUEUE_WINDOW_MS } from './config.js';
 
 const MINUTE = 60_000;
 
@@ -46,7 +51,7 @@ export function toStatus(action: ActionKey): StatusKey {
 }
 
 export interface Summary {
-  subject: SubjectKey;
+  subject: SupplySubjectKey;
   status: StatusOrNone;
   /** `refilled` when the winning status was carried by a refill report. */
   dominantAction: ActionKey | null;
@@ -61,7 +66,11 @@ export interface Summary {
   lastAt: number | null;
 }
 
-export function summarize(reports: readonly Report[], subject: SubjectKey, now: number): Summary {
+export function summarize(
+  reports: readonly Report[],
+  subject: SupplySubjectKey,
+  now: number,
+): Summary {
   const cutoff = now - OBSERVATION_WINDOW_MS;
 
   let candidates = reports
@@ -93,14 +102,15 @@ export function summarize(reports: readonly Report[], subject: SubjectKey, now: 
   const weighted: Record<StatusKey, number> = { available: 0, low: 0, unavailable: 0 };
   const counts: Record<StatusKey, number> = { available: 0, low: 0, unavailable: 0 };
   for (const v of votes) {
-    const s = toStatus(v.action);
+    const s = toStatus(v.action as ActionKey);
     weighted[s] += weight(v.createdAt, now);
     counts[s] += 1;
   }
 
   const urgent =
-    votes.filter((v) => toStatus(v.action) === 'unavailable' && now - v.createdAt <= 10 * MINUTE)
-      .length >= 2;
+    votes.filter(
+      (v) => toStatus(v.action as ActionKey) === 'unavailable' && now - v.createdAt <= 10 * MINUTE,
+    ).length >= 2;
 
   const status: StatusKey = urgent
     ? 'unavailable'
@@ -126,10 +136,11 @@ export function summarize(reports: readonly Report[], subject: SubjectKey, now: 
  * Fallbacks for a subject nobody has reported on inside the window. The board
  * should never render blank, so it shows a plausible resting state instead.
  */
-const DEFAULT_STATUS: Record<SubjectKey, StatusKey> = {
+const DEFAULT_STATUS: Record<SupplySubjectKey, StatusKey> = {
   coffeeBeans: 'available',
   cocoaPowder: 'low',
   milkPowder: 'available',
+  ice: 'available',
   machine: 'available',
 };
 
@@ -137,17 +148,18 @@ const DEFAULT_LEVEL: Record<MaterialKey, number> = {
   coffeeBeans: 75,
   cocoaPowder: 35,
   milkPowder: 80,
+  ice: 60,
 };
 
 export interface Aggregation {
   summaries: Summary[];
-  statuses: Record<SubjectKey, StatusKey>;
+  statuses: Record<SupplySubjectKey, StatusKey>;
   /** Estimated remaining stock per material, 0–100. */
   levels: Record<MaterialKey, number>;
 }
 
 export function aggregate(reports: readonly Report[], now: number): Aggregation {
-  const summaries = SUBJECT_KEYS.map((k) => summarize(reports, k, now));
+  const summaries = SUPPLY_SUBJECT_KEYS.map((k) => summarize(reports, k, now));
   const statuses = { ...DEFAULT_STATUS };
   const levels = { ...DEFAULT_LEVEL };
 
@@ -170,7 +182,7 @@ export interface Overall {
 }
 
 export function overallState(
-  statuses: Record<SubjectKey, StatusKey>,
+  statuses: Record<SupplySubjectKey, StatusKey>,
   subjectLabels: Record<SubjectKey, string>,
 ): Overall {
   if (statuses.machine === 'unavailable') {
@@ -198,11 +210,94 @@ export function overallState(
  * The material the header's 確からしさ metric speaks for: whatever is most
  * worth worrying about, falling back to whichever reading is shakiest.
  */
-export function focusSummary(summaries: readonly Summary[], statuses: Record<SubjectKey, StatusKey>) {
+export function focusSummary(
+  summaries: readonly Summary[],
+  statuses: Record<SupplySubjectKey, StatusKey>,
+) {
   const materials = summaries.filter((s) => s.subject !== 'machine');
+  // The shakiest-reading fallback only considers materials people have
+  // actually reported on. A material with no reports has 0% agreement, which
+  // would otherwise win every time and peg the headline metric to 「情報なし」
+  // however solid the rest of the board is.
+  const reported = materials.filter((s) => s.total > 0);
   return (
     materials.find((s) => statuses[s.subject] === 'unavailable') ??
     materials.find((s) => statuses[s.subject] === 'low') ??
-    [...materials].sort((a, b) => a.agreement - b.agreement)[0]
+    [...reported].sort((a, b) => a.agreement - b.agreement)[0] ??
+    materials[0]
   );
+}
+
+/* ------------------------------------------------------------------ queue -- */
+
+export interface QueueSummary {
+  /** null when nobody has reported inside the (short) queue window. */
+  level: QueueLevel | null;
+  total: number;
+  supporters: number;
+  agreement: number;
+  confidence: ConfidenceKey;
+  lastAt: number | null;
+}
+
+/**
+ * Queue votes decay far faster than stock votes: full weight for two minutes,
+ * then a steep slide to nothing at ten. Someone's five-minute-old glance still
+ * counts for something, but it must never outweigh what someone can see now.
+ */
+export function queueWeight(createdAt: number, now: number): number {
+  const age = now - createdAt;
+  if (age <= 2 * MINUTE) return 1;
+  if (age <= 5 * MINUTE) return 0.6;
+  if (age <= 10 * MINUTE) return 0.3;
+  return 0;
+}
+
+/** Busiest-first, so ties resolve toward the more cautious answer. */
+const QUEUE_PRIORITY: readonly QueueLevel[] = ['long', 'medium', 'short', 'empty'];
+
+export function summarizeQueue(reports: readonly Report[], now: number): QueueSummary {
+  const cutoff = now - QUEUE_WINDOW_MS;
+  const candidates = reports
+    .filter((r) => r.subject === QUEUE_SUBJECT && r.createdAt >= cutoff)
+    .sort((a, b) => b.createdAt - a.createdAt);
+
+  const byUser = new Map<string, Report>();
+  for (const r of candidates) if (!byUser.has(r.userId)) byUser.set(r.userId, r);
+  const votes = [...byUser.values()];
+
+  if (votes.length === 0) {
+    return { level: null, total: 0, supporters: 0, agreement: 0, confidence: 'none', lastAt: null };
+  }
+
+  const weighted = Object.fromEntries(QUEUE_LEVELS.map((l) => [l, 0])) as Record<QueueLevel, number>;
+  const counts = Object.fromEntries(QUEUE_LEVELS.map((l) => [l, 0])) as Record<QueueLevel, number>;
+  for (const v of votes) {
+    const level = v.action as QueueLevel;
+    weighted[level] += queueWeight(v.createdAt, now);
+    counts[level] += 1;
+  }
+
+  const level = [...QUEUE_PRIORITY].sort((a, b) => weighted[b] - weighted[a])[0];
+  const total = votes.length;
+  const supporters = counts[level];
+  const agreement = Math.round((supporters / total) * 100);
+  const lastAt = Math.max(...votes.map((v) => v.createdAt));
+  const age = now - lastAt;
+
+  // Stricter freshness than supply: a queue reading nobody has confirmed in
+  // the last few minutes is a guess, however many people once agreed on it.
+  let confidence: ConfidenceKey = 'low';
+  if (total >= 2 && agreement >= 67 && age <= 3 * MINUTE) confidence = 'high';
+  else if (agreement >= 50 && age <= 5 * MINUTE) confidence = 'medium';
+
+  return { level, total, supporters, agreement, confidence, lastAt };
+}
+
+/**
+ * Whether the queue is worth mentioning next to the machine's status. An empty
+ * or barely-there queue is the expected case and doesn't need calling out.
+ */
+export function queueIsNotable(summary: QueueSummary): boolean {
+  return summary.level !== null && QUEUE_META[summary.level].tone !== 'available';
 }

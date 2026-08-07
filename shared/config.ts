@@ -8,6 +8,12 @@ export const CONFIG = {
   showMachine: true,
   /** Reports older than this fall out of the aggregation entirely. */
   observationWindowMin: 30,
+  /**
+   * The queue gets a much shorter window. A 25-minute-old stock sighting is
+   * still worth something; a 25-minute-old queue sighting tells you nothing
+   * about whether to walk up there now.
+   */
+  queueWindowMin: 10,
   /** Initial state of the header's 自動更新 toggle. */
   autoRefresh: true,
   /** How often the client re-fetches while 自動更新 is ON. */
@@ -19,3 +25,4 @@ export const CONFIG = {
 } as const;
 
 export const OBSERVATION_WINDOW_MS = CONFIG.observationWindowMin * 60_000;
+export const QUEUE_WINDOW_MS = CONFIG.queueWindowMin * 60_000;

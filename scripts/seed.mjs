@@ -27,6 +27,15 @@ const SEED = [
   ['milkPowder', 'refilled', 'C', 18],
   ['milkPowder', 'available', 'L', 16],
   ['machine', 'available', 'D', 24],
+  // Ice runs down faster than the powders, so the sample data shows it low.
+  ['ice', 'low', 'A', 3],
+  ['ice', 'low', 'E', 6],
+  ['ice', 'available', 'M', 11],
+  // Queue reports sit inside the 10-minute queue window; the older one is
+  // there to show the recency weighting doing its job.
+  ['queue', 'medium', 'B', 1],
+  ['queue', 'medium', 'F', 2],
+  ['queue', 'short', 'G', 7],
 ];
 
 const users = [...new Set(SEED.map(([, , letter]) => letter))].sort();

@@ -204,9 +204,11 @@ a:focus-visible {
   place-items: center;
 }
 
+/* Wider than the original 430px because the ice maker sits beside the
+   machine; the rendered height stays about the same. */
 .machine-card__svg {
   width: 100%;
-  max-width: 430px;
+  max-width: 560px;
   height: auto;
   display: block;
 }
@@ -384,6 +386,19 @@ a:focus-visible {
   font-size: 16px;
 }
 
+.drink__badge {
+  margin-left: auto;
+  flex: none;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 99px;
+  color: #4a6b7c;
+  background: #dce9f0;
+  border: 1.5px solid #a3c2d3;
+}
+
 .drink__state {
   font-size: 20px;
   font-weight: 900;
@@ -517,6 +532,89 @@ a:focus-visible {
   font-weight: 900;
   font-size: 14px;
   margin-top: 8px;
+}
+
+/* ---------------------------------------------------------------- queue -- */
+
+.queue {
+  background: var(--card);
+  border-radius: 18px;
+  box-shadow: var(--card-shadow);
+  padding: 18px 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(200px, 1fr);
+  gap: 18px 28px;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .queue {
+    grid-template-columns: 1fr;
+  }
+}
+
+.queue__main {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+}
+
+.queue__figures {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  flex: none;
+  min-height: 34px;
+}
+
+.queue__empty-mark {
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--line);
+  line-height: 34px;
+}
+
+.queue__plus {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--muted);
+  align-self: center;
+}
+
+.queue__text {
+  min-width: 0;
+}
+
+.queue__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.queue__eyebrow {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.queue__headline {
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.25;
+  margin-top: 4px;
+}
+
+.queue__wait {
+  font-size: 13px;
+  color: var(--body-text);
+  margin-top: 2px;
+}
+
+.queue__meta {
+  min-width: 0;
 }
 
 /* --------------------------------------------------------- observations -- */

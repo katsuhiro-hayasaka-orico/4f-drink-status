@@ -1,4 +1,4 @@
-import type { ActionKey, Report, ReportsResponse, SubjectKey } from '../../shared/domain.js';
+import type { Report, ReportsResponse, ReportValue, SubjectKey } from '../../shared/domain.js';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -34,7 +34,7 @@ export function fetchReports(): Promise<ReportsResponse> {
 
 export function postReport(
   subject: SubjectKey,
-  action: ActionKey,
+  action: ReportValue,
 ): Promise<ReportsResponse & { report: Report }> {
   return request('/api/reports', {
     method: 'POST',

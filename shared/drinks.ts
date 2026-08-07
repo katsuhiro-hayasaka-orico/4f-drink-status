@@ -1,15 +1,25 @@
-import { SUBJECT_LABELS, type MaterialKey, type StatusKey, type SubjectKey } from './domain.js';
+import {
+  SUBJECT_LABELS,
+  type MaterialKey,
+  type StatusKey,
+  type SupplySubjectKey,
+} from './domain.js';
 
 /** What the machine can pour, and what each pour consumes. */
 export interface Recipe {
   name: string;
   requires: readonly MaterialKey[];
+  /** Iced drinks additionally depend on the ice maker. */
+  iced: boolean;
 }
 
 export const RECIPES: readonly Recipe[] = [
-  { name: 'コーヒー', requires: ['coffeeBeans'] },
-  { name: 'ココア', requires: ['cocoaPowder'] },
-  { name: 'カフェオレ', requires: ['coffeeBeans', 'milkPowder'] },
+  { name: 'コーヒー', requires: ['coffeeBeans'], iced: false },
+  { name: 'ココア', requires: ['cocoaPowder'], iced: false },
+  { name: 'カフェオレ', requires: ['coffeeBeans', 'milkPowder'], iced: false },
+  { name: 'アイスコーヒー', requires: ['coffeeBeans', 'ice'], iced: true },
+  { name: 'アイスココア', requires: ['cocoaPowder', 'ice'], iced: true },
+  { name: 'アイスカフェオレ', requires: ['coffeeBeans', 'milkPowder', 'ice'], iced: true },
 ];
 
 export interface DrinkAvailability {
@@ -37,15 +47,20 @@ const STATE_MARK: Record<StatusKey, string> = {
 /** A drink is only as good as its scarcest ingredient — and the machine itself. */
 export function drinkAvailability(
   recipe: Recipe,
-  statuses: Record<SubjectKey, StatusKey>,
+  statuses: Record<SupplySubjectKey, StatusKey>,
 ): DrinkAvailability {
   const machineDown = statuses.machine === 'unavailable';
+  const missing = recipe.requires.filter((k) => statuses[k] === 'unavailable');
   let status: StatusKey = 'available';
   let reason = '材料が十分にあります';
 
-  if (machineDown || recipe.requires.some((k) => statuses[k] === 'unavailable')) {
+  if (machineDown || missing.length > 0) {
     status = 'unavailable';
-    reason = machineDown ? 'マシンを利用できません' : '必要な材料が不足しています';
+    // Naming the missing ingredient saves a trip: you can tell at a glance
+    // whether another drink on this list is still an option.
+    reason = machineDown
+      ? 'マシンを利用できません'
+      : `${missing.map((k) => SUBJECT_LABELS[k]).join('・')}がありません`;
   } else if (recipe.requires.some((k) => statuses[k] === 'low')) {
     status = 'low';
     reason = `${recipe.requires
