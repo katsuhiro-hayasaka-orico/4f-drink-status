@@ -1,0 +1,26 @@
+name = "yonf-drink-status"
+main = "worker/index.ts"
+compatibility_date = "2024-12-18"
+
+# The Vite build output is served straight from the Worker; anything under
+# /api is handled in code before assets are consulted.
+[assets]
+directory = "./dist/client"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "drink-status"
+# Replace with the id printed by `wrangler d1 create drink-status`.
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[observability]
+enabled = true
+
+# SESSION_SECRET signs the anonymous device cookie. Set it for real
+# deployments with:  wrangler secret put SESSION_SECRET
+# Local `wrangler dev` falls back to a fixed development value.
+[vars]
+ENVIRONMENT = "production"
