@@ -106,6 +106,7 @@ Create Custom Token）:
 
 ```
 index.html            エントリ
+public/               そのまま配信される静的ファイル（ファビコン一式）
 src/                  React クライアント
   App.tsx             画面の組み立て
   components/         各セクション（MachineIllustration がマシンの絵）
