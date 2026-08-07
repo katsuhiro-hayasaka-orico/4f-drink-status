@@ -138,8 +138,6 @@ worker/               Cloudflare Worker
   identity.ts         匿名端末IDの発行と検証
   store.ts            D1 アクセス
 migrations/           D1 スキーマ
-HANDOFF.md            元のデザイン受け渡し手順
-chats/, project/      Claude Design から書き出したデザイン一式（参照用）
 ```
 
 ## 投稿できるもの
