@@ -1,0 +1,1388 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>4Fドリンク速報｜集合知デモ</title>
+  <style>
+    :root {
+      --navy: #05264a;
+      --navy-2: #0a3769;
+      --ink: #0f1d32;
+      --muted: #617087;
+      --line: #dfe6ef;
+      --panel: #ffffff;
+      --canvas: #f4f7fb;
+      --green: #198a45;
+      --green-soft: #eef9f1;
+      --orange: #d97706;
+      --orange-soft: #fff7e9;
+      --red: #d13b3b;
+      --red-soft: #fff1f1;
+      --blue: #1769c2;
+      --blue-soft: #eef5ff;
+      --shadow: 0 12px 28px rgba(26, 48, 77, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, select:focus-visible, a:focus-visible {
+      outline: 3px solid rgba(23, 105, 194, 0.28);
+      outline-offset: 3px;
+    }
+
+    .browser {
+      min-height: 100vh;
+      background: var(--canvas);
+    }
+
+    .browser-bar {
+      height: 58px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 18px;
+      border-bottom: 1px solid #d9e0e9;
+      background: #fff;
+      color: #66768a;
+    }
+
+    .traffic { display: flex; gap: 8px; }
+    .traffic span { width: 12px; height: 12px; border-radius: 50%; display: block; }
+    .traffic span:nth-child(1) { background: #ff6d5f; }
+    .traffic span:nth-child(2) { background: #f6bd4b; }
+    .traffic span:nth-child(3) { background: #5ecb73; }
+
+    .tab {
+      height: 40px;
+      min-width: 220px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      border-radius: 12px 12px 0 0;
+      background: #f4f6f9;
+      color: #334155;
+      font-size: 14px;
+    }
+
+    .address {
+      flex: 1;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 0 14px;
+      border-radius: 12px;
+      background: #f5f7fa;
+      font-size: 13px;
+      color: #5d6b7d;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      min-height: calc(100vh - 58px);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: calc(100vh - 58px);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 16px 18px;
+      background: linear-gradient(180deg, var(--navy) 0%, #06203d 100%);
+      color: #fff;
+      overflow: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 4px 8px 24px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,0.34);
+      border-radius: 12px;
+      font-size: 23px;
+    }
+
+    .nav { display: grid; gap: 8px; }
+    .nav button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 14px;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      color: rgba(255,255,255,0.84);
+      text-align: left;
+    }
+    .nav button:hover, .nav button.active {
+      background: rgba(63, 133, 215, 0.33);
+      color: #fff;
+    }
+    .nav-icon { width: 24px; text-align: center; font-size: 18px; }
+
+    .side-spacer { flex: 1; min-height: 36px; }
+    .location-box {
+      padding: 14px;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.07);
+      font-size: 14px;
+    }
+    .side-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 14px;
+      color: rgba(255,255,255,0.74);
+      font-size: 13px;
+    }
+    .side-toggle {
+      width: 100%;
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 10px;
+      background: transparent;
+      color: #fff;
+    }
+
+    main {
+      min-width: 0;
+      padding: 28px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 8px; font-size: clamp(29px, 3vw, 42px); letter-spacing: -0.04em; }
+    h2 { margin-bottom: 4px; font-size: 21px; }
+    h3 { margin-bottom: 6px; font-size: 17px; }
+    .subtitle { margin: 0; color: var(--muted); }
+
+    .badges { display: inline-flex; gap: 8px; margin-left: 8px; vertical-align: middle; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-size: 12px;
+      font-weight: 700;
+      background: #fff;
+    }
+    .badge.demo { color: var(--blue); border-color: #bdd5f6; background: var(--blue-soft); }
+    .badge.live { color: var(--green); border-color: #c5e7d0; background: var(--green-soft); }
+
+    .location-select {
+      min-width: 230px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--ink);
+      box-shadow: 0 5px 16px rgba(27, 48, 73, 0.05);
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: minmax(0, 1.12fr) minmax(360px, 0.88fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .column { display: grid; gap: 18px; min-width: 0; }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .card-pad { padding: 20px; }
+
+    .hero-card { padding: 20px; }
+    .hero-content {
+      display: grid;
+      grid-template-columns: minmax(300px, 1.18fr) minmax(230px, 0.82fr);
+      align-items: center;
+      gap: 24px;
+      margin-top: 12px;
+    }
+
+    .machine-wrap {
+      position: relative;
+      min-height: 350px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      background: radial-gradient(circle at 50% 42%, #ffffff 0%, #f6f8fb 66%, #eef3f8 100%);
+      overflow: hidden;
+    }
+
+    .machine-svg {
+      width: min(100%, 430px);
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 16px 12px rgba(11, 24, 40, 0.18));
+    }
+
+    .machine-svg .tank-level-text {
+      paint-order: stroke;
+      stroke: rgba(255,255,255,.92);
+      stroke-width: 5px;
+      stroke-linejoin: round;
+      font-size: 18px;
+      font-weight: 800;
+      fill: #172033;
+      text-anchor: middle;
+      pointer-events: none;
+    }
+
+    .machine-svg .tank-fill {
+      transition: y .35s ease, height .35s ease, opacity .35s ease;
+    }
+
+    .hero-status-label { color: var(--muted); font-size: 14px; }
+    .hero-status {
+      margin: 4px 0 6px;
+      font-size: clamp(31px, 3vw, 44px);
+      line-height: 1.15;
+      letter-spacing: -0.04em;
+      color: var(--green);
+    }
+    .hero-reason { color: #334155; }
+
+    .metric-list { display: grid; gap: 10px; margin-top: 22px; }
+    .metric {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-top: 1px solid #edf1f6;
+    }
+    .metric:first-child { border-top: 0; }
+    .metric-icon {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: #f3f6fa;
+    }
+    .metric-label { color: var(--muted); font-size: 14px; }
+    .metric-value { font-size: 18px; font-weight: 700; }
+
+    .section-title { margin: 4px 0 12px; font-size: 20px; }
+
+    .drink-grid, .ingredient-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .status-card { padding: 16px; box-shadow: none; }
+    .status-top { display: flex; gap: 10px; align-items: flex-start; }
+    .status-dot {
+      flex: 0 0 34px;
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #fff;
+      font-weight: 800;
+    }
+    .status-dot.green { background: var(--green); }
+    .status-dot.orange { background: var(--orange); }
+    .status-dot.red { background: var(--red); }
+    .small-label { color: var(--muted); font-size: 12px; }
+    .status-copy { font-size: 13px; color: #475569; line-height: 1.7; }
+    .status-name { margin: 0; font-size: 17px; }
+    .status-state { margin: 2px 0 12px; font-size: 13px; font-weight: 700; }
+    .green-text { color: var(--green); }
+    .orange-text { color: var(--orange); }
+    .red-text { color: var(--red); }
+
+    .ingredient-card { padding: 16px; box-shadow: none; }
+    .ingredient-head { display: flex; align-items: center; gap: 10px; }
+    .ingredient-icon { font-size: 25px; }
+    .level-label { margin-top: 12px; font-size: 12px; color: var(--muted); }
+    .level-value { margin: 2px 0 8px; font-size: 25px; font-weight: 800; }
+    .progress {
+      height: 9px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e7ecf2;
+    }
+    .progress > span { display: block; height: 100%; border-radius: inherit; transition: width .35s ease; }
+    .progress.green > span { background: var(--green); }
+    .progress.orange > span { background: var(--orange); }
+    .progress.red > span { background: var(--red); }
+    .disclaimer { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+
+    .report-card { padding: 20px; }
+    .report-help { color: var(--muted); margin-bottom: 16px; }
+    .step-label { display: flex; align-items: center; gap: 8px; margin: 16px 0 10px; font-weight: 700; }
+    .step-number {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--navy-2);
+      color: #fff;
+      font-size: 13px;
+    }
+
+    .chip-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .chip {
+      min-height: 40px;
+      padding: 8px 15px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: #344256;
+    }
+    .chip.selected {
+      border-color: var(--navy-2);
+      background: #edf4fc;
+      color: var(--navy-2);
+      box-shadow: 0 0 0 2px rgba(10, 55, 105, 0.07);
+    }
+
+    .action-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .action {
+      min-height: 112px;
+      padding: 12px 8px;
+      border-radius: 13px;
+      border: 1px solid var(--line);
+      background: #fff;
+      font-weight: 700;
+    }
+    .action .action-icon { display: block; margin-bottom: 9px; font-size: 30px; }
+    .action.available { border-color: #9cd5ae; color: var(--green); background: var(--green-soft); }
+    .action.low { border-color: #f2c16d; color: var(--orange); background: var(--orange-soft); }
+    .action.unavailable { border-color: #efa4a4; color: var(--red); background: var(--red-soft); }
+    .action.refilled { border-color: #9fc1ed; color: var(--blue); background: var(--blue-soft); }
+    .action:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(22, 45, 72, 0.09); }
+
+    .floor-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    .floor-label { margin-right: 4px; color: #334155; font-weight: 700; }
+    .floor-btn {
+      min-width: 48px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #fff;
+    }
+    .floor-btn.selected { background: var(--navy-2); border-color: var(--navy-2); color: #fff; }
+    .undo-note { margin: 16px 0 0; color: var(--muted); font-size: 12px; }
+
+    .recent-card { padding: 20px; }
+    .observation-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    .observation-heading p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .observation-window {
+      flex: 0 0 auto;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #526175;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .observation-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .observation-card {
+      min-width: 0;
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+    }
+    .observation-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .observation-subject { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 800; }
+    .observation-subject span:first-child { font-size: 20px; }
+    .confidence-pill {
+      flex: 0 0 auto;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .confidence-pill.high { color: var(--green); background: var(--green-soft); }
+    .confidence-pill.medium { color: var(--orange); background: var(--orange-soft); }
+    .confidence-pill.low { color: var(--red); background: var(--red-soft); }
+    .confidence-pill.none { color: #667085; background: #f1f3f6; }
+    .observation-status {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 8px;
+      font-size: 17px;
+      font-weight: 800;
+    }
+    .observation-status-icon {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      font-size: 15px;
+    }
+    .observation-status-icon.available { color: var(--green); background: var(--green-soft); }
+    .observation-status-icon.low { color: var(--orange); background: var(--orange-soft); }
+    .observation-status-icon.unavailable { color: var(--red); background: var(--red-soft); }
+    .observation-status-icon.none { color: #667085; background: #f1f3f6; }
+    .observation-copy { min-height: 38px; margin: 0; color: #46556a; font-size: 13px; line-height: 1.5; }
+    .agreement-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .agreement-track {
+      height: 9px;
+      margin-top: 7px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e8edf3;
+    }
+    .agreement-fill { height: 100%; border-radius: inherit; transition: width .25s ease; }
+    .agreement-fill.available { background: var(--green); }
+    .agreement-fill.low { background: var(--orange); }
+    .agreement-fill.unavailable { background: var(--red); }
+    .agreement-fill.none { background: #aab4c1; }
+    .observation-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .observation-note {
+      margin: 14px 0 0;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #f7f9fc;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .report-details {
+      margin-top: 14px;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+    .report-details summary {
+      cursor: pointer;
+      color: var(--navy-2);
+      font-weight: 800;
+      list-style-position: inside;
+    }
+    .filter-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .filter-btn {
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #fff;
+      color: #4a586c;
+      font-size: 13px;
+    }
+    .filter-btn.selected { background: var(--navy-2); border-color: var(--navy-2); color: #fff; }
+
+    .report-list { display: grid; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .report-row {
+      display: grid;
+      grid-template-columns: minmax(140px, 1fr) auto auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 13px 14px;
+      border-top: 1px solid var(--line);
+      font-size: 13px;
+    }
+    .report-row:first-child { border-top: 0; }
+    .report-subject { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+    .report-badge {
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .report-badge.available { color: var(--green); background: var(--green-soft); }
+    .report-badge.low { color: var(--orange); background: var(--orange-soft); }
+    .report-badge.unavailable { color: var(--red); background: var(--red-soft); }
+    .report-badge.refilled { color: var(--blue); background: var(--blue-soft); }
+    .report-time, .report-floor, .report-user { color: var(--muted); white-space: nowrap; }
+    .empty { padding: 28px; color: var(--muted); text-align: center; }
+
+    .toast {
+      position: fixed;
+      z-index: 20;
+      right: 24px;
+      bottom: 24px;
+      max-width: min(420px, calc(100vw - 32px));
+      display: none;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: #10243d;
+      color: #fff;
+      box-shadow: 0 18px 45px rgba(4, 17, 34, 0.28);
+    }
+    .toast.show { display: flex; }
+    .toast button {
+      border: 1px solid rgba(255,255,255,0.42);
+      border-radius: 8px;
+      background: transparent;
+      color: #fff;
+      padding: 7px 10px;
+      white-space: nowrap;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: none;
+      place-items: center;
+      padding: 20px;
+      background: rgba(8, 21, 38, 0.48);
+    }
+    .modal-backdrop.show { display: grid; }
+    .modal {
+      width: min(560px, 100%);
+      padding: 22px;
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.25);
+    }
+    .modal-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
+    .modal-actions button {
+      padding: 9px 14px;
+      border: 0;
+      border-radius: 9px;
+      background: var(--navy-2);
+      color: #fff;
+    }
+
+    @media (max-width: 1180px) {
+      .dashboard { grid-template-columns: 1fr; }
+      .right-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .right-column .report-card, .right-column .recent-card { min-width: 0; }
+    }
+
+    @media (max-width: 940px) {
+      .app-shell { grid-template-columns: 1fr; }
+      .sidebar {
+        position: static;
+        height: auto;
+        display: block;
+        padding: 12px 16px;
+      }
+      .brand { padding: 0 0 10px; }
+      .nav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .nav button { justify-content: center; padding: 10px; }
+      .nav button span:last-child { display: none; }
+      .side-spacer, .location-box, .side-meta, .side-toggle { display: none; }
+      main { padding: 20px; }
+      .right-column { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 760px) {
+      .browser-bar { display: none; }
+      .app-shell { min-height: 100vh; }
+      .topbar { flex-direction: column; }
+      .location-select { width: 100%; min-width: 0; }
+      .hero-content { grid-template-columns: 1fr; }
+      .machine-wrap { min-height: 310px; }
+      .drink-grid, .ingredient-grid { grid-template-columns: 1fr; }
+      .action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .observation-grid { grid-template-columns: 1fr; }
+      .report-row { grid-template-columns: 1fr auto; }
+      .report-floor, .report-user { display: none; }
+      .badges { display: flex; margin: 8px 0 0; }
+    }
+
+    @media (max-width: 480px) {
+      main { padding: 14px; }
+      .card-pad, .hero-card, .report-card, .recent-card { padding: 15px; }
+      .nav { gap: 4px; }
+      .nav button { border-radius: 9px; }
+      .machine-wrap { min-height: 260px; }
+      .action { min-height: 96px; font-size: 13px; }
+      .hero-status { font-size: 31px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="browser">
+    <div class="browser-bar" aria-hidden="true">
+      <div class="traffic"><span></span><span></span><span></span></div>
+      <div class="tab">☕ 4Fドリンク速報</div>
+      <div class="address">🔒 https://demo.internal/drink-status</div>
+      <div>☆　社　⋮</div>
+    </div>
+
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="メインナビゲーション">
+        <div class="brand">
+          <div class="brand-mark">☕</div>
+          <div>4Fドリンク速報</div>
+        </div>
+        <nav class="nav">
+          <button type="button" class="active" data-scroll="top"><span class="nav-icon">⌂</span><span>ドリンク速報</span></button>
+          <button type="button" data-scroll="recent"><span class="nav-icon">☷</span><span>みんなの観測</span></button>
+          <button type="button" data-scroll="report"><span class="nav-icon">✎</span><span>投稿する</span></button>
+          <button type="button" id="aboutButton"><span class="nav-icon">ⓘ</span><span>このアプリについて</span></button>
+        </nav>
+        <div class="side-spacer"></div>
+        <div class="location-box">📍 弘済ビル 4Fラウンジ</div>
+        <div class="side-meta"><span>最終更新</span><strong id="sideLastUpdated">2分前</strong></div>
+        <button class="side-toggle" type="button" id="autoRefreshToggle">自動更新を停止</button>
+      </aside>
+
+      <main id="top">
+        <header class="topbar">
+          <div>
+            <h1>4Fドリンク速報
+              <span class="badges">
+                <span class="badge demo">デモアプリ</span>
+                <span class="badge live">みんなの投稿を集計中</span>
+              </span>
+            </h1>
+            <p class="subtitle">4Fラウンジのドリンクマシンの状況を、みんなの投稿で共有します</p>
+          </div>
+          <select class="location-select" aria-label="設置場所">
+            <option>📍 弘済ビル 4Fラウンジ</option>
+          </select>
+        </header>
+
+        <div class="dashboard">
+          <div class="column left-column">
+            <section class="card hero-card" aria-labelledby="machineHeading">
+              <h2 id="machineHeading">ドリンクマシンの全体状況</h2>
+              <div class="hero-content">
+                <div class="machine-wrap">
+                  <svg class="machine-svg" viewBox="0 0 560 520" role="img" aria-labelledby="machineTitle machineDesc">
+                    <title id="machineTitle">3種類の材料タンクを備えたドリンクマシン</title>
+                    <desc id="machineDesc">コーヒー豆、ココア、ミルクの推定残量が表示されます。</desc>
+                    <defs>
+                      <linearGradient id="bodyG" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#24282d" />
+                        <stop offset="1" stop-color="#0f1114" />
+                      </linearGradient>
+                      <linearGradient id="tankG" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0" stop-color="rgba(255,255,255,.72)" />
+                        <stop offset=".5" stop-color="rgba(240,245,250,.25)" />
+                        <stop offset="1" stop-color="rgba(255,255,255,.58)" />
+                      </linearGradient>
+                      <clipPath id="coffeeClip"><rect x="88" y="55" width="104" height="152" rx="8" /></clipPath>
+                      <clipPath id="cocoaClip"><rect x="228" y="55" width="104" height="152" rx="8" /></clipPath>
+                      <clipPath id="milkClip"><rect x="368" y="55" width="104" height="152" rx="8" /></clipPath>
+                    </defs>
+
+                    <rect x="74" y="44" width="132" height="174" rx="12" fill="url(#tankG)" stroke="#3a4148" stroke-width="3" />
+                    <rect x="214" y="44" width="132" height="174" rx="12" fill="url(#tankG)" stroke="#3a4148" stroke-width="3" />
+                    <rect x="354" y="44" width="132" height="174" rx="12" fill="url(#tankG)" stroke="#3a4148" stroke-width="3" />
+                    <rect x="69" y="32" width="142" height="20" rx="8" fill="#151719" />
+                    <rect x="209" y="32" width="142" height="20" rx="8" fill="#151719" />
+                    <rect x="349" y="32" width="142" height="20" rx="8" fill="#151719" />
+
+                    <g id="coffeeFill" clip-path="url(#coffeeClip)"></g>
+                    <g id="cocoaFill" clip-path="url(#cocoaClip)"><rect class="tank-fill" id="cocoaRect" x="228" y="100" width="104" height="107" fill="#854728" opacity=".92" /></g>
+                    <g id="milkFill" clip-path="url(#milkClip)"><rect class="tank-fill" id="milkRect" x="368" y="80" width="104" height="127" fill="#efe2c9" opacity=".95" /></g>
+                    <text id="coffeeLevelText" class="tank-level-text" x="140" y="88">75%</text>
+                    <text id="cocoaLevelText" class="tank-level-text" x="280" y="88">35%</text>
+                    <text id="milkLevelText" class="tank-level-text" x="420" y="88">80%</text>
+
+                    <rect x="55" y="200" width="450" height="276" rx="28" fill="url(#bodyG)" stroke="#08090a" stroke-width="5" />
+                    <rect x="89" y="232" width="382" height="150" rx="15" fill="#15181b" stroke="#050505" stroke-width="4" />
+                    <rect x="107" y="250" width="104" height="101" rx="10" fill="#6c391f" />
+                    <rect x="228" y="250" width="104" height="101" rx="10" fill="#754125" />
+                    <rect x="349" y="250" width="104" height="101" rx="10" fill="#a66e34" />
+                    <text x="159" y="286" text-anchor="middle" fill="#fff" font-size="34">☕</text>
+                    <text x="280" y="286" text-anchor="middle" fill="#fff" font-size="34">☕</text>
+                    <text x="401" y="286" text-anchor="middle" fill="#fff" font-size="34">☕</text>
+                    <text x="159" y="327" text-anchor="middle" fill="#fff" font-size="21" font-weight="700">コーヒー</text>
+                    <text x="280" y="327" text-anchor="middle" fill="#fff" font-size="21" font-weight="700">ココア</text>
+                    <text x="401" y="327" text-anchor="middle" fill="#fff" font-size="21" font-weight="700">カフェオレ</text>
+                    <rect x="242" y="378" width="76" height="26" rx="8" fill="#8f9398" />
+                    <rect x="257" y="399" width="46" height="28" rx="4" fill="#25282b" />
+                    <rect x="92" y="427" width="376" height="26" rx="12" fill="#44494e" />
+                    <ellipse cx="280" cy="437" rx="86" ry="12" fill="#161819" />
+                    <path d="M236 385h88v52c0 42-18 55-44 55s-44-13-44-55z" fill="#fff" stroke="#c7cbd0" stroke-width="3" />
+                    <path d="M324 402c28 0 38 14 34 31-4 17-18 23-35 18" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" />
+                  </svg>
+                </div>
+
+                <div>
+                  <div class="hero-status-label">現在の全体ステータス</div>
+                  <h3 class="hero-status" id="overallStatus">一部残り少なめ</h3>
+                  <p class="hero-reason" id="overallReason">ココアの残量が少なめです</p>
+                  <div class="metric-list">
+                    <div class="metric"><span class="metric-icon">◷</span><span class="metric-label">最終更新</span><span class="metric-value" id="lastUpdated">2分前</span></div>
+                    <div class="metric"><span class="metric-icon">▣</span><span class="metric-label">過去30分の有効観測</span><span class="metric-value" id="reportCount">4件</span></div>
+                    <div class="metric"><span class="metric-icon">◆</span><span class="metric-label">観測の確からしさ</span><span class="metric-value green-text" id="confidence">高</span></div>
+                    <div class="metric"><span class="metric-icon">●●</span><span class="metric-label">直近24時間の協力者</span><span class="metric-value" id="contributors">12人</span></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section aria-labelledby="drinkHeading">
+              <h2 class="section-title" id="drinkHeading">ドリンクの作成可否</h2>
+              <div class="drink-grid" id="drinkGrid"></div>
+            </section>
+
+            <section aria-labelledby="ingredientHeading">
+              <h2 class="section-title" id="ingredientHeading">材料の推定残量 <span class="small-label">（みんなの投稿に基づく目安）</span></h2>
+              <div class="ingredient-grid" id="ingredientGrid"></div>
+              <p class="disclaimer">※ 推定残量は目安です。実際の残量と異なる場合があります。</p>
+            </section>
+          </div>
+
+          <div class="column right-column">
+            <section class="card report-card" id="report" aria-labelledby="reportHeading">
+              <h2 id="reportHeading">今の状態を投稿</h2>
+              <p class="report-help">4Fで確認した状態を、1タップで共有してください</p>
+
+              <div class="step-label"><span class="step-number">1</span>対象を選択</div>
+              <div class="chip-row" id="subjectChips"></div>
+
+              <div class="step-label"><span class="step-number">2</span>状態を選択</div>
+              <div class="action-grid">
+                <button type="button" class="action available" data-action="available"><span class="action-icon">☕</span>取れた・作れた</button>
+                <button type="button" class="action low" data-action="low"><span class="action-icon">⚠</span>残り少なめ</button>
+                <button type="button" class="action unavailable" data-action="unavailable"><span class="action-icon">✕</span>売り切れ・作れない</button>
+                <button type="button" class="action refilled" data-action="refilled"><span class="action-icon">↻</span>補充された</button>
+              </div>
+
+              <div class="floor-row" aria-label="投稿者の所属フロア">
+                <span class="floor-label">設置フロア</span>
+                <button class="floor-btn" data-floor="2F" type="button">2F</button>
+                <button class="floor-btn" data-floor="3F" type="button">3F</button>
+                <button class="floor-btn selected" data-floor="4F" type="button">4F</button>
+              </div>
+              <p class="undo-note">ⓘ 投稿後5秒だけ取り消し可能です</p>
+              <p class="estimate-note">材料別の投稿は推定残量へ即時反映します：取れた 70％／残り少なめ 30％／作れない 0％／補充された 100％。</p>
+            </section>
+
+            <section class="card recent-card" id="recent" aria-labelledby="recentHeading">
+              <div class="observation-heading">
+                <div>
+                  <h2 id="recentHeading">みんなの観測</h2>
+                  <p>投稿者数・一致率・新しさから、現在の状態を集約しています</p>
+                </div>
+                <span class="observation-window">過去30分</span>
+              </div>
+              <div class="observation-grid" id="observationGrid" aria-live="polite"></div>
+              <p class="observation-note">同じ利用者の最新投稿だけを1票として集計します。3人以上・75％以上一致・最終観測10分以内で「確からしさ：高」です。</p>
+              <details class="report-details">
+                <summary>投稿の内訳を見る</summary>
+                <div class="filter-row" id="filters"></div>
+                <div class="report-list" id="reportList" aria-live="polite"></div>
+              </details>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <span id="toastText">投稿しました</span>
+    <button type="button" id="undoButton">取り消す</button>
+  </div>
+
+  <div class="modal-backdrop" id="aboutModal" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+    <div class="modal">
+      <h2 id="aboutTitle">このデモについて</h2>
+      <p>利用者ごとの最新投稿を1票として集計し、投稿者数・一致率・情報の新しさから状態と確からしさを推定するフロントエンドデモです。</p>
+      <p>実際の本番版では、Azure Static Web Apps、Azure Functions、Azure Table Storage、Microsoft Entra IDを利用する想定です。</p>
+      <div class="modal-actions"><button type="button" id="closeAbout">閉じる</button></div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const subjects = {
+        coffeeBeans: { label: 'コーヒー豆', icon: '🫘' },
+        cocoaPowder: { label: 'ココア', icon: '🟤' },
+        milkPowder: { label: 'ミルク', icon: '🥛' },
+        machine: { label: 'マシン全体', icon: '▣' }
+      };
+
+      const actionMeta = {
+        available: { label: '取れた', level: 70 },
+        low: { label: '残り少なめ', level: 30 },
+        unavailable: { label: '作れない', level: 0 },
+        refilled: { label: '補充された', level: 100 }
+      };
+
+      const makeId = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : `demo-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+      const clone = value => (globalThis.structuredClone ? structuredClone(value) : JSON.parse(JSON.stringify(value)));
+
+      const defaultState = {
+        levels: { coffeeBeans: 75, cocoaPowder: 35, milkPowder: 80 },
+        statuses: { coffeeBeans: 'available', cocoaPowder: 'low', milkPowder: 'available', machine: 'available' },
+        selectedSubject: 'coffeeBeans',
+        selectedFloor: '4F',
+        selectedFilter: 'all',
+        reports: [
+          { id: makeId(), subject: 'coffeeBeans', action: 'available', floor: '2F', user: '利用者A', createdAt: Date.now() - 2 * 60000 },
+          { id: makeId(), subject: 'coffeeBeans', action: 'available', floor: '3F', user: '利用者E', createdAt: Date.now() - 4 * 60000 },
+          { id: makeId(), subject: 'coffeeBeans', action: 'available', floor: '4F', user: '利用者F', createdAt: Date.now() - 6 * 60000 },
+          { id: makeId(), subject: 'coffeeBeans', action: 'available', floor: '2F', user: '利用者G', createdAt: Date.now() - 9 * 60000 },
+          { id: makeId(), subject: 'coffeeBeans', action: 'low', floor: '3F', user: '利用者H', createdAt: Date.now() - 8 * 60000 },
+          { id: makeId(), subject: 'cocoaPowder', action: 'low', floor: '3F', user: '利用者B', createdAt: Date.now() - 7 * 60000 },
+          { id: makeId(), subject: 'cocoaPowder', action: 'low', floor: '4F', user: '利用者I', createdAt: Date.now() - 4 * 60000 },
+          { id: makeId(), subject: 'cocoaPowder', action: 'low', floor: '2F', user: '利用者J', createdAt: Date.now() - 9 * 60000 },
+          { id: makeId(), subject: 'cocoaPowder', action: 'available', floor: '3F', user: '利用者K', createdAt: Date.now() - 5 * 60000 },
+          { id: makeId(), subject: 'milkPowder', action: 'refilled', floor: '4F', user: '利用者C', createdAt: Date.now() - 18 * 60000 },
+          { id: makeId(), subject: 'milkPowder', action: 'available', floor: '2F', user: '利用者L', createdAt: Date.now() - 16 * 60000 },
+          { id: makeId(), subject: 'machine', action: 'available', floor: '2F', user: '利用者D', createdAt: Date.now() - 24 * 60000 }
+        ]
+      };
+
+      const stored = (() => {
+        try { return JSON.parse(localStorage.getItem('drink-status-demo-v3') || 'null'); } catch { return null; }
+      })();
+
+      const state = stored ? {
+        ...defaultState,
+        ...stored,
+        reports: stored.reports?.map(r => ({ ...r, createdAt: Number(r.createdAt) })) || defaultState.reports
+      } : clone(defaultState);
+
+      let undoTimer = null;
+      let lastPostedId = null;
+      let lastPostedSnapshot = null;
+      let autoRefresh = true;
+      let autoTimer = null;
+
+      function save() {
+        try {
+          localStorage.setItem('drink-status-demo-v3', JSON.stringify({
+            levels: state.levels,
+            statuses: state.statuses,
+            selectedFloor: state.selectedFloor,
+            reports: state.reports
+          }));
+        } catch {}
+      }
+
+      function relativeTime(timestamp) {
+        const sec = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+        if (sec < 20) return 'たった今';
+        const min = Math.floor(sec / 60);
+        if (min < 60) return `${min}分前`;
+        const hour = Math.floor(min / 60);
+        return `${hour}時間前`;
+      }
+
+      function latestReport() {
+        return [...state.reports].sort((a, b) => b.createdAt - a.createdAt)[0];
+      }
+
+      function actionCategory(action) {
+        return action === 'refilled' ? 'available' : action;
+      }
+
+      function freshnessWeight(createdAt) {
+        const age = Date.now() - createdAt;
+        if (age <= 10 * 60000) return 1;
+        if (age <= 20 * 60000) return 0.7;
+        if (age <= 30 * 60000) return 0.4;
+        return 0;
+      }
+
+      function summarizeObservation(subject) {
+        const cutoff = Date.now() - 30 * 60000;
+        let candidates = state.reports
+          .filter(r => r.subject === subject && r.createdAt >= cutoff)
+          .sort((a, b) => b.createdAt - a.createdAt);
+
+        const latestRefill = candidates.find(r => r.action === 'refilled');
+        if (latestRefill) candidates = candidates.filter(r => r.createdAt >= latestRefill.createdAt);
+
+        const latestByUser = new Map();
+        candidates.forEach(report => {
+          if (!latestByUser.has(report.user)) latestByUser.set(report.user, report);
+        });
+        const votes = [...latestByUser.values()];
+
+        if (!votes.length) {
+          return {
+            subject, status: 'none', dominantAction: null, total: 0, supporters: 0,
+            agreement: 0, confidence: 'none', lastAt: null, breakdown: {}
+          };
+        }
+
+        const weighted = { available: 0, low: 0, unavailable: 0 };
+        const counts = { available: 0, low: 0, unavailable: 0 };
+        votes.forEach(vote => {
+          const category = actionCategory(vote.action);
+          weighted[category] += freshnessWeight(vote.createdAt);
+          counts[category] += 1;
+        });
+
+        const urgentUnavailable = votes.filter(v => actionCategory(v.action) === 'unavailable' && Date.now() - v.createdAt <= 10 * 60000).length >= 2;
+        const status = urgentUnavailable
+          ? 'unavailable'
+          : Object.entries(weighted).sort((a, b) => b[1] - a[1])[0][0];
+        const total = votes.length;
+        const supporters = counts[status];
+        const agreement = total ? Math.round((supporters / total) * 100) : 0;
+        const lastAt = Math.max(...votes.map(v => v.createdAt));
+        const latestAge = Date.now() - lastAt;
+        let confidence = 'low';
+        if (total >= 3 && agreement >= 75 && latestAge <= 10 * 60000) confidence = 'high';
+        else if (total >= 2 && agreement >= 60 && latestAge <= 20 * 60000) confidence = 'medium';
+
+        const latestSupporting = votes
+          .filter(v => actionCategory(v.action) === status)
+          .sort((a, b) => b.createdAt - a.createdAt)[0];
+        const dominantAction = status === 'available' && votes.some(v => v.action === 'refilled')
+          ? 'refilled'
+          : status;
+
+        return { subject, status, dominantAction, total, supporters, agreement, confidence, lastAt, breakdown: counts };
+      }
+
+      function allObservationSummaries() {
+        return ['coffeeBeans', 'cocoaPowder', 'milkPowder', 'machine'].map(summarizeObservation);
+      }
+
+      function syncDerivedStateFromReports() {
+        allObservationSummaries().forEach(summary => {
+          if (summary.status === 'none') return;
+          state.statuses[summary.subject] = summary.status;
+          if (summary.subject !== 'machine') {
+            state.levels[summary.subject] = summary.dominantAction === 'refilled'
+              ? 100
+              : actionMeta[summary.status].level;
+          }
+        });
+      }
+
+      function computeOverall() {
+        if (state.statuses.machine === 'unavailable') {
+          return { label: 'マシンを利用できません', reason: 'マシン全体の利用不可報告があります', tone: 'red' };
+        }
+        const materials = ['coffeeBeans', 'cocoaPowder', 'milkPowder'];
+        if (materials.some(k => state.statuses[k] === 'unavailable')) {
+          return { label: '一部利用できません', reason: '一部材料が不足しています', tone: 'red' };
+        }
+        const low = materials.find(k => state.statuses[k] === 'low');
+        if (low) return { label: '一部残り少なめ', reason: `${subjects[low].label}の残量が少なめです`, tone: 'orange' };
+        return { label: '利用できます', reason: '各材料は十分にあります', tone: 'green' };
+      }
+
+      function drinkAvailability() {
+        const machineDown = state.statuses.machine === 'unavailable';
+        const result = [];
+        const add = (name, required, icon) => {
+          let status = 'available';
+          let reason = '材料が十分にあります';
+          if (machineDown || required.some(k => state.statuses[k] === 'unavailable')) {
+            status = 'unavailable';
+            reason = machineDown ? 'マシンを利用できません' : '必要な材料が不足しています';
+          } else if (required.some(k => state.statuses[k] === 'low')) {
+            status = 'low';
+            const lowNames = required.filter(k => state.statuses[k] === 'low').map(k => subjects[k].label).join('・');
+            reason = `${lowNames}の残量が少なめです`;
+          }
+          result.push({ name, required, icon, status, reason });
+        };
+        add('コーヒー', ['coffeeBeans'], '☕');
+        add('ココア', ['cocoaPowder'], '♨');
+        add('カフェオレ', ['coffeeBeans', 'milkPowder'], '🥤');
+        return result;
+      }
+
+      function updateMachineLevels() {
+        const clamp = value => Math.max(0, Math.min(100, Number(value) || 0));
+        const coffeeLevel = clamp(state.levels.coffeeBeans);
+        const cocoaLevel = clamp(state.levels.cocoaPowder);
+        const milkLevel = clamp(state.levels.milkPowder);
+
+        const group = document.getElementById('coffeeFill');
+        const coffeeTop = 207 - Math.round(1.52 * coffeeLevel);
+        const coffeeHeight = Math.max(0, 207 - coffeeTop);
+        group.innerHTML = '';
+        const beans = [];
+        const cols = 6;
+        const rows = Math.ceil(coffeeLevel / 10);
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const x = 98 + c * 16 + (r % 2 ? 7 : 0);
+            const y = 198 - r * 14;
+            if (y < coffeeTop) continue;
+            beans.push(`<ellipse cx="${x}" cy="${y}" rx="10" ry="6" transform="rotate(${(c+r)%2 ? 24 : -22} ${x} ${y})" fill="#6e371d" stroke="#3e1d0f" stroke-width="2"/>`);
+          }
+        }
+        group.innerHTML = coffeeHeight > 0
+          ? `<rect x="88" y="${coffeeTop}" width="104" height="${coffeeHeight}" fill="#4b2716" opacity=".25"/>${beans.join('')}`
+          : '';
+
+        const setPowderLevel = (rectId, level) => {
+          const rect = document.getElementById(rectId);
+          const height = 1.52 * level;
+          rect.setAttribute('y', String(207 - height));
+          rect.setAttribute('height', String(height));
+          rect.setAttribute('opacity', level === 0 ? '0' : rectId === 'cocoaRect' ? '.92' : '.95');
+        };
+        setPowderLevel('cocoaRect', cocoaLevel);
+        setPowderLevel('milkRect', milkLevel);
+
+        document.getElementById('coffeeLevelText').textContent = `${coffeeLevel}%`;
+        document.getElementById('cocoaLevelText').textContent = `${cocoaLevel}%`;
+        document.getElementById('milkLevelText').textContent = `${milkLevel}%`;
+      }
+
+      function renderSubjectChips() {
+        const wrap = document.getElementById('subjectChips');
+        wrap.innerHTML = Object.entries(subjects).map(([key, value]) => `
+          <button type="button" class="chip ${state.selectedSubject === key ? 'selected' : ''}" data-subject="${key}" aria-pressed="${state.selectedSubject === key}">${value.label}</button>
+        `).join('');
+        wrap.querySelectorAll('[data-subject]').forEach(btn => btn.addEventListener('click', () => {
+          state.selectedSubject = btn.dataset.subject;
+          renderSubjectChips();
+        }));
+      }
+
+      function renderFloors() {
+        document.querySelectorAll('[data-floor]').forEach(btn => {
+          btn.classList.toggle('selected', btn.dataset.floor === state.selectedFloor);
+          btn.setAttribute('aria-pressed', String(btn.dataset.floor === state.selectedFloor));
+        });
+      }
+
+      function renderMetrics() {
+        syncDerivedStateFromReports();
+        const latest = latestReport();
+        const overall = computeOverall();
+        const el = document.getElementById('overallStatus');
+        el.textContent = overall.label;
+        el.classList.remove('green-text', 'orange-text', 'red-text');
+        el.style.color = overall.tone === 'red' ? 'var(--red)' : overall.tone === 'orange' ? 'var(--orange)' : 'var(--green)';
+        document.getElementById('overallReason').textContent = overall.reason;
+        const rel = latest ? relativeTime(latest.createdAt) : '情報なし';
+        document.getElementById('lastUpdated').textContent = rel;
+        document.getElementById('sideLastUpdated').textContent = rel;
+
+        const summaries = allObservationSummaries();
+        const validObservationCount = summaries.reduce((sum, item) => sum + item.total, 0);
+        const recent = state.reports.filter(r => Date.now() - r.createdAt <= 30 * 60000);
+        const distinct = new Set(recent.map(r => r.user)).size;
+        document.getElementById('reportCount').textContent = `${validObservationCount}票・${distinct}人`;
+
+        const materialSummaries = summaries.filter(s => s.subject !== 'machine');
+        const focusSummary = materialSummaries.find(s => state.statuses[s.subject] === 'unavailable')
+          || materialSummaries.find(s => state.statuses[s.subject] === 'low')
+          || [...materialSummaries].sort((a, b) => a.agreement - b.agreement)[0];
+        const confidenceLabels = { high: '高', medium: '中', low: '低', none: '情報なし' };
+        const confidence = confidenceLabels[focusSummary?.confidence || 'none'];
+        const confidenceEl = document.getElementById('confidence');
+        confidenceEl.textContent = confidence;
+        confidenceEl.className = `metric-value ${confidence === '高' ? 'green-text' : confidence === '中' ? 'orange-text' : 'red-text'}`;
+        document.getElementById('contributors').textContent = `${new Set(state.reports.map(r => r.user)).size}人`;
+      }
+
+      function renderDrinks() {
+        const grid = document.getElementById('drinkGrid');
+        grid.innerHTML = drinkAvailability().map(d => {
+          const tone = d.status === 'available' ? 'green' : d.status === 'low' ? 'orange' : 'red';
+          const stateText = d.status === 'available' ? '作れます' : d.status === 'low' ? '残り少なめ' : '作れません';
+          const icon = d.status === 'available' ? '✓' : d.status === 'low' ? '!' : '×';
+          return `
+            <article class="card status-card">
+              <div class="status-top">
+                <div class="status-dot ${tone}">${icon}</div>
+                <div>
+                  <h3 class="status-name">${d.name}</h3>
+                  <div class="status-state ${tone}-text">${stateText}</div>
+                </div>
+              </div>
+              <div class="status-copy"><span class="small-label">理由</span><br>${d.reason}</div>
+              <div class="status-copy" style="margin-top:8px"><span class="small-label">必要な材料</span><br>${d.required.map(k => subjects[k].label).join('、')}</div>
+            </article>`;
+        }).join('');
+      }
+
+      function renderIngredients() {
+        const grid = document.getElementById('ingredientGrid');
+        const order = ['coffeeBeans', 'cocoaPowder', 'milkPowder'];
+        grid.innerHTML = order.map(key => {
+          const status = state.statuses[key];
+          const tone = status === 'available' ? 'green' : status === 'low' ? 'orange' : 'red';
+          const description = status === 'available' ? '十分にあります' : status === 'low' ? '残り少なめです' : '補充が必要です';
+          return `
+            <article class="card ingredient-card">
+              <div class="ingredient-head"><span class="ingredient-icon">${subjects[key].icon}</span><h3>${subjects[key].label}</h3></div>
+              <div class="level-label">推定残量</div>
+              <div class="level-value ${tone}-text">約${state.levels[key]}%</div>
+              <div class="progress ${tone}" aria-label="${subjects[key].label}の推定残量${state.levels[key]}パーセント"><span style="width:${state.levels[key]}%"></span></div>
+              <div class="status-copy" style="margin-top:10px">${description}</div>
+            </article>`;
+        }).join('');
+      }
+
+      function renderObservationCards() {
+        const grid = document.getElementById('observationGrid');
+        const labels = {
+          available: { text: '利用できます', icon: '✓', quote: '取れた・利用できる' },
+          low: { text: '残り少なめ', icon: '!', quote: '残り少なめ' },
+          unavailable: { text: '利用できません', icon: '×', quote: '作れない' },
+          none: { text: '情報がありません', icon: '?', quote: '情報なし' }
+        };
+        const confidenceLabels = { high: '確からしさ：高', medium: '確からしさ：中', low: '確からしさ：低', none: '情報なし' };
+
+        grid.innerHTML = allObservationSummaries().map(summary => {
+          const meta = labels[summary.status];
+          const copy = summary.total
+            ? `${summary.total}人中${summary.supporters}人が「${meta.quote}」と報告`
+            : '過去30分に有効な投稿がありません';
+          const last = summary.lastAt ? `最終観測 ${relativeTime(summary.lastAt)}` : '最終観測なし';
+          return `
+            <article class="observation-card">
+              <div class="observation-top">
+                <div class="observation-subject"><span>${subjects[summary.subject].icon}</span><span>${subjects[summary.subject].label}</span></div>
+                <span class="confidence-pill ${summary.confidence}">${confidenceLabels[summary.confidence]}</span>
+              </div>
+              <div class="observation-status">
+                <span class="observation-status-icon ${summary.status}">${meta.icon}</span>
+                <span>${meta.text}</span>
+              </div>
+              <p class="observation-copy">${copy}</p>
+              <div class="agreement-row"><span>みんなの一致度</span><strong>${summary.total ? summary.agreement + '%' : '—'}</strong></div>
+              <div class="agreement-track" aria-label="${subjects[summary.subject].label}の一致度${summary.agreement}パーセント">
+                <div class="agreement-fill ${summary.status}" style="width:${summary.agreement}%"></div>
+              </div>
+              <div class="observation-footer"><span>${last}</span><span>${summary.total}票</span></div>
+            </article>`;
+        }).join('');
+      }
+
+      function renderFilters() {
+        const filters = { all: 'すべて', coffeeBeans: 'コーヒー豆', cocoaPowder: 'ココア', milkPowder: 'ミルク', machine: 'マシン全体' };
+        const wrap = document.getElementById('filters');
+        wrap.innerHTML = Object.entries(filters).map(([key, label]) => `<button type="button" class="filter-btn ${state.selectedFilter === key ? 'selected' : ''}" data-filter="${key}">${label}</button>`).join('');
+        wrap.querySelectorAll('[data-filter]').forEach(btn => btn.addEventListener('click', () => {
+          state.selectedFilter = btn.dataset.filter;
+          renderFilters();
+          renderReports();
+        }));
+      }
+
+      function renderReports() {
+        const list = document.getElementById('reportList');
+        const rows = [...state.reports]
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .filter(r => state.selectedFilter === 'all' || r.subject === state.selectedFilter)
+          .slice(0, 20);
+        if (!rows.length) {
+          list.innerHTML = '<div class="empty">該当する投稿はありません</div>';
+          return;
+        }
+        list.innerHTML = rows.map(r => `
+          <div class="report-row">
+            <div class="report-subject"><span>${subjects[r.subject].icon}</span>${subjects[r.subject].label}</div>
+            <span class="report-badge ${r.action}">${actionMeta[r.action].label}</span>
+            <span class="report-time">${relativeTime(r.createdAt)}</span>
+            <span class="report-floor">${r.floor}</span>
+            <span class="report-user">${r.user}</span>
+          </div>`).join('');
+      }
+
+      function renderAll() {
+        renderSubjectChips();
+        renderFloors();
+        renderMetrics();
+        renderDrinks();
+        renderIngredients();
+        renderObservationCards();
+        renderFilters();
+        renderReports();
+        updateMachineLevels();
+      }
+
+      function statusFromAction(action) {
+        if (action === 'unavailable') return 'unavailable';
+        if (action === 'low') return 'low';
+        return 'available';
+      }
+
+      function applyReportToState(subject, action) {
+        if (subject === 'machine') {
+          state.statuses.machine = action === 'unavailable' ? 'unavailable' : 'available';
+          if (action === 'refilled') {
+            ['coffeeBeans', 'cocoaPowder', 'milkPowder'].forEach(key => {
+              state.statuses[key] = 'available';
+              state.levels[key] = 100;
+            });
+          }
+          return;
+        }
+
+        state.statuses[subject] = statusFromAction(action);
+        state.levels[subject] = actionMeta[action].level;
+      }
+
+      function post(action) {
+        const subject = state.selectedSubject;
+        const id = makeId();
+        lastPostedSnapshot = {
+          levels: clone(state.levels),
+          statuses: clone(state.statuses)
+        };
+        const report = {
+          id,
+          subject,
+          action,
+          floor: state.selectedFloor,
+          user: '利用者（あなた）',
+          createdAt: Date.now()
+        };
+        state.reports.unshift(report);
+        lastPostedId = id;
+
+        syncDerivedStateFromReports();
+
+        save();
+        renderAll();
+        const levelMessage = subject === 'machine'
+          ? ''
+          : `（推定残量 ${state.levels[subject]}%）`;
+        showToast(`${subjects[subject].label}を「${actionMeta[action].label}」で投稿しました。みんなの観測を再集計しました${levelMessage}`);
+      }
+
+      function showToast(text) {
+        const toast = document.getElementById('toast');
+        document.getElementById('toastText').textContent = text;
+        toast.classList.add('show');
+        clearTimeout(undoTimer);
+        undoTimer = setTimeout(() => {
+          toast.classList.remove('show');
+          lastPostedId = null;
+          lastPostedSnapshot = null;
+        }, 5000);
+      }
+
+      function undo() {
+        if (!lastPostedId) return;
+        const index = state.reports.findIndex(r => r.id === lastPostedId);
+        if (index >= 0) state.reports.splice(index, 1);
+        syncDerivedStateFromReports();
+        save();
+        lastPostedId = null;
+        lastPostedSnapshot = null;
+        document.getElementById('toast').classList.remove('show');
+        renderAll();
+      }
+
+      function setAutoRefresh(on) {
+        autoRefresh = on;
+        clearInterval(autoTimer);
+        const btn = document.getElementById('autoRefreshToggle');
+        btn.textContent = on ? '自動更新を停止' : '自動更新を再開';
+        if (on) {
+          autoTimer = setInterval(() => {
+            renderMetrics();
+            renderObservationCards();
+            renderReports();
+          }, 30000);
+        }
+      }
+
+      document.querySelectorAll('[data-action]').forEach(btn => btn.addEventListener('click', () => post(btn.dataset.action)));
+      document.querySelectorAll('[data-floor]').forEach(btn => btn.addEventListener('click', () => {
+        state.selectedFloor = btn.dataset.floor;
+        save();
+        renderFloors();
+      }));
+      document.querySelectorAll('[data-scroll]').forEach(btn => btn.addEventListener('click', () => {
+        document.getElementById(btn.dataset.scroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }));
+      document.getElementById('undoButton').addEventListener('click', undo);
+      document.getElementById('autoRefreshToggle').addEventListener('click', () => setAutoRefresh(!autoRefresh));
+
+      const modal = document.getElementById('aboutModal');
+      document.getElementById('aboutButton').addEventListener('click', () => modal.classList.add('show'));
+      document.getElementById('closeAbout').addEventListener('click', () => modal.classList.remove('show'));
+      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('show'); });
+      document.addEventListener('keydown', e => { if (e.key === 'Escape') modal.classList.remove('show'); });
+
+      renderAll();
+      setAutoRefresh(true);
+    })();
+  </script>
+</body>
+</html>

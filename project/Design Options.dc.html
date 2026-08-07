@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@300;400;500;700&family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f0eee9;font-family:system-ui,sans-serif}
+a{color:#1a1a1a}a:hover{color:#2a78d6}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}
+.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}
+.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)}
+.dv-card{max-width:100%;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}
+.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}
+</style>
+</helmet>
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">4Fドリンク速報 — 3つのデザイン方向（主要画面の抜粋）</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>カフェの温かみ — エスプレッソ×クリーム、丸ゴシック</div>
+<div class="dv-card" style="width:880px;background:#f5edde;font-family:'Zen Maru Gothic',sans-serif;color:#33261c">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 28px;background:#2b1f18;color:#f5edde">
+    <div style="display:flex;align-items:center;gap:10px"><div style="width:14px;height:14px;border-radius:50%;background:#c96f42"></div><span style="font-weight:900;font-size:17px">4F ドリンク速報</span><span style="font-size:11px;opacity:.65">弘済ビル 4Fラウンジ</span></div>
+    <span style="font-size:12px;opacity:.75">最終更新 2分前</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1.2fr .8fr;gap:28px;padding:28px;align-items:center">
+    <div>
+      <div style="font-size:12px;font-weight:700;color:#8a6a50;letter-spacing:.1em">いまのマシン</div>
+      <div style="font-size:42px;font-weight:900;line-height:1.1;color:#b4552d;margin:6px 0 8px">一部残り少なめ</div>
+      <div style="font-size:14px;color:#6a5240">ココアがそろそろなくなりそう。お早めにどうぞ。</div>
+    </div>
+    <div style="background:#fffaf0;border-radius:18px;padding:18px 20px;box-shadow:0 4px 0 #e3d5bd">
+      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed #d9c8ac;font-size:13px"><span style="color:#8a6a50">有効観測</span><strong>10票・9人</strong></div>
+      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed #d9c8ac;font-size:13px"><span style="color:#8a6a50">確からしさ</span><strong style="color:#5e7a4a">高</strong></div>
+      <div style="display:flex;justify-content:space-between;padding:7px 0;font-size:13px"><span style="color:#8a6a50">24時間の協力者</span><strong>12人</strong></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:0 28px 24px">
+    <div style="background:#fffaf0;border-radius:18px;padding:16px 18px;box-shadow:0 4px 0 #e3d5bd">
+      <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:900"><span>コーヒー豆</span><span style="color:#5e7a4a">約75%</span></div>
+      <div style="height:12px;border-radius:99px;background:#eee0c8;margin-top:12px;overflow:hidden"><div style="width:75%;height:100%;border-radius:99px;background:#5e7a4a"></div></div>
+      <div style="font-size:12px;color:#8a6a50;margin-top:8px">十分にあります</div>
+    </div>
+    <div style="background:#fffaf0;border-radius:18px;padding:16px 18px;box-shadow:0 4px 0 #e3d5bd">
+      <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:900"><span>ココア</span><span style="color:#b4552d">約30%</span></div>
+      <div style="height:12px;border-radius:99px;background:#eee0c8;margin-top:12px;overflow:hidden"><div style="width:30%;height:100%;border-radius:99px;background:#b4552d"></div></div>
+      <div style="font-size:12px;color:#8a6a50;margin-top:8px">残り少なめです</div>
+    </div>
+    <div style="background:#fffaf0;border-radius:18px;padding:16px 18px;box-shadow:0 4px 0 #e3d5bd">
+      <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:900"><span>ミルク</span><span style="color:#5e7a4a">約80%</span></div>
+      <div style="height:12px;border-radius:99px;background:#eee0c8;margin-top:12px;overflow:hidden"><div style="width:80%;height:100%;border-radius:99px;background:#5e7a4a"></div></div>
+      <div style="font-size:12px;color:#8a6a50;margin-top:8px">十分にあります</div>
+    </div>
+  </div>
+  <div style="padding:22px 28px 28px;background:#efe3cd">
+    <div style="font-size:13px;font-weight:900;margin-bottom:12px">今の状態をおしえてください（1タップ）</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="padding:12px 20px;border-radius:99px;background:#5e7a4a;color:#fffaf0;font-weight:900;font-size:14px;box-shadow:0 3px 0 #47603a">☺ 取れた・作れた</div>
+      <div style="padding:12px 20px;border-radius:99px;background:#fffaf0;color:#b4552d;font-weight:900;font-size:14px;border:2px solid #b4552d">残り少なめ</div>
+      <div style="padding:12px 20px;border-radius:99px;background:#fffaf0;color:#8c3a2a;font-weight:900;font-size:14px;border:2px solid #8c3a2a">売り切れ・作れない</div>
+      <div style="padding:12px 20px;border-radius:99px;background:#fffaf0;color:#33261c;font-weight:900;font-size:14px;border:2px solid #33261c">補充された</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>ミニマルで静か — 余白とヘアライン、セージの一色</div>
+<div class="dv-card" style="width:880px;background:#fbfbf8;font-family:'Zen Kaku Gothic New',sans-serif;color:#1d1d1b">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 36px;border-bottom:1px solid #e7e6e1">
+    <div style="display:flex;align-items:baseline;gap:14px"><span style="font-weight:700;font-size:15px;letter-spacing:.02em">4Fドリンク速報</span><span style="font-size:11px;color:#8f8e88;letter-spacing:.12em">KOSAI BLDG. 4F LOUNGE</span></div>
+    <span style="font-size:12px;color:#8f8e88">最終更新 2分前</span>
+  </div>
+  <div style="padding:44px 36px 36px">
+    <div style="font-size:11px;color:#8f8e88;letter-spacing:.22em;margin-bottom:14px">現在の全体ステータス</div>
+    <div style="display:flex;align-items:baseline;gap:18px;flex-wrap:wrap">
+      <span style="font-size:40px;font-weight:300;letter-spacing:-.01em">一部残り少なめ</span>
+      <span style="display:inline-flex;align-items:center;gap:7px;font-size:13px;color:#5c5b55"><span style="width:8px;height:8px;border-radius:50%;background:#8a9478"></span>ココアの残量が少なめです</span>
+    </div>
+    <div style="display:flex;gap:40px;margin-top:30px;font-size:12px;color:#8f8e88">
+      <span>有効観測 <strong style="color:#1d1d1b;font-weight:500">10票・9人</strong></span>
+      <span>確からしさ <strong style="color:#1d1d1b;font-weight:500">高</strong></span>
+      <span>24時間の協力者 <strong style="color:#1d1d1b;font-weight:500">12人</strong></span>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid #e7e6e1">
+    <div style="padding:26px 36px;border-right:1px solid #e7e6e1">
+      <div style="font-size:13px;font-weight:500">コーヒー豆</div>
+      <div style="font-size:30px;font-weight:300;margin:10px 0 12px">75<span style="font-size:14px;color:#8f8e88">%</span></div>
+      <div style="height:3px;background:#ecebe6"><div style="width:75%;height:100%;background:#1d1d1b"></div></div>
+      <div style="font-size:11px;color:#8f8e88;margin-top:10px">十分にあります</div>
+    </div>
+    <div style="padding:26px 36px;border-right:1px solid #e7e6e1">
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:500"><span>ココア</span><span style="color:#a5623e">残り少なめ</span></div>
+      <div style="font-size:30px;font-weight:300;margin:10px 0 12px;color:#a5623e">30<span style="font-size:14px">%</span></div>
+      <div style="height:3px;background:#ecebe6"><div style="width:30%;height:100%;background:#a5623e"></div></div>
+      <div style="font-size:11px;color:#8f8e88;margin-top:10px">残り少なめです</div>
+    </div>
+    <div style="padding:26px 36px">
+      <div style="font-size:13px;font-weight:500">ミルク</div>
+      <div style="font-size:30px;font-weight:300;margin:10px 0 12px">80<span style="font-size:14px;color:#8f8e88">%</span></div>
+      <div style="height:3px;background:#ecebe6"><div style="width:80%;height:100%;background:#1d1d1b"></div></div>
+      <div style="font-size:11px;color:#8f8e88;margin-top:10px">十分にあります</div>
+    </div>
+  </div>
+  <div style="padding:26px 36px 34px;border-top:1px solid #e7e6e1">
+    <div style="font-size:11px;color:#8f8e88;letter-spacing:.22em;margin-bottom:14px">今の状態を投稿</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div style="padding:11px 18px;background:#1d1d1b;color:#fbfbf8;font-size:13px;border-radius:2px">取れた・作れた</div>
+      <div style="padding:11px 18px;border:1px solid #cfcec8;font-size:13px;border-radius:2px;color:#5c5b55">残り少なめ</div>
+      <div style="padding:11px 18px;border:1px solid #cfcec8;font-size:13px;border-radius:2px;color:#5c5b55">売り切れ・作れない</div>
+      <div style="padding:11px 18px;border:1px solid #cfcec8;font-size:13px;border-radius:2px;color:#5c5b55">補充された</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>カジュアルで楽しい — 太丸ゴシック、色チップとオフセット影</div>
+<div class="dv-card" style="width:880px;background:#fff6e8;font-family:'M PLUS Rounded 1c',sans-serif;color:#26221f">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 28px;border-bottom:3px solid #26221f;background:#ffd98a">
+    <div style="display:flex;align-items:center;gap:10px"><span style="display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#26221f;color:#ffd98a;font-weight:800">4F</span><span style="font-weight:800;font-size:17px">ドリンク速報</span></div>
+    <span style="font-size:12px;font-weight:800;padding:5px 12px;border-radius:99px;border:2px solid #26221f;background:#fff">更新 2分前</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1.15fr .85fr;gap:22px;padding:26px 28px;align-items:center">
+    <div>
+      <div style="display:inline-block;font-size:12px;font-weight:800;padding:4px 12px;border-radius:99px;background:#f2a03d;color:#26221f;border:2px solid #26221f">いまのようす</div>
+      <div style="font-size:40px;font-weight:800;line-height:1.15;margin:12px 0 6px">一部<span style="color:#e4682f">残り少なめ</span>！</div>
+      <div style="font-size:14px;font-weight:500;color:#6b6258">ココアがピンチ。飲むなら今のうち 🏃</div>
+    </div>
+    <div style="display:grid;gap:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:2px solid #26221f;border-radius:14px;padding:10px 16px;box-shadow:3px 3px 0 #26221f;font-size:13px;font-weight:800"><span>有効観測</span><span>10票・9人</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;background:#bfe6c7;border:2px solid #26221f;border-radius:14px;padding:10px 16px;box-shadow:3px 3px 0 #26221f;font-size:13px;font-weight:800"><span>確からしさ</span><span>高 👍</span></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:0 28px 24px">
+    <div style="background:#fff;border:2px solid #26221f;border-radius:16px;padding:14px 16px;box-shadow:3px 3px 0 #26221f">
+      <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:800;font-size:14px">コーヒー豆</span><span style="display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#2f9e6e;color:#fff;font-weight:800;font-size:13px;border:2px solid #26221f">✓</span></div>
+      <div style="font-size:28px;font-weight:800;margin:8px 0 8px;color:#2f9e6e">75%</div>
+      <div style="height:12px;border:2px solid #26221f;border-radius:99px;overflow:hidden;background:#fff"><div style="width:75%;height:100%;background:#2f9e6e"></div></div>
+    </div>
+    <div style="background:#fff;border:2px solid #26221f;border-radius:16px;padding:14px 16px;box-shadow:3px 3px 0 #26221f">
+      <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:800;font-size:14px">ココア</span><span style="display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#f2a03d;color:#26221f;font-weight:800;font-size:13px;border:2px solid #26221f">!</span></div>
+      <div style="font-size:28px;font-weight:800;margin:8px 0 8px;color:#e4682f">30%</div>
+      <div style="height:12px;border:2px solid #26221f;border-radius:99px;overflow:hidden;background:#fff"><div style="width:30%;height:100%;background:#f2a03d"></div></div>
+    </div>
+    <div style="background:#fff;border:2px solid #26221f;border-radius:16px;padding:14px 16px;box-shadow:3px 3px 0 #26221f">
+      <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:800;font-size:14px">ミルク</span><span style="display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#2f9e6e;color:#fff;font-weight:800;font-size:13px;border:2px solid #26221f">✓</span></div>
+      <div style="font-size:28px;font-weight:800;margin:8px 0 8px;color:#2f9e6e">80%</div>
+      <div style="height:12px;border:2px solid #26221f;border-radius:99px;overflow:hidden;background:#fff"><div style="width:80%;height:100%;background:#2f9e6e"></div></div>
+    </div>
+  </div>
+  <div style="padding:20px 28px 28px;border-top:3px solid #26221f;background:#ffe9c2">
+    <div style="font-size:14px;font-weight:800;margin-bottom:12px">見かけたら1タップで投稿！</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="padding:12px 18px;border-radius:14px;background:#2f9e6e;color:#fff;font-weight:800;font-size:14px;border:2px solid #26221f;box-shadow:3px 3px 0 #26221f">取れた！</div>
+      <div style="padding:12px 18px;border-radius:14px;background:#f2a03d;color:#26221f;font-weight:800;font-size:14px;border:2px solid #26221f;box-shadow:3px 3px 0 #26221f">残り少なめ</div>
+      <div style="padding:12px 18px;border-radius:14px;background:#e4573d;color:#fff;font-weight:800;font-size:14px;border:2px solid #26221f;box-shadow:3px 3px 0 #26221f">売り切れ…</div>
+      <div style="padding:12px 18px;border-radius:14px;background:#fff;color:#26221f;font-weight:800;font-size:14px;border:2px solid #26221f;box-shadow:3px 3px 0 #26221f">補充された✨</div>
+    </div>
+  </div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">次の一手：「<a class="dv-oid" href="#1a">1a</a>で全画面を作って」・「<a class="dv-oid" href="#1b">1b</a>ベースで色だけ<a class="dv-oid" href="#1c">1c</a>っぽく」・「別方向をもう1案」</p>
+</section>
+
+</x-dc>
+</body>
+</html>

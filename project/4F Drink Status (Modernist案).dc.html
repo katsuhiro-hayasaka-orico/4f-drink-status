@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f3f2f2;color:#201e1d;font-family:"Archivo","Hiragino Sans","Noto Sans JP",sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer}
+a{color:#201e1d;text-decoration-color:#ec3013;text-underline-offset:3px}
+a:hover{color:#ec3013}
+::selection{background:#f9c4ba}
+button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #ec3013;outline-offset:2px}
+@keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#f3f2f2">
+<div style="max-width:1280px;margin:0 auto;border-left:2px solid #201e1d;border-right:2px solid #201e1d;background:#f3f2f2;min-height:100vh">
+
+<header style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;padding:18px 32px;border-bottom:2px solid #201e1d">
+  <div style="display:flex;align-items:center;gap:12px">
+    <div style="width:16px;height:16px;background:#ec3013"></div>
+    <div style="font-weight:800;font-size:18px;letter-spacing:-0.01em">4Fドリンク速報</div>
+    <span style="font-size:11px;font-weight:800;letter-spacing:0.14em;color:#6b6764;text-transform:uppercase">Drink Status Board</span>
+    <span style="font-size:11px;font-weight:800;padding:3px 8px;border:2px solid #ec3013;color:#ec3013;letter-spacing:0.08em">デモ</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:18px;font-size:13px">
+    <span style="font-weight:600">弘済ビル 4Fラウンジ</span>
+    <span style="color:#6b6764">最終更新 <strong style="color:#201e1d">{{ lastUpdatedRel }}</strong></span>
+    <button type="button" onClick="{{ toggleAuto }}" style="background:none;border:2px solid #201e1d;padding:6px 12px;font-weight:600;font-size:12px;text-align:left;color:#201e1d" style-hover="background:#201e1d;color:#f3f2f2">{{ autoLabel }}</button>
+  </div>
+</header>
+
+<section style="padding:30px 32px 36px;border-bottom:2px solid #201e1d">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:36px;align-items:end">
+    <div>
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:16px">
+        <span style="font-weight:800;font-size:12px;color:#ec3013;letter-spacing:0.12em">01</span>
+        <span style="font-weight:800;font-size:13px;letter-spacing:0.1em">現在の全体ステータス</span>
+      </div>
+      <h1 style="margin:0 0 12px;font-size:clamp(42px,5.5vw,72px);font-weight:800;line-height:1.02;letter-spacing:-0.03em"><span style="{{ overallColorStyle }}">{{ overallLabel }}</span></h1>
+      <p style="margin:0;font-size:16px;color:#4a4643">{{ overallReason }}</p>
+      <p style="margin:14px 0 0;font-size:13px;color:#6b6764">4Fラウンジのドリンクマシンの状況を、みんなの投稿で共有しています。</p>
+    </div>
+    <div>
+      <sc-for list="{{ metrics }}" as="m" hint-placeholder-count="4">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:12px 0;border-top:2px solid #201e1d">
+          <span style="font-size:13px;color:#6b6764;font-weight:600">{{ m.label }}</span>
+          <span style="{{ m.valueStyle }}">{{ m.value }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</section>
+
+<section style="padding:26px 32px 34px;border-bottom:2px solid #201e1d">
+  <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:20px">
+    <span style="font-weight:800;font-size:12px;color:#ec3013;letter-spacing:0.12em">02</span>
+    <h2 style="margin:0;font-size:19px;font-weight:800;letter-spacing:-0.01em">材料の推定残量</h2>
+    <span style="font-size:12px;color:#6b6764">みんなの投稿に基づく目安 — 実際の残量と異なる場合があります</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:28px">
+    <sc-for list="{{ ingredients }}" as="ing" hint-placeholder-count="3">
+      <div style="border-top:2px solid #201e1d;padding-top:14px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+          <span style="font-weight:800;font-size:15px">{{ ing.label }}</span>
+          <span style="{{ ing.descStyle }}">{{ ing.desc }}</span>
+        </div>
+        <div style="font-size:44px;font-weight:800;letter-spacing:-0.03em;line-height:1;margin:14px 0 12px"><span style="{{ ing.valStyle }}">{{ ing.pctText }}</span></div>
+        <div style="height:96px;background:#e6e4e3;position:relative" aria-label="{{ ing.label }}の推定残量{{ ing.pctText }}">
+          <div style="{{ ing.fillStyle }}"></div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+
+<section style="padding:26px 32px 34px;border-bottom:2px solid #201e1d">
+  <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:20px">
+    <span style="font-weight:800;font-size:12px;color:#ec3013;letter-spacing:0.12em">03</span>
+    <h2 style="margin:0;font-size:19px;font-weight:800;letter-spacing:-0.01em">ドリンクの作成可否</h2>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:28px">
+    <sc-for list="{{ drinks }}" as="d" hint-placeholder-count="3">
+      <div style="border-top:2px solid #201e1d;padding-top:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <span style="font-weight:800;font-size:15px">{{ d.name }}</span>
+          <span style="{{ d.markStyle }}">{{ d.mark }}</span>
+        </div>
+        <div style="font-size:26px;font-weight:800;letter-spacing:-0.02em;margin:10px 0 8px"><span style="{{ d.stateStyle }}">{{ d.stateText }}</span></div>
+        <p style="margin:0 0 10px;font-size:13px;color:#4a4643;line-height:1.6">{{ d.reason }}</p>
+        <div style="font-size:12px;color:#6b6764"><span style="font-weight:800;letter-spacing:0.08em">必要な材料</span>　{{ d.required }}</div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+
+<section id="report" style="padding:26px 32px 34px;border-bottom:2px solid #201e1d;background:#eae9e9">
+  <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:8px">
+    <span style="font-weight:800;font-size:12px;color:#ec3013;letter-spacing:0.12em">04</span>
+    <h2 style="margin:0;font-size:19px;font-weight:800;letter-spacing:-0.01em">今の状態を投稿</h2>
+    <span style="font-size:12px;color:#6b6764">4Fで確認した状態を、1タップで共有してください</span>
+  </div>
+  <div style="font-weight:800;font-size:13px;margin:20px 0 10px;letter-spacing:0.04em"><span style="color:#ec3013">1</span>　対象を選択</div>
+  <div style="display:flex;flex-wrap:wrap;gap:10px">
+    <sc-for list="{{ chips }}" as="c" hint-placeholder-count="4">
+      <button type="button" onClick="{{ c.onClick }}" aria-pressed="{{ c.pressed }}" style="{{ c.style }}">{{ c.label }}</button>
+    </sc-for>
+  </div>
+  <div style="font-weight:800;font-size:13px;margin:22px 0 10px;letter-spacing:0.04em"><span style="color:#ec3013">2</span>　状態を選択して投稿</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
+    <sc-for list="{{ actionsList }}" as="a" hint-placeholder-count="4">
+      <button type="button" onClick="{{ a.onClick }}" style="{{ a.style }}" style-hover="transform:translateY(-1px)">
+        <span style="{{ a.markStyle }}">{{ a.mark }}</span>
+        <span style="display:block;font-weight:800;font-size:15px;margin-top:8px">{{ a.label }}</span>
+      </button>
+    </sc-for>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:20px">
+    <span style="font-weight:800;font-size:13px;letter-spacing:0.04em">設置フロア</span>
+    <sc-for list="{{ floors }}" as="f" hint-placeholder-count="3">
+      <button type="button" onClick="{{ f.onClick }}" aria-pressed="{{ f.pressed }}" style="{{ f.style }}">{{ f.label }}</button>
+    </sc-for>
+  </div>
+  <p style="margin:18px 0 0;font-size:12px;color:#6b6764">投稿後5秒だけ取り消し可能です。材料別の投稿は推定残量へ即時反映します：取れた 70％／残り少なめ 30％／作れない 0％／補充された 100％。</p>
+</section>
+
+<section id="recent" style="padding:26px 32px 34px;border-bottom:2px solid #201e1d">
+  <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:20px">
+    <span style="font-weight:800;font-size:12px;color:#ec3013;letter-spacing:0.12em">05</span>
+    <h2 style="margin:0;font-size:19px;font-weight:800;letter-spacing:-0.01em">みんなの観測</h2>
+    <span style="font-size:12px;color:#6b6764">投稿者数・一致率・新しさから現在の状態を集約　—　{{ windowLabel }}</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:28px" aria-live="polite">
+    <sc-for list="{{ observations }}" as="o" hint-placeholder-count="4">
+      <div style="border-top:2px solid #201e1d;padding-top:14px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px">
+          <span style="font-weight:800;font-size:15px">{{ o.label }}</span>
+          <span style="{{ o.confStyle }}">{{ o.confLabel }}</span>
+        </div>
+        <div style="font-size:22px;font-weight:800;letter-spacing:-0.02em;margin-bottom:6px"><span style="{{ o.statusStyle }}">{{ o.statusText }}</span></div>
+        <p style="margin:0;min-height:36px;font-size:13px;color:#4a4643;line-height:1.6">{{ o.copy }}</p>
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-top:12px;font-size:12px;color:#6b6764"><span>みんなの一致度</span><strong style="color:#201e1d">{{ o.agreementText }}</strong></div>
+        <div style="height:8px;background:#e6e4e3;margin-top:6px" aria-label="{{ o.label }}の一致度{{ o.agreementText }}">
+          <div style="{{ o.barStyle }}"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-top:10px;font-size:11px;color:#6b6764"><span>{{ o.lastText }}</span><span>{{ o.votesText }}</span></div>
+      </div>
+    </sc-for>
+  </div>
+  <p style="margin:20px 0 0;font-size:12px;color:#6b6764;line-height:1.6">同じ利用者の最新投稿だけを1票として集計します。3人以上・75％以上一致・最終観測10分以内で「確からしさ：高」です。</p>
+</section>
+
+<section style="padding:26px 32px 40px">
+  <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:16px">
+    <span style="font-weight:800;font-size:12px;color:#ec3013;letter-spacing:0.12em">06</span>
+    <h2 style="margin:0;font-size:19px;font-weight:800;letter-spacing:-0.01em">投稿の内訳</h2>
+    <span style="font-size:12px;color:#6b6764">直近の投稿20件まで</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+    <sc-for list="{{ filters }}" as="fl" hint-placeholder-count="5">
+      <button type="button" onClick="{{ fl.onClick }}" aria-pressed="{{ fl.pressed }}" style="{{ fl.style }}">{{ fl.label }}</button>
+    </sc-for>
+  </div>
+  <div style="overflow-x:auto">
+    <div style="min-width:560px">
+      <div style="display:grid;grid-template-columns:1.4fr 1fr 0.8fr 0.6fr 1fr;gap:12px;padding:10px 0;border-top:2px solid #201e1d;border-bottom:2px solid #201e1d;font-size:11px;font-weight:800;letter-spacing:0.1em;color:#6b6764">
+        <span>対象</span><span>状態</span><span>時刻</span><span>フロア</span><span>投稿者</span>
+      </div>
+      <sc-for list="{{ reportRows }}" as="r" hint-placeholder-count="6">
+        <div style="display:grid;grid-template-columns:1.4fr 1fr 0.8fr 0.6fr 1fr;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid #d8d6d4;font-size:13px">
+          <span style="font-weight:600">{{ r.subject }}</span>
+          <span><span style="{{ r.tagStyle }}">{{ r.action }}</span></span>
+          <span style="color:#6b6764">{{ r.time }}</span>
+          <span style="color:#6b6764">{{ r.floor }}</span>
+          <span style="color:#6b6764">{{ r.user }}</span>
+        </div>
+      </sc-for>
+      <sc-if value="{{ reportsEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:24px 0;color:#6b6764;font-size:13px">該当する投稿はありません</div>
+      </sc-if>
+    </div>
+  </div>
+</section>
+
+<footer style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;padding:16px 32px;border-top:2px solid #201e1d;font-size:12px;color:#6b6764">
+  <span>集合知デモ — 利用者ごとの最新投稿を1票として集計</span>
+  <button type="button" onClick="{{ openAbout }}" style="background:none;border:none;padding:0;font-size:12px;font-weight:800;color:#201e1d;text-decoration:underline;text-decoration-color:#ec3013;text-underline-offset:3px" style-hover="color:#ec3013">このアプリについて</button>
+</footer>
+
+</div>
+</div>
+
+<sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+  <div role="status" aria-live="polite" style="position:fixed;z-index:40;left:24px;bottom:24px;max-width:min(460px,calc(100vw - 48px));display:flex;align-items:center;gap:16px;padding:14px 18px;background:#201e1d;color:#f3f2f2;animation:toastin .18s ease;box-shadow:0 12px 32px rgba(32,30,29,0.3)">
+    <span style="font-size:13px;line-height:1.5">{{ toastText }}</span>
+    <button type="button" onClick="{{ undo }}" style="flex:none;background:none;border:2px solid #ec3013;color:#f3f2f2;padding:7px 12px;font-weight:800;font-size:12px;text-align:left" style-hover="background:#ec3013">取り消す</button>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showAbout }}" hint-placeholder-val="{{ false }}">
+  <div role="dialog" aria-modal="true" aria-label="このデモについて" onClick="{{ backdropClick }}" style="position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:20px;background:rgba(32,30,29,0.55)">
+    <div style="width:min(560px,100%);padding:28px;background:#f3f2f2;border:2px solid #201e1d">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="width:12px;height:12px;background:#ec3013"></div>
+        <h2 style="margin:0;font-size:20px;font-weight:800;letter-spacing:-0.01em">このデモについて</h2>
+      </div>
+      <p style="margin:0 0 12px;font-size:14px;line-height:1.7;color:#4a4643">利用者ごとの最新投稿を1票として集計し、投稿者数・一致率・情報の新しさから状態と確からしさを推定するフロントエンドデモです。</p>
+      <p style="margin:0;font-size:14px;line-height:1.7;color:#4a4643">実際の本番版では、Azure Static Web Apps、Azure Functions、Azure Table Storage、Microsoft Entra IDを利用する想定です。</p>
+      <div style="display:flex;justify-content:flex-end;margin-top:20px">
+        <button type="button" onClick="{{ closeAbout }}" style="background:#201e1d;color:#f3f2f2;border:2px solid #201e1d;padding:10px 18px;font-weight:800;font-size:13px;text-align:left" style-hover="background:#ec3013;border-color:#ec3013">閉じる</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;statusPalette&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;mono&quot;,&quot;traffic&quot;],&quot;default&quot;:&quot;mono&quot;,&quot;tsType&quot;:&quot;'mono'|'traffic'&quot;,&quot;section&quot;:&quot;表示&quot;,&quot;description&quot;:&quot;mono＝Modernist準拠（墨＋赤）、traffic＝信号色（緑・橙・赤）&quot;},&quot;observationWindowMin&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:30,&quot;min&quot;:10,&quot;max&quot;:120,&quot;unit&quot;:&quot;分&quot;,&quot;section&quot;:&quot;集計&quot;,&quot;description&quot;:&quot;観測の集計ウィンドウ&quot;},&quot;autoRefresh&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;section&quot;:&quot;集計&quot;}}">
+class Component extends DCLogic {
+  subjects = { coffeeBeans: { label: 'コーヒー豆' }, cocoaPowder: { label: 'ココア' }, milkPowder: { label: 'ミルク' }, machine: { label: 'マシン全体' } };
+  actionMeta = {
+    available: { label: '取れた・作れた', quote: '取れた', level: 70, mark: '✓' },
+    low: { label: '残り少なめ', quote: '残り少なめ', level: 30, mark: '!' },
+    unavailable: { label: '売り切れ・作れない', quote: '作れない', level: 0, mark: '×' },
+    refilled: { label: '補充された', quote: '補充された', level: 100, mark: '↻' }
+  };
+  state = this.load();
+
+  mkId() { return 'r-' + Date.now() + '-' + Math.random().toString(16).slice(2); }
+
+  load() {
+    const now = Date.now(), m = 60000;
+    const seed = [
+      { id: this.mkId(), subject: 'coffeeBeans', action: 'available', floor: '2F', user: '利用者A', createdAt: now - 2 * m },
+      { id: this.mkId(), subject: 'coffeeBeans', action: 'available', floor: '3F', user: '利用者E', createdAt: now - 4 * m },
+      { id: this.mkId(), subject: 'coffeeBeans', action: 'available', floor: '4F', user: '利用者F', createdAt: now - 6 * m },
+      { id: this.mkId(), subject: 'coffeeBeans', action: 'available', floor: '2F', user: '利用者G', createdAt: now - 9 * m },
+      { id: this.mkId(), subject: 'coffeeBeans', action: 'low', floor: '3F', user: '利用者H', createdAt: now - 8 * m },
+      { id: this.mkId(), subject: 'cocoaPowder', action: 'low', floor: '3F', user: '利用者B', createdAt: now - 7 * m },
+      { id: this.mkId(), subject: 'cocoaPowder', action: 'low', floor: '4F', user: '利用者I', createdAt: now - 4 * m },
+      { id: this.mkId(), subject: 'cocoaPowder', action: 'low', floor: '2F', user: '利用者J', createdAt: now - 9 * m },
+      { id: this.mkId(), subject: 'cocoaPowder', action: 'available', floor: '3F', user: '利用者K', createdAt: now - 5 * m },
+      { id: this.mkId(), subject: 'milkPowder', action: 'refilled', floor: '4F', user: '利用者C', createdAt: now - 18 * m },
+      { id: this.mkId(), subject: 'milkPowder', action: 'available', floor: '2F', user: '利用者L', createdAt: now - 16 * m },
+      { id: this.mkId(), subject: 'machine', action: 'available', floor: '2F', user: '利用者D', createdAt: now - 24 * m }
+    ];
+    let stored = null;
+    try { stored = JSON.parse(localStorage.getItem('drink-status-modernist') || 'null'); } catch (e) {}
+    const base = { selectedSubject: 'coffeeBeans', selectedFloor: '4F', selectedFilter: 'all', reports: seed, showAbout: false, toastOn: false, toastText: '', autoOn: true };
+    if (stored && Array.isArray(stored.reports) && stored.reports.length) {
+      base.reports = stored.reports.map(r => ({ ...r, createdAt: Number(r.createdAt) }));
+      if (stored.selectedFloor) base.selectedFloor = stored.selectedFloor;
+    }
+    return base;
+  }
+
+  save() {
+    try { localStorage.setItem('drink-status-modernist', JSON.stringify({ reports: this.state.reports.slice(0, 120), selectedFloor: this.state.selectedFloor })); } catch (e) {}
+  }
+
+  componentDidMount() {
+    this.timer = setInterval(() => { if (this.props.autoRefresh ?? this.state.autoOn) this.forceUpdate(); }, 30000);
+  }
+  componentWillUnmount() { clearInterval(this.timer); clearTimeout(this.undoT); }
+
+  winMs() { return (this.props.observationWindowMin ?? 30) * 60000; }
+  pal() {
+    return (this.props.statusPalette ?? 'mono') === 'traffic'
+      ? { available: '#1a7f3c', low: '#c96a00', unavailable: '#c9250f', none: '#6b6764' }
+      : { available: '#201e1d', low: '#ec3013', unavailable: '#ec3013', none: '#6b6764' };
+  }
+
+  rel(t) {
+    const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+    if (sec < 20) return 'たった今';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return min + '分前';
+    return Math.floor(min / 60) + '時間前';
+  }
+
+  weight(t) {
+    const age = Date.now() - t;
+    if (age <= 600000) return 1;
+    if (age <= 1200000) return 0.7;
+    if (age <= 1800000) return 0.4;
+    return 0;
+  }
+
+  cat(action) { return action === 'refilled' ? 'available' : action; }
+
+  summarize(subject) {
+    const cutoff = Date.now() - this.winMs();
+    let cand = this.state.reports.filter(r => r.subject === subject && r.createdAt >= cutoff).sort((a, b) => b.createdAt - a.createdAt);
+    const refill = cand.find(r => r.action === 'refilled');
+    if (refill) cand = cand.filter(r => r.createdAt >= refill.createdAt);
+    const byUser = new Map();
+    cand.forEach(r => { if (!byUser.has(r.user)) byUser.set(r.user, r); });
+    const votes = [...byUser.values()];
+    if (!votes.length) return { subject, status: 'none', dominantAction: null, total: 0, supporters: 0, agreement: 0, confidence: 'none', lastAt: null };
+    const weighted = { available: 0, low: 0, unavailable: 0 };
+    const counts = { available: 0, low: 0, unavailable: 0 };
+    votes.forEach(v => { const c = this.cat(v.action); weighted[c] += this.weight(v.createdAt); counts[c] += 1; });
+    const urgent = votes.filter(v => this.cat(v.action) === 'unavailable' && Date.now() - v.createdAt <= 600000).length >= 2;
+    const status = urgent ? 'unavailable' : Object.entries(weighted).sort((a, b) => b[1] - a[1])[0][0];
+    const total = votes.length, supporters = counts[status];
+    const agreement = Math.round((supporters / total) * 100);
+    const lastAt = Math.max(...votes.map(v => v.createdAt));
+    const age = Date.now() - lastAt;
+    let confidence = 'low';
+    if (total >= 3 && agreement >= 75 && age <= 600000) confidence = 'high';
+    else if (total >= 2 && agreement >= 60 && age <= 1200000) confidence = 'medium';
+    const dominantAction = status === 'available' && votes.some(v => v.action === 'refilled') ? 'refilled' : status;
+    return { subject, status, dominantAction, total, supporters, agreement, confidence, lastAt };
+  }
+
+  post(action) {
+    const subject = this.state.selectedSubject;
+    const report = { id: this.mkId(), subject, action, floor: this.state.selectedFloor, user: '利用者（あなた）', createdAt: Date.now() };
+    this.lastPostedId = report.id;
+    const reports = [report, ...this.state.reports];
+    const levelMsg = subject === 'machine' ? '' : '（推定残量 ' + this.actionMeta[action].level + '%）';
+    this.setState({ reports, toastOn: true, toastText: this.subjects[subject].label + 'を「' + this.actionMeta[action].label + '」で投稿しました。みんなの観測を再集計しました' + levelMsg }, () => this.save());
+    clearTimeout(this.undoT);
+    this.undoT = setTimeout(() => { this.lastPostedId = null; this.setState({ toastOn: false }); }, 5000);
+  }
+
+  undoPost() {
+    if (!this.lastPostedId) { this.setState({ toastOn: false }); return; }
+    const reports = this.state.reports.filter(r => r.id !== this.lastPostedId);
+    this.lastPostedId = null;
+    clearTimeout(this.undoT);
+    this.setState({ reports, toastOn: false }, () => this.save());
+  }
+
+  renderVals() {
+    const pal = this.pal();
+    const winMin = this.props.observationWindowMin ?? 30;
+    const keys = ['coffeeBeans', 'cocoaPowder', 'milkPowder', 'machine'];
+    const summaries = keys.map(k => this.summarize(k));
+    const byKey = Object.fromEntries(summaries.map(s => [s.subject, s]));
+
+    const statuses = { coffeeBeans: 'available', cocoaPowder: 'low', milkPowder: 'available', machine: 'available' };
+    const levels = { coffeeBeans: 75, cocoaPowder: 35, milkPowder: 80 };
+    summaries.forEach(s => {
+      if (s.status === 'none') return;
+      statuses[s.subject] = s.status;
+      if (s.subject !== 'machine') levels[s.subject] = s.dominantAction === 'refilled' ? 100 : this.actionMeta[s.status].level;
+    });
+
+    // overall
+    let overall;
+    const mats = ['coffeeBeans', 'cocoaPowder', 'milkPowder'];
+    if (statuses.machine === 'unavailable') overall = { label: 'マシンを利用できません', reason: 'マシン全体の利用不可報告があります', tone: 'unavailable' };
+    else if (mats.some(k => statuses[k] === 'unavailable')) overall = { label: '一部利用できません', reason: '一部材料が不足しています', tone: 'unavailable' };
+    else {
+      const low = mats.find(k => statuses[k] === 'low');
+      overall = low ? { label: '一部残り少なめ', reason: this.subjects[low].label + 'の残量が少なめです', tone: 'low' } : { label: '利用できます', reason: '各材料は十分にあります', tone: 'available' };
+    }
+
+    const latest = [...this.state.reports].sort((a, b) => b.createdAt - a.createdAt)[0];
+    const lastUpdatedRel = latest ? this.rel(latest.createdAt) : '情報なし';
+
+    const validVotes = summaries.reduce((s, x) => s + x.total, 0);
+    const recent = this.state.reports.filter(r => Date.now() - r.createdAt <= this.winMs());
+    const recentPeople = new Set(recent.map(r => r.user)).size;
+    const dayPeople = new Set(this.state.reports.filter(r => Date.now() - r.createdAt <= 86400000).map(r => r.user)).size;
+
+    const matSums = summaries.filter(s => s.subject !== 'machine');
+    const focus = matSums.find(s => statuses[s.subject] === 'unavailable') || matSums.find(s => statuses[s.subject] === 'low') || [...matSums].sort((a, b) => a.agreement - b.agreement)[0];
+    const confLabels = { high: '高', medium: '中', low: '低', none: '情報なし' };
+    const conf = confLabels[focus ? focus.confidence : 'none'];
+    const confColor = conf === '高' ? pal.available : conf === '中' ? pal.low : '#ec3013';
+
+    const metrics = [
+      { label: '最終更新', value: lastUpdatedRel, valueStyle: { fontWeight: 800, fontSize: '17px' } },
+      { label: '過去' + winMin + '分の有効観測', value: validVotes + '票・' + recentPeople + '人', valueStyle: { fontWeight: 800, fontSize: '17px' } },
+      { label: '観測の確からしさ', value: conf, valueStyle: { fontWeight: 800, fontSize: '17px', color: confColor } },
+      { label: '直近24時間の協力者', value: dayPeople + '人', valueStyle: { fontWeight: 800, fontSize: '17px' } }
+    ];
+
+    const descMap = { available: '十分にあります', low: '残り少なめです', unavailable: '補充が必要です' };
+    const ingredients = mats.map(k => {
+      const st = statuses[k], tone = pal[st], pct = levels[k];
+      return {
+        label: this.subjects[k].label,
+        pct, pctText: '約' + pct + '%',
+        desc: descMap[st],
+        descStyle: { fontSize: '12px', fontWeight: 800, color: tone },
+        valStyle: { color: tone },
+        fillStyle: { position: 'absolute', left: 0, right: 0, bottom: 0, height: pct + '%', background: tone, transition: 'height .35s ease' }
+      };
+    });
+
+    const machineDown = statuses.machine === 'unavailable';
+    const mkDrink = (name, required) => {
+      let st = 'available', reason = '材料が十分にあります';
+      if (machineDown || required.some(k => statuses[k] === 'unavailable')) {
+        st = 'unavailable';
+        reason = machineDown ? 'マシンを利用できません' : '必要な材料が不足しています';
+      } else if (required.some(k => statuses[k] === 'low')) {
+        st = 'low';
+        reason = required.filter(k => statuses[k] === 'low').map(k => this.subjects[k].label).join('・') + 'の残量が少なめです';
+      }
+      const stateText = st === 'available' ? '作れます' : st === 'low' ? '残り少なめ' : '作れません';
+      const mark = st === 'available' ? '✓' : st === 'low' ? '!' : '×';
+      return {
+        name, reason, stateText, mark,
+        required: required.map(k => this.subjects[k].label).join('、'),
+        stateStyle: { color: pal[st] },
+        markStyle: { display: 'grid', placeItems: 'center', width: '26px', height: '26px', fontWeight: 800, fontSize: '15px', color: '#f3f2f2', background: pal[st] }
+      };
+    };
+    const drinks = [mkDrink('コーヒー', ['coffeeBeans']), mkDrink('ココア', ['cocoaPowder']), mkDrink('カフェオレ', ['coffeeBeans', 'milkPowder'])];
+
+    const chipBase = { minHeight: '42px', padding: '9px 16px', fontWeight: 600, fontSize: '14px', textAlign: 'left', background: 'none', border: '2px solid #b7b3b0', color: '#201e1d' };
+    const chips = keys.map(k => ({
+      label: this.subjects[k].label,
+      pressed: this.state.selectedSubject === k,
+      style: this.state.selectedSubject === k ? { ...chipBase, border: '2px solid #201e1d', background: '#201e1d', color: '#f3f2f2', fontWeight: 800 } : chipBase,
+      onClick: () => this.setState({ selectedSubject: k })
+    }));
+
+    const actionsList = Object.entries(this.actionMeta).map(([key, meta]) => {
+      const tone = key === 'refilled' ? '#201e1d' : pal[this.cat(key)];
+      return {
+        label: meta.label, mark: meta.mark,
+        markStyle: { display: 'inline-grid', placeItems: 'center', width: '28px', height: '28px', fontWeight: 800, fontSize: '16px', color: '#f3f2f2', background: tone },
+        style: { minHeight: '104px', padding: '14px', textAlign: 'left', background: '#f3f2f2', border: '2px solid #201e1d', color: '#201e1d' },
+        onClick: () => this.post(key)
+      };
+    });
+
+    const floorBase = { minWidth: '52px', padding: '8px 14px', fontWeight: 600, fontSize: '13px', textAlign: 'left', background: 'none', border: '2px solid #b7b3b0', color: '#201e1d' };
+    const floors = ['2F', '3F', '4F'].map(f => ({
+      label: f,
+      pressed: this.state.selectedFloor === f,
+      style: this.state.selectedFloor === f ? { ...floorBase, border: '2px solid #ec3013', background: '#ec3013', color: '#f3f2f2', fontWeight: 800 } : floorBase,
+      onClick: () => this.setState({ selectedFloor: f }, () => this.save())
+    }));
+
+    const statusMeta = {
+      available: { text: '利用できます', quote: '取れた・利用できる' },
+      low: { text: '残り少なめ', quote: '残り少なめ' },
+      unavailable: { text: '利用できません', quote: '作れない' },
+      none: { text: '情報がありません', quote: '情報なし' }
+    };
+    const confPill = {
+      high: { label: '確からしさ：高', style: { fontSize: '11px', fontWeight: 800, padding: '3px 8px', background: '#201e1d', color: '#f3f2f2' } },
+      medium: { label: '確からしさ：中', style: { fontSize: '11px', fontWeight: 800, padding: '3px 8px', border: '2px solid #201e1d', color: '#201e1d' } },
+      low: { label: '確からしさ：低', style: { fontSize: '11px', fontWeight: 800, padding: '3px 8px', border: '2px solid #ec3013', color: '#ec3013' } },
+      none: { label: '情報なし', style: { fontSize: '11px', fontWeight: 800, padding: '3px 8px', border: '2px solid #b7b3b0', color: '#6b6764' } }
+    };
+    const observations = summaries.map(s => {
+      const meta = statusMeta[s.status];
+      return {
+        label: this.subjects[s.subject].label,
+        statusText: meta.text,
+        statusStyle: { color: s.status === 'none' ? '#6b6764' : pal[s.status] },
+        copy: s.total ? s.total + '人中' + s.supporters + '人が「' + meta.quote + '」と報告' : '過去' + winMin + '分に有効な投稿がありません',
+        agreementText: s.total ? s.agreement + '%' : '—',
+        barStyle: { height: '100%', width: s.agreement + '%', background: s.status === 'none' ? '#b7b3b0' : pal[s.status], transition: 'width .25s ease' },
+        confLabel: confPill[s.confidence].label,
+        confStyle: confPill[s.confidence].style,
+        lastText: s.lastAt ? '最終観測 ' + this.rel(s.lastAt) : '最終観測なし',
+        votesText: s.total + '票'
+      };
+    });
+
+    const filterDefs = [['all', 'すべて'], ['coffeeBeans', 'コーヒー豆'], ['cocoaPowder', 'ココア'], ['milkPowder', 'ミルク'], ['machine', 'マシン全体']];
+    const filterBase = { padding: '7px 12px', fontWeight: 600, fontSize: '13px', textAlign: 'left', background: 'none', border: '2px solid #b7b3b0', color: '#201e1d' };
+    const filters = filterDefs.map(([k, label]) => ({
+      label,
+      pressed: this.state.selectedFilter === k,
+      style: this.state.selectedFilter === k ? { ...filterBase, border: '2px solid #201e1d', background: '#201e1d', color: '#f3f2f2', fontWeight: 800 } : filterBase,
+      onClick: () => this.setState({ selectedFilter: k })
+    }));
+
+    const tagTone = a => a === 'refilled' ? { border: '2px solid #201e1d', color: '#201e1d' } : this.cat(a) === 'available' ? { border: '2px solid #201e1d', color: '#201e1d' } : this.cat(a) === 'low' ? { border: '2px solid #ec3013', color: (this.props.statusPalette ?? 'mono') === 'traffic' ? '#c96a00' : '#ec3013' } : { background: '#ec3013', color: '#f3f2f2' };
+    const rows = [...this.state.reports].sort((a, b) => b.createdAt - a.createdAt)
+      .filter(r => this.state.selectedFilter === 'all' || r.subject === this.state.selectedFilter).slice(0, 20);
+    const reportRows = rows.map(r => ({
+      subject: this.subjects[r.subject].label,
+      action: this.actionMeta[r.action].quote,
+      tagStyle: { display: 'inline-block', padding: '3px 8px', fontSize: '11px', fontWeight: 800, whiteSpace: 'nowrap', ...tagTone(r.action) },
+      time: this.rel(r.createdAt),
+      floor: r.floor,
+      user: r.user
+    }));
+
+    return {
+      lastUpdatedRel,
+      autoLabel: (this.props.autoRefresh ?? this.state.autoOn) ? '自動更新 ON' : '自動更新 OFF',
+      toggleAuto: () => this.setState({ autoOn: !this.state.autoOn }),
+      overallLabel: overall.label,
+      overallReason: overall.reason,
+      overallColorStyle: { color: pal[overall.tone] },
+      metrics, ingredients, drinks, chips, actionsList, floors, observations, filters, reportRows,
+      reportsEmpty: rows.length === 0,
+      windowLabel: '過去' + winMin + '分',
+      toastOn: this.state.toastOn,
+      toastText: this.state.toastText,
+      undo: () => this.undoPost(),
+      showAbout: this.state.showAbout,
+      openAbout: () => this.setState({ showAbout: true }),
+      closeAbout: () => this.setState({ showAbout: false }),
+      backdropClick: e => { if (e.target === e.currentTarget) this.setState({ showAbout: false }); }
+    };
+  }
+}
+</script>
+</body>
+</html>
