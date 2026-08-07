@@ -17,7 +17,7 @@ not_found_handling = "single-page-application"
 binding = "DB"
 database_name = "drink-status"
 # Replace with the id printed by `wrangler d1 create drink-status`.
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "db0c3937-49ef-4fcc-ac37-246110b2fe7c"
 migrations_dir = "migrations"
 
 [observability]
