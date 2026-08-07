@@ -386,17 +386,48 @@ a:focus-visible {
   font-size: 16px;
 }
 
-.drink__badge {
-  margin-left: auto;
+.drink-group + .drink-group {
+  margin-top: 24px;
+}
+
+.drink-group__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.drink-group__badge {
   flex: none;
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.06em;
-  padding: 3px 8px;
+  padding: 3px 9px;
   border-radius: 99px;
+}
+
+.drink-group__badge--hot {
+  color: #a8502a;
+  background: #f6e4d7;
+  border: 1.5px solid #e0bfa6;
+}
+
+.drink-group__badge--iced {
   color: #4a6b7c;
   background: #dce9f0;
   border: 1.5px solid #a3c2d3;
+}
+
+.drink-group__label {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.drink-group__note {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
 }
 
 .drink__state {

@@ -143,7 +143,7 @@ export function App() {
           <IngredientLevels statuses={view.statuses} levels={view.levels} />
         </Section>
 
-        <Section title="ドリンクの作成可否" note="アイスは氷の残量にも左右されます">
+        <Section title="ドリンクの作成可否">
           <DrinkAvailability statuses={view.statuses} />
         </Section>
 
