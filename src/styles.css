@@ -470,14 +470,25 @@ a:focus-visible {
 }
 
 .chip {
-  min-height: 42px;
-  padding: 9px 18px;
+  min-height: 46px;
+  padding: 9px 18px 9px 14px;
   border-radius: 99px;
   font-weight: 700;
   font-size: 14px;
   background: var(--card);
   border: 2px solid var(--line);
   color: var(--body-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/* Icons take the chip's text colour, and `--icon-bg` its background, so both
+   the shape and the details knocked out of it invert when selected. */
+.chip__icon {
+  flex: none;
+  color: var(--muted);
+  --icon-bg: var(--card);
 }
 
 .chip[aria-pressed='true'] {
@@ -485,6 +496,19 @@ a:focus-visible {
   background: var(--espresso);
   color: var(--cream);
   font-weight: 900;
+}
+
+.chip[aria-pressed='true'] .chip__icon {
+  color: var(--cream);
+  --icon-bg: var(--espresso);
+}
+
+.chip:hover:not([aria-pressed='true']) {
+  border-color: var(--muted);
+}
+
+.chip:hover:not([aria-pressed='true']) .chip__icon {
+  color: var(--accent);
 }
 
 .actions {

@@ -13,6 +13,7 @@ import {
 } from '../../shared/domain.js';
 import { CONFIG } from '../../shared/config.js';
 import { PALETTE, statusColor } from '../lib/palette.js';
+import { SubjectIcon } from './SubjectIcon.js';
 
 /** 補充された isn't a status, so it gets the neutral tone rather than green. */
 const ACTION_TONE: Record<ActionKey, string> = {
@@ -88,6 +89,7 @@ export function ReportForm({ selected, onSelect, onPost, posting }: ReportFormPr
               aria-pressed={selected === key}
               onClick={() => onSelect(key)}
             >
+              <SubjectIcon subject={key} />
               {SUBJECT_LABELS[key]}
             </button>
           ))}

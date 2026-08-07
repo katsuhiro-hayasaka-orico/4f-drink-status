@@ -3,7 +3,7 @@ import type { MaterialKey } from '../../shared/domain.js';
 
 /**
  * The drink machine, drawn to scale with the real thing in the 4F lounge,
- * with the ice maker standing beside it as it does in the room.
+ * with the ice maker standing to its left as it does in the room.
  *
  * The hoppers are the point: each one fills to the estimated remaining level
  * for its ingredient, so the picture answers 「まだある?」 before anyone reads
@@ -21,6 +21,19 @@ const TANK_BOTTOM = 207;
 const TANK_HEIGHT = TANK_BOTTOM - TANK_TOP; // 152
 const UNITS_PER_PERCENT = TANK_HEIGHT / 100; // 1.52
 
+/**
+ * The drink machine keeps the coordinates it was originally designed with and
+ * is shifted right as a whole, so putting the ice maker on the left cost
+ * nothing in the three hoppers or the bean geometry.
+ */
+const MACHINE_SHIFT = 175;
+
+/** The ice maker's window is wider than a hopper but the same height. */
+const ICE_LEFT = 69;
+const ICE_WIDTH = 122;
+/** Centre of the leftmost column of cubes. */
+const ICE_CUBE_LEFT = 81;
+
 const clamp = (pct: number) => Math.max(0, Math.min(100, pct));
 
 /** Top edge (y) and height of a powder column at the given fill level. */
@@ -29,44 +42,15 @@ function column(pct: number) {
   return { y: TANK_BOTTOM - height, height };
 }
 
-/** The ice maker's window is wider than a hopper but the same height. */
-const ICE_LEFT = 544;
-const ICE_WIDTH = 122;
+/** Top edge of a pile at the given fill level, shared by beans and cubes. */
+function pileTop(pct: number): number {
+  return TANK_BOTTOM - Math.round(UNITS_PER_PERCENT * clamp(pct));
+}
 
 interface Bean {
   cx: number;
   cy: number;
   rotation: number;
-}
-
-interface Cube {
-  x: number;
-  y: number;
-  rotation: number;
-}
-
-/**
- * Cubes stack the same way beans do — offset rows, one per 10%, alternating
- * lean — but drawn square so the two piles never read as the same substance.
- */
-function cubes(pct: number): Cube[] {
-  const level = clamp(pct);
-  if (level <= 0) return [];
-  const top = TANK_BOTTOM - Math.round(UNITS_PER_PERCENT * level);
-  const rows = Math.ceil(level / 10);
-  const out: Cube[] = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < 6; c++) {
-      const y = 198 - r * 15;
-      if (y < top) continue;
-      out.push({
-        x: 556 + c * 18 + (r % 2 ? 9 : 0),
-        y,
-        rotation: (c + r) % 2 ? 18 : -15,
-      });
-    }
-  }
-  return out;
 }
 
 /**
@@ -76,60 +60,82 @@ function cubes(pct: number): Cube[] {
 function beans(pct: number): Bean[] {
   const level = clamp(pct);
   if (level <= 0) return [];
-  const top = TANK_BOTTOM - Math.round(UNITS_PER_PERCENT * level);
+  const top = pileTop(level);
   const rows = Math.ceil(level / 10);
   const out: Bean[] = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < 6; c++) {
       const cy = 198 - r * 14;
       if (cy < top) continue;
+      out.push({ cx: 98 + c * 16 + (r % 2 ? 7 : 0), cy, rotation: (c + r) % 2 ? 24 : -22 });
+    }
+  }
+  return out;
+}
+
+interface Cube {
+  x: number;
+  y: number;
+  rotation: number;
+}
+
+/**
+ * Cubes stack the same way beans do, but drawn square so the two piles never
+ * read as the same substance.
+ */
+function cubes(pct: number): Cube[] {
+  const level = clamp(pct);
+  if (level <= 0) return [];
+  const top = pileTop(level);
+  const rows = Math.ceil(level / 10);
+  const out: Cube[] = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < 6; c++) {
+      const y = 198 - r * 15;
+      if (y < top) continue;
       out.push({
-        cx: 98 + c * 16 + (r % 2 ? 7 : 0),
-        cy,
-        rotation: (c + r) % 2 ? 24 : -22,
+        x: ICE_CUBE_LEFT + c * 18 + (r % 2 ? 9 : 0),
+        y,
+        rotation: (c + r) % 2 ? 18 : -15,
       });
     }
   }
   return out;
 }
 
-export interface MachineIllustrationProps {
-  levels: Record<MaterialKey, number>;
+/** The percentage label, knocked out of whatever is behind it. */
+function LevelLabel({ x, pct }: { x: number; pct: number }) {
+  return (
+    <text
+      x={x}
+      y={86}
+      textAnchor="middle"
+      fontSize={19}
+      fontWeight={800}
+      fill="#33261c"
+      stroke="#fdf8ee"
+      strokeWidth={5}
+      paintOrder="stroke"
+      strokeLinejoin="round"
+    >
+      {Math.round(pct)}%
+    </text>
+  );
 }
 
-export function MachineIllustration({ levels }: MachineIllustrationProps) {
-  const uid = useId().replace(/:/g, '');
-  const clip = (name: string) => `${uid}-${name}`;
+interface UnitProps {
+  levels: Record<MaterialKey, number>;
+  clip: (name: string) => string;
+}
 
+function DrinkMachineUnit({ levels, clip }: UnitProps) {
   const coffeePct = clamp(levels.coffeeBeans);
-  const coffeeTop = TANK_BOTTOM - Math.round(UNITS_PER_PERCENT * coffeePct);
+  const coffeeTop = pileTop(coffeePct);
   const cocoa = column(levels.cocoaPowder);
   const milk = column(levels.milkPowder);
-  const icePct = clamp(levels.ice);
-  const iceTop = TANK_BOTTOM - Math.round(UNITS_PER_PERCENT * icePct);
 
   return (
-    <svg
-      viewBox="0 0 735 520"
-      role="img"
-      aria-label={`ドリンクマシンと製氷機の推定残量。コーヒー豆 約${Math.round(coffeePct)}%、ココア 約${Math.round(clamp(levels.cocoaPowder))}%、ミルク 約${Math.round(clamp(levels.milkPowder))}%、氷 約${Math.round(icePct)}%`}
-      className="machine-card__svg"
-    >
-      <defs>
-        <clipPath id={clip('coffee')}>
-          <rect x={88} y={TANK_TOP} width={104} height={TANK_HEIGHT} rx={8} />
-        </clipPath>
-        <clipPath id={clip('cocoa')}>
-          <rect x={228} y={TANK_TOP} width={104} height={TANK_HEIGHT} rx={8} />
-        </clipPath>
-        <clipPath id={clip('milk')}>
-          <rect x={368} y={TANK_TOP} width={104} height={TANK_HEIGHT} rx={8} />
-        </clipPath>
-        <clipPath id={clip('ice')}>
-          <rect x={ICE_LEFT} y={TANK_TOP} width={ICE_WIDTH} height={TANK_HEIGHT} rx={8} />
-        </clipPath>
-      </defs>
-
+    <g transform={`translate(${MACHINE_SHIFT} 0)`}>
       {/* hopper shells */}
       <rect x={74} y={44} width={132} height={174} rx={12} fill="#fdf8ee" stroke="#d9c8ac" strokeWidth={3} />
       <rect x={214} y={44} width={132} height={174} rx={12} fill="#fdf8ee" stroke="#d9c8ac" strokeWidth={3} />
@@ -191,30 +197,9 @@ export function MachineIllustration({ levels }: MachineIllustrationProps) {
         />
       </g>
 
-      {/* percentage labels, knocked out of whatever is behind them */}
-      {(
-        [
-          [140, coffeePct],
-          [280, clamp(levels.cocoaPowder)],
-          [420, clamp(levels.milkPowder)],
-        ] as const
-      ).map(([x, pct]) => (
-        <text
-          key={x}
-          x={x}
-          y={86}
-          textAnchor="middle"
-          fontSize={19}
-          fontWeight={800}
-          fill="#33261c"
-          stroke="#fdf8ee"
-          strokeWidth={5}
-          paintOrder="stroke"
-          strokeLinejoin="round"
-        >
-          {Math.round(pct)}%
-        </text>
-      ))}
+      <LevelLabel x={140} pct={coffeePct} />
+      <LevelLabel x={280} pct={clamp(levels.cocoaPowder)} />
+      <LevelLabel x={420} pct={clamp(levels.milkPowder)} />
 
       {/* cabinet */}
       <rect x={55} y={200} width={450} height={276} rx={28} fill="#2b1f18" stroke="#1a100b" strokeWidth={5} />
@@ -255,19 +240,20 @@ export function MachineIllustration({ levels }: MachineIllustrationProps) {
         strokeWidth={10}
         strokeLinecap="round"
       />
+    </g>
+  );
+}
 
-      {/* ---- ice maker, standing alongside at the same height ---- */}
-      <rect
-        x={530}
-        y={44}
-        width={150}
-        height={174}
-        rx={12}
-        fill="#fdf8ee"
-        stroke="#d9c8ac"
-        strokeWidth={3}
-      />
-      <rect x={525} y={32} width={160} height={20} rx={8} fill="#2b1f18" />
+function IceMakerUnit({ levels, clip }: UnitProps) {
+  const icePct = clamp(levels.ice);
+  const iceTop = pileTop(icePct);
+
+  return (
+    <g>
+      {/* hopper shell and lid, matching the machine's height exactly */}
+      <rect x={55} y={44} width={150} height={174} rx={12} fill="#fdf8ee" stroke="#d9c8ac" strokeWidth={3} />
+      <rect x={50} y={32} width={160} height={20} rx={8} fill="#2b1f18" />
+
       <g clipPath={`url(#${clip('ice')})`}>
         {icePct > 0 && (
           <>
@@ -296,49 +282,55 @@ export function MachineIllustration({ levels }: MachineIllustrationProps) {
           </>
         )}
       </g>
-      <text
-        x={605}
-        y={86}
-        textAnchor="middle"
-        fontSize={19}
-        fontWeight={800}
-        fill="#33261c"
-        stroke="#fdf8ee"
-        strokeWidth={5}
-        paintOrder="stroke"
-        strokeLinejoin="round"
-      >
-        {Math.round(icePct)}%
-      </text>
+      <LevelLabel x={130} pct={icePct} />
 
-      <rect
-        x={530}
-        y={200}
-        width={150}
-        height={276}
-        rx={28}
-        fill="#2b1f18"
-        stroke="#1a100b"
-        strokeWidth={5}
-      />
-      <rect
-        x={552}
-        y={232}
-        width={106}
-        height={110}
-        rx={12}
-        fill="#1d1510"
-        stroke="#120b07"
-        strokeWidth={4}
-      />
-      {/* scoop chute */}
-      <rect x={578} y={258} width={54} height={40} rx={6} fill="#4a6b7c" />
-      <rect x={590} y={268} width={30} height={20} rx={3} fill="#dce9f0" opacity={0.85} />
-      <text x={605} y={378} textAnchor="middle" fill="#f5edde" fontSize={20} fontWeight={700}>
+      {/* cabinet, scoop chute, and dispense tray */}
+      <rect x={55} y={200} width={150} height={276} rx={28} fill="#2b1f18" stroke="#1a100b" strokeWidth={5} />
+      <rect x={77} y={232} width={106} height={110} rx={12} fill="#1d1510" stroke="#120b07" strokeWidth={4} />
+      <rect x={103} y={258} width={54} height={40} rx={6} fill="#4a6b7c" />
+      <rect x={115} y={268} width={30} height={20} rx={3} fill="#dce9f0" opacity={0.85} />
+      <text x={130} y={378} textAnchor="middle" fill="#f5edde" fontSize={20} fontWeight={700}>
         氷
       </text>
-      <rect x={556} y={400} width={98} height={26} rx={8} fill="#8a6a50" />
-      <rect x={548} y={432} width={114} height={22} rx={10} fill="#4a3a2c" />
+      <rect x={81} y={400} width={98} height={26} rx={8} fill="#8a6a50" />
+      <rect x={73} y={432} width={114} height={22} rx={10} fill="#4a3a2c" />
+    </g>
+  );
+}
+
+export interface MachineIllustrationProps {
+  levels: Record<MaterialKey, number>;
+}
+
+export function MachineIllustration({ levels }: MachineIllustrationProps) {
+  const uid = useId().replace(/:/g, '');
+  const clip = (name: string) => `${uid}-${name}`;
+  const pct = (k: MaterialKey) => Math.round(clamp(levels[k]));
+
+  return (
+    <svg
+      viewBox="0 0 735 520"
+      role="img"
+      aria-label={`製氷機とドリンクマシンの推定残量。氷 約${pct('ice')}%、コーヒー豆 約${pct('coffeeBeans')}%、ココア 約${pct('cocoaPowder')}%、ミルク 約${pct('milkPowder')}%`}
+      className="machine-card__svg"
+    >
+      <defs>
+        <clipPath id={clip('coffee')}>
+          <rect x={88} y={TANK_TOP} width={104} height={TANK_HEIGHT} rx={8} />
+        </clipPath>
+        <clipPath id={clip('cocoa')}>
+          <rect x={228} y={TANK_TOP} width={104} height={TANK_HEIGHT} rx={8} />
+        </clipPath>
+        <clipPath id={clip('milk')}>
+          <rect x={368} y={TANK_TOP} width={104} height={TANK_HEIGHT} rx={8} />
+        </clipPath>
+        <clipPath id={clip('ice')}>
+          <rect x={ICE_LEFT} y={TANK_TOP} width={ICE_WIDTH} height={TANK_HEIGHT} rx={8} />
+        </clipPath>
+      </defs>
+
+      <IceMakerUnit levels={levels} clip={clip} />
+      <DrinkMachineUnit levels={levels} clip={clip} />
     </svg>
   );
 }
