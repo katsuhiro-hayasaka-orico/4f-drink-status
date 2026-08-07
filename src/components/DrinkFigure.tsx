@@ -12,17 +12,21 @@ import type { StatusKey } from '../../shared/domain.js';
  * cube shape as the ice maker.
  */
 
+/* Four drinks now share this panel, so the colours have to read as a ladder:
+   coffee darkest, then mocha, then cocoa, with latte lightest. */
 const LIQUID: Record<DrinkBase, string> = {
-  coffee: '#4a2617',
-  cocoa: '#7d4a2c',
-  auLait: '#b08155',
+  coffee: '#40200f',
+  mocha: '#663420',
+  cocoa: '#99653f',
+  latte: '#b58a5e',
 };
 
 /** A lighter tint of the same liquid, used for the surface ellipse. */
 const SURFACE: Record<DrinkBase, string> = {
-  coffee: '#6b3a24',
-  cocoa: '#9a6039',
-  auLait: '#c99f74',
+  coffee: '#63341e',
+  mocha: '#8a4e33',
+  cocoa: '#b47e53',
+  latte: '#cfa87e',
 };
 
 /** Full, half, or empty — the picture carries the same fact as the words. */
