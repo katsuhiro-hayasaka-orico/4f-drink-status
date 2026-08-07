@@ -44,11 +44,24 @@ npm run build       # 型チェック → dist/client へビルド
 初回は次の1本で完了します（D1 の作成 → `wrangler.toml` への ID 書き込み → スキーマ適用 →
 `SESSION_SECRET` の生成と登録 → ビルド → デプロイ）。何度実行しても同じ状態に収束します。
 
+**macOS / Linux / Git Bash**
+
 ```bash
 npx wrangler login          # ブラウザが開きます。ヘッドレス環境では代わりに
                             # CLOUDFLARE_API_TOKEN を設定してください
 ./scripts/setup-cloudflare.sh
 ```
+
+**Windows（PowerShell）** — `.sh` は実行できないので同等の `.ps1` を使います。
+既定の実行ポリシーは `.ps1` を拒否するため `-ExecutionPolicy Bypass` が必要です。
+
+```powershell
+npx wrangler login
+powershell -ExecutionPolicy Bypass -File scripts\setup-cloudflare.ps1
+```
+
+> Windows PowerShell 5.1 は `&&` を解釈しません（PowerShell 7 以降の構文です）。
+> このREADMEに `a && b` と書かれたコマンドは、2行に分けて実行してください。
 
 2回目以降、コードだけを更新する場合は次で十分です。
 
