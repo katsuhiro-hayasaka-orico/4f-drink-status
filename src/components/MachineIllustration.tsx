@@ -218,7 +218,7 @@ function DrinkMachineUnit({ levels, clip }: UnitProps) {
         ココア
       </text>
       <text x={401} y={327} textAnchor="middle" fill="#f5edde" fontSize={20} fontWeight={700}>
-        カフェオレ
+        カフェラテ
       </text>
 
       {/* spout, drip tray, and the cup underneath */}

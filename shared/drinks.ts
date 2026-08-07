@@ -6,7 +6,7 @@ import {
 } from './domain.js';
 
 /** Which liquid ends up in the cup — drives the colour in the illustration. */
-export type DrinkBase = 'coffee' | 'cocoa' | 'auLait';
+export type DrinkBase = 'coffee' | 'latte' | 'mocha' | 'cocoa';
 
 /** What the machine can pour, and what each pour consumes. */
 export interface Recipe {
@@ -17,18 +17,41 @@ export interface Recipe {
   base: DrinkBase;
 }
 
+/**
+ * The machine's actual menu, minus 熱湯 and アメリカン — neither is worth a card
+ * here, and 熱湯 needs nothing the board tracks.
+ *
+ * Names match the buttons on the machine. 「カフェオレ」 was wrong: the machine
+ * pours a latte, and the two are different drinks.
+ *
+ * Ordered coffee → latte → mocha → cocoa, so the hot row and the iced row below
+ * it line up drink-for-drink.
+ */
 export const RECIPES: readonly Recipe[] = [
-  { name: 'コーヒー', requires: ['coffeeBeans'], iced: false, base: 'coffee' },
-  { name: 'ココア', requires: ['cocoaPowder'], iced: false, base: 'cocoa' },
-  { name: 'カフェオレ', requires: ['coffeeBeans', 'milkPowder'], iced: false, base: 'auLait' },
-  { name: 'アイスコーヒー', requires: ['coffeeBeans', 'ice'], iced: true, base: 'coffee' },
-  { name: 'アイスココア', requires: ['cocoaPowder', 'ice'], iced: true, base: 'cocoa' },
+  { name: 'ホットコーヒー', requires: ['coffeeBeans'], iced: false, base: 'coffee' },
+  { name: 'カフェラテ', requires: ['coffeeBeans', 'milkPowder'], iced: false, base: 'latte' },
   {
-    name: 'アイスカフェオレ',
+    name: 'カフェモカ',
+    requires: ['coffeeBeans', 'cocoaPowder', 'milkPowder'],
+    iced: false,
+    base: 'mocha',
+  },
+  { name: 'ホットココア', requires: ['cocoaPowder'], iced: false, base: 'cocoa' },
+
+  { name: 'アイスコーヒー', requires: ['coffeeBeans', 'ice'], iced: true, base: 'coffee' },
+  {
+    name: 'アイスカフェラテ',
     requires: ['coffeeBeans', 'milkPowder', 'ice'],
     iced: true,
-    base: 'auLait',
+    base: 'latte',
   },
+  {
+    name: 'アイスカフェモカ',
+    requires: ['coffeeBeans', 'cocoaPowder', 'milkPowder', 'ice'],
+    iced: true,
+    base: 'mocha',
+  },
+  { name: 'アイスココア', requires: ['cocoaPowder', 'ice'], iced: true, base: 'cocoa' },
 ];
 
 export interface DrinkAvailability {
