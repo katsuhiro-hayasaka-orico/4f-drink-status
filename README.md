@@ -11,31 +11,47 @@ Vite + React + TypeScript のフロントエンドと、Cloudflare Workers + D1 
 
 ## 動かす
 
+初回だけ、依存の取得とローカルDBの用意が要ります。
+
 ```bash
 npm install
-
-# ① D1 データベースを作り、出力された database_id を wrangler.toml に書く
-npx wrangler d1 create drink-status
-
-# ② スキーマを流す（ローカル）
-npm run db:migrate:local
-
-# ③ 開発用のサンプル投稿を入れる（任意）
-npm run db:seed:local
+npm run db:migrate:local    # ローカル D1 にスキーマを作る
+npm run db:seed:local       # サンプル投稿を入れる（任意・何度でも実行可）
 ```
 
-開発サーバーは2通りあります。
+> `db:migrate:local` は `wrangler.toml` の `database_id` を見ません（ローカルのSQLiteを使う）ので、
+> デプロイ前でもそのまま動きます。
 
-| コマンド | 用途 |
-| --- | --- |
-| `npm run dev` | Vite の HMR で UI を作り込むとき。`/api` は `wrangler dev` にプロキシされるので、**別ターミナルで `npm run dev:worker` も起動**してください |
-| `npm run dev:worker` | Worker と D1 をローカルで動かす（`http://localhost:8787`）。`npm run build` 済みなら本番と同じ構成で通しで確認できます |
+起動は目的で使い分けます。
+
+**動作を検証する（本番と同じ構成）**
+
+```bash
+npm run build
+npm run dev:worker
+```
+
+→ http://localhost:8787 　Worker・D1・静的アセットまで含めて本番と同じ経路で動きます。
+
+**UIを編集しながら見る（HMR）**
+
+ターミナルを2つ使います。
+
+```bash
+npm run dev:worker    # 1つめ：APIとDB（8787番）
+npm run dev           # 2つめ：Vite の開発サーバー
+```
+
+→ http://localhost:5173 　`/api` は 8787 にプロキシされます。保存すると即座に反映されます。
+
+**注意**: `npm run dev:worker` はアセット一覧を起動時に読み込みます。`public/` にファイルを
+足したときや `npm run build` をやり直したときは、Worker を再起動してください。
 
 その他:
 
 ```bash
 npm run typecheck   # アプリと Worker の両方を型チェック
-npm test            # 集計ロジックのユニットテスト
+npm test            # 集計・通知ロジックのユニットテスト
 npm run build       # 型チェック → dist/client へビルド
 ```
 
@@ -122,8 +138,6 @@ worker/               Cloudflare Worker
   identity.ts         匿名端末IDの発行と検証
   store.ts            D1 アクセス
 migrations/           D1 スキーマ
-HANDOFF.md            元のデザイン受け渡し手順
-chats/, project/      Claude Design から書き出したデザイン一式（参照用）
 ```
 
 ## 投稿できるもの
@@ -262,6 +276,28 @@ chats/, project/      Claude Design から書き出したデザイン一式（�
 変わるため、すべてSVGで描いた塗りのシルエットです。ページ内の他の表現と揃えてあり（豆はホッパーの
 豆山、氷は製氷機のキューブ、行列は待ち人数の人型）、選択時はチップの前景色・背景色に追従して
 反転します。
+
+## ブラウザ通知
+
+ヘッダーの「通知」ボタンでONにすると、**他の人の投稿**をブラウザ通知でお知らせします。
+
+- 通知は既存の**30秒ポーリングに乗って**届きます。つまり**タブを開いている間だけ**有効です
+  （バックグラウンドタブでも届きます）。ONにすると自動更新も同時にONになります。
+- **タブを見ている間は通知しません**。画面自体が更新されるので、重ねて知らせるのは雑音だからです。
+  タブが隠れているか、ウィンドウがフォーカスを失っているときだけ発火します。
+- 1回のポーリングで複数の投稿が届いた場合は**1件に畳みます**。同じ `tag` を使うので、
+  未読の通知が積み上がらず、新しいものが古いものを置き換えます。
+- **自分の投稿は通知しません**。新着判定はIDの差分ではなくサーバー時刻の高水位標
+  （watermark）で行うため、取り消しによる行の消滅や一覧の200件窓のスライドに影響されません。
+  判定ロジックは `src/lib/notifyLogic.ts` にあり、ユニットテストで固定しています。
+- 初回ONのときにブラウザの許可ダイアログが出ます。ブロックした場合はボタンが
+  「通知 ブロック中」になり、解除はブラウザ側の設定（アドレスバーの鍵アイコン）からです。
+- iOS の Safari はホーム画面に追加したPWA以外で Notification API を持たないため、
+  その環境ではボタン自体を表示しません。
+
+**ブラウザを完全に閉じていても届く通知**（Web Push）は未実装です。Service Worker、
+購読情報のテーブル、VAPID鍵の管理、RFC 8291 の暗号化実装が必要になるため、
+必要になった時点で別途取り組むのが妥当と判断しました。
 
 ## 利用者の識別
 
