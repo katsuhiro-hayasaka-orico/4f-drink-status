@@ -11,9 +11,12 @@ import { advanceWatermark, buildNotificationBody } from '../lib/notifyLogic.js';
  * needs a service worker, a subscription table, and the Web Push encryption
  * stack — recorded as future work in the README, not smuggled in here.
  *
- * Notifications only fire while the tab is unattended (hidden or unfocused).
- * Someone looking at the board is already watching it update; telling them
- * again in the corner of their screen is noise.
+ * They fire regardless of whether the tab is being looked at. The first cut
+ * suppressed notifications while the tab was visible and focused, reasoning
+ * that a watched board is its own notification — and the field said
+ * otherwise: the board is left up like a wall display, and the banner and
+ * sound are exactly what people want from it. The banner is the feature,
+ * not a duplicate of it.
  */
 
 const STORAGE_KEY = 'drink-status-notify';
@@ -67,11 +70,6 @@ function save(value: 'on' | 'off') {
   } catch {
     /* the choice just won't survive a reload */
   }
-}
-
-/** Nobody is looking: tab hidden, or window not focused. */
-function pageIsUnattended(): boolean {
-  return document.visibilityState === 'hidden' || !document.hasFocus();
 }
 
 /**
@@ -132,7 +130,6 @@ export function useNotifications() {
     if (baselining || fresh.length === 0) return;
     if (stateRef.current !== 'on') return;
     if (!supported() || Notification.permission !== 'granted') return;
-    if (!pageIsUnattended()) return;
 
     if (!show(buildNotificationBody(fresh), TAG, true)) {
       // The constructor is unusable on this browser. Stop pretending, so the
