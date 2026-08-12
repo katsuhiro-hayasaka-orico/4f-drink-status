@@ -29,7 +29,7 @@ import {
   type SubjectKey,
   type SupplySubjectKey,
 } from './domain.js';
-import { OBSERVATION_WINDOW_MS, QUEUE_WINDOW_MS } from './config.js';
+import { AVAILABLE_RETENTION_MS, OBSERVATION_WINDOW_MS, QUEUE_WINDOW_MS } from './config.js';
 
 const MINUTE = 60_000;
 
@@ -64,6 +64,12 @@ export interface Summary {
   confidence: ConfidenceKey;
   /** Timestamp of the newest counted vote, or null when there were none. */
   lastAt: number | null;
+  /**
+   * True when this reading is an afterglow: the observation window is empty
+   * and the status shown is the last good report, carried forward. Carried
+   * readings have no in-window votes (total 0) and are always 低 confidence.
+   */
+  carried?: boolean;
 }
 
 export function summarize(
@@ -87,6 +93,31 @@ export function summarize(
   const votes = [...byUser.values()];
 
   if (votes.length === 0) {
+    // 残照: how long the last report outlives the empty window depends on
+    // what it said. 取れた／補充された keeps showing — supplies don't vanish
+    // on their own — at 低 confidence with its honest timestamp, until
+    // availableRetentionMin. 残り少なめ／作れない gets no afterglow: a stale
+    // shortage is exactly the reading that needs re-checking, so it becomes
+    // 情報なし rather than scaring people away for hours.
+    const retentionCutoff = now - AVAILABLE_RETENTION_MS;
+    const recent = reports
+      .filter((r) => r.subject === subject && r.createdAt >= retentionCutoff)
+      .sort((a, b) => b.createdAt - a.createdAt)[0];
+    if (recent && toStatus(recent.action as ActionKey) === 'available') {
+      return {
+        subject,
+        status: 'available',
+        dominantAction: recent.action === 'refilled' ? 'refilled' : 'available',
+        // Not counted as in-window votes: the header's 「過去30分の有効観測」
+        // must not claim a two-hour-old sighting as fresh evidence.
+        total: 0,
+        supporters: 0,
+        agreement: 0,
+        confidence: 'low',
+        lastAt: recent.createdAt,
+        carried: true,
+      };
+    }
     return {
       subject,
       status: 'none',
@@ -133,35 +164,38 @@ export function summarize(
 }
 
 /**
- * Fallbacks for a subject nobody has reported on inside the window. The board
- * should never render blank, so it shows a plausible resting state instead.
+ * What the board shows when it knows nothing: 情報なし, plainly. Earlier
+ * versions substituted plausible-looking resting values inherited from the
+ * design mock (75/35/80, cocoa conspicuously "low"), which meant an empty
+ * morning board confidently reported shortages nobody had observed. A board
+ * built on other people's eyes should say so when there are none.
  */
-const DEFAULT_STATUS: Record<SupplySubjectKey, StatusKey> = {
-  coffeeBeans: 'available',
-  cocoaPowder: 'low',
-  milkPowder: 'available',
-  ice: 'available',
-  machine: 'available',
+export const UNKNOWN_STATUSES: Record<SupplySubjectKey, StatusOrNone> = {
+  coffeeBeans: 'none',
+  cocoaPowder: 'none',
+  milkPowder: 'none',
+  ice: 'none',
+  machine: 'none',
 };
 
-const DEFAULT_LEVEL: Record<MaterialKey, number> = {
-  coffeeBeans: 75,
-  cocoaPowder: 35,
-  milkPowder: 80,
-  ice: 60,
+export const UNKNOWN_LEVELS: Record<MaterialKey, number | null> = {
+  coffeeBeans: null,
+  cocoaPowder: null,
+  milkPowder: null,
+  ice: null,
 };
 
 export interface Aggregation {
   summaries: Summary[];
-  statuses: Record<SupplySubjectKey, StatusKey>;
-  /** Estimated remaining stock per material, 0–100. */
-  levels: Record<MaterialKey, number>;
+  statuses: Record<SupplySubjectKey, StatusOrNone>;
+  /** Estimated remaining stock per material, 0–100 — null when unreported. */
+  levels: Record<MaterialKey, number | null>;
 }
 
 export function aggregate(reports: readonly Report[], now: number): Aggregation {
   const summaries = SUPPLY_SUBJECT_KEYS.map((k) => summarize(reports, k, now));
-  const statuses = { ...DEFAULT_STATUS };
-  const levels = { ...DEFAULT_LEVEL };
+  const statuses = { ...UNKNOWN_STATUSES };
+  const levels = { ...UNKNOWN_LEVELS };
 
   for (const s of summaries) {
     if (s.status === 'none') continue;
@@ -178,11 +212,17 @@ export function aggregate(reports: readonly Report[], now: number): Aggregation 
 export interface Overall {
   label: string;
   reason: string;
-  tone: StatusKey;
+  tone: StatusOrNone;
 }
 
+/**
+ * Bad news wins over missing news: a confirmed shortage is reported even if
+ * other materials are unreported, because 「情報がありません」 must never
+ * hide a problem someone has actually seen. Only a board with no usable
+ * reports at all says it knows nothing.
+ */
 export function overallState(
-  statuses: Record<SupplySubjectKey, StatusKey>,
+  statuses: Record<SupplySubjectKey, StatusOrNone>,
   subjectLabels: Record<SubjectKey, string>,
 ): Overall {
   if (statuses.machine === 'unavailable') {
@@ -203,7 +243,25 @@ export function overallState(
       tone: 'low',
     };
   }
-  return { label: '利用できます', reason: '各材料は十分にあります', tone: 'available' };
+
+  const known = MATERIAL_KEYS.filter((k) => statuses[k] !== 'none');
+  if (known.length === 0 && statuses.machine === 'none') {
+    return {
+      label: '情報がありません',
+      reason: '過去30分に有効な投稿がありません',
+      tone: 'none',
+    };
+  }
+  return {
+    label: '利用できます',
+    // Claim only what was actually seen: with unreported materials in the
+    // mix, 「各材料は十分」 would be vouching for things nobody checked.
+    reason:
+      known.length === MATERIAL_KEYS.length
+        ? '各材料は十分にあります'
+        : '確認できた材料は十分にあります',
+    tone: 'available',
+  };
 }
 
 /**
@@ -212,7 +270,7 @@ export function overallState(
  */
 export function focusSummary(
   summaries: readonly Summary[],
-  statuses: Record<SupplySubjectKey, StatusKey>,
+  statuses: Record<SupplySubjectKey, StatusOrNone>,
 ) {
   const materials = summaries.filter((s) => s.subject !== 'machine');
   // The shakiest-reading fallback only considers materials people have

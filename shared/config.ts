@@ -32,7 +32,17 @@ export const CONFIG = {
   closeHour: 17,
   /** How long before closing the board starts saying 「まもなく終了」. */
   closingSoonMin: 30,
+
+  /**
+   * How long a *good* report (取れた・補充された) keeps showing after the
+   * observation window has emptied. Supplies don't vanish on their own, so
+   * good news ages gracefully; bad news gets no such afterglow — a shortage
+   * older than the 30-minute window is exactly the reading that needs
+   * re-checking, so it degrades to 情報なし instead.
+   */
+  availableRetentionMin: 120,
 } as const;
 
 export const OBSERVATION_WINDOW_MS = CONFIG.observationWindowMin * 60_000;
 export const QUEUE_WINDOW_MS = CONFIG.queueWindowMin * 60_000;
+export const AVAILABLE_RETENTION_MS = CONFIG.availableRetentionMin * 60_000;

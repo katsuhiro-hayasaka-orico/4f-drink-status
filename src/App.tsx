@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  UNKNOWN_LEVELS,
+  UNKNOWN_STATUSES,
   aggregate,
   focusSummary,
   overallState,
@@ -112,11 +114,19 @@ export function App() {
   };
 
   const view = useMemo(() => {
-    const { summaries, statuses, levels } = aggregate(reports, now);
-    const overall = overallState(statuses, SUBJECT_LABELS);
-    const focus = focusSummary(summaries, statuses);
-    const queue = summarizeQueue(reports, now);
+    const agg = aggregate(reports, now);
     const hours = loungeHours(now);
+    // Outside opening hours the "current state" panels have no current state
+    // to report: nobody can use the machine, and whatever was true at 17:00
+    // will not be verified again until morning. History sections (観測・内訳)
+    // keep showing what was actually posted.
+    const closed = hours.state === 'closed';
+    const summaries = agg.summaries;
+    const statuses = closed ? UNKNOWN_STATUSES : agg.statuses;
+    const levels = closed ? UNKNOWN_LEVELS : agg.levels;
+    const overall = overallState(statuses, SUBJECT_LABELS);
+    const focus = focusSummary(summaries, agg.statuses);
+    const queue = summarizeQueue(reports, now);
 
     const latest = reports.reduce<number | null>(
       (max, r) => (max === null || r.createdAt > max ? r.createdAt : max),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  UNKNOWN_STATUSES,
   aggregate,
   focusSummary,
   overallState,
@@ -48,8 +49,9 @@ describe('weight', () => {
 });
 
 describe('summarize', () => {
-  it('reports "none" when nothing falls inside the window', () => {
-    const s = summarize([report('coffeeBeans', 'available', 'a', 45)], 'coffeeBeans', NOW);
+  it('reports "none" when nothing usable falls inside the window', () => {
+    // A stale 残り少なめ gets no afterglow — see the dedicated block below.
+    const s = summarize([report('coffeeBeans', 'low', 'a', 45)], 'coffeeBeans', NOW);
     expect(s.status).toBe('none');
     expect(s.total).toBe(0);
     expect(s.confidence).toBe('none');
@@ -174,11 +176,85 @@ describe('summarize', () => {
   });
 });
 
+describe('summarize afterglow (残照)', () => {
+  it('carries a good report forward after the window empties', () => {
+    const s = summarize([report('coffeeBeans', 'available', 'a', 45)], 'coffeeBeans', NOW);
+    expect(s.status).toBe('available');
+    expect(s.carried).toBe(true);
+    expect(s.confidence).toBe('low');
+    // Not in-window evidence, so it must not count as a vote…
+    expect(s.total).toBe(0);
+    // …but the timestamp stays honest about how old the sighting is.
+    expect(s.lastAt).toBe(NOW - 45 * MIN);
+  });
+
+  it('carries a refill forward, still reading as refilled', () => {
+    const s = summarize([report('milkPowder', 'refilled', 'a', 90)], 'milkPowder', NOW);
+    expect(s.status).toBe('available');
+    expect(s.dominantAction).toBe('refilled');
+    expect(s.carried).toBe(true);
+  });
+
+  it('gives bad news no afterglow', () => {
+    // A stale shortage is exactly the reading that needs re-checking.
+    expect(summarize([report('ice', 'low', 'a', 45)], 'ice', NOW).status).toBe('none');
+    expect(summarize([report('ice', 'unavailable', 'a', 45)], 'ice', NOW).status).toBe('none');
+  });
+
+  it('lets the newest report decide, not any good report in range', () => {
+    // Someone saw beans at 90 min, but the last word (40 min) was 残り少なめ:
+    // the older good news must not resurrect over the newer bad news.
+    const s = summarize(
+      [report('coffeeBeans', 'available', 'a', 90), report('coffeeBeans', 'low', 'b', 40)],
+      'coffeeBeans',
+      NOW,
+    );
+    expect(s.status).toBe('none');
+  });
+
+  it('expires after the retention period', () => {
+    const s = summarize([report('coffeeBeans', 'available', 'a', 121)], 'coffeeBeans', NOW);
+    expect(s.status).toBe('none');
+    expect(s.lastAt).toBeNull();
+  });
+
+  it('never outranks in-window votes', () => {
+    const s = summarize(
+      [report('coffeeBeans', 'available', 'a', 100), report('coffeeBeans', 'low', 'b', 5)],
+      'coffeeBeans',
+      NOW,
+    );
+    expect(s.status).toBe('low');
+    expect(s.carried).toBeUndefined();
+  });
+});
+
 describe('aggregate', () => {
-  it('falls back to resting levels for subjects nobody has reported on', () => {
+  it('reports nothing rather than inventing resting levels', () => {
+    // Earlier versions filled an empty board with plausible-looking demo
+    // values; an honest board admits it has no eyes on the machine.
     const { statuses, levels } = aggregate([], NOW);
+    expect(statuses).toEqual({
+      coffeeBeans: 'none',
+      cocoaPowder: 'none',
+      milkPowder: 'none',
+      ice: 'none',
+      machine: 'none',
+    });
+    expect(levels).toEqual({ coffeeBeans: null, cocoaPowder: null, milkPowder: null, ice: null });
+  });
+
+  it('maps a carried afterglow onto levels like a live report', () => {
+    const { statuses, levels } = aggregate(
+      [report('coffeeBeans', 'available', 'a', 45), report('milkPowder', 'refilled', 'b', 90)],
+      NOW,
+    );
     expect(statuses.coffeeBeans).toBe('available');
-    expect(levels).toEqual({ coffeeBeans: 75, cocoaPowder: 35, milkPowder: 80, ice: 60 });
+    expect(levels.coffeeBeans).toBe(70);
+    expect(levels.milkPowder).toBe(100);
+    // Nobody has said anything about cocoa at all.
+    expect(statuses.cocoaPowder).toBe('none');
+    expect(levels.cocoaPowder).toBeNull();
   });
 
   it('treats ice as a material like any other', () => {
@@ -239,7 +315,27 @@ describe('overallState', () => {
   });
 
   it('says so when everything is fine', () => {
-    expect(overallState(base, SUBJECT_LABELS).label).toBe('利用できます');
+    const o = overallState(base, SUBJECT_LABELS);
+    expect(o.label).toBe('利用できます');
+    expect(o.reason).toBe('各材料は十分にあります');
+  });
+
+  it('admits knowing nothing when no subject has been reported', () => {
+    const o = overallState(UNKNOWN_STATUSES, SUBJECT_LABELS);
+    expect(o.label).toBe('情報がありません');
+    expect(o.tone).toBe('none');
+  });
+
+  it('vouches only for the materials people actually checked', () => {
+    const o = overallState({ ...base, ice: 'none' }, SUBJECT_LABELS);
+    expect(o.label).toBe('利用できます');
+    expect(o.reason).toBe('確認できた材料は十分にあります');
+  });
+
+  it('reports a confirmed problem even with unreported materials around', () => {
+    // 「情報がありません」 must never hide a shortage someone has seen.
+    const o = overallState({ ...UNKNOWN_STATUSES, cocoaPowder: 'unavailable' }, SUBJECT_LABELS);
+    expect(o.label).toBe('一部利用できません');
   });
 });
 

@@ -1,7 +1,7 @@
 import {
   SUBJECT_LABELS,
   type MaterialKey,
-  type StatusKey,
+  type StatusOrNone,
   type SupplySubjectKey,
 } from './domain.js';
 
@@ -56,7 +56,8 @@ export const RECIPES: readonly Recipe[] = [
 
 export interface DrinkAvailability {
   name: string;
-  status: StatusKey;
+  /** `none` = required materials unreported: no claim either way. */
+  status: StatusOrNone;
   stateText: string;
   mark: string;
   reason: string;
@@ -64,26 +65,36 @@ export interface DrinkAvailability {
   requiredLabel: string;
 }
 
-const STATE_TEXT: Record<StatusKey, string> = {
+const STATE_TEXT: Record<StatusOrNone, string> = {
   available: '作れます',
   low: '残り少なめ',
   unavailable: '作れません',
+  none: '情報がありません',
 };
 
-const STATE_MARK: Record<StatusKey, string> = {
+const STATE_MARK: Record<StatusOrNone, string> = {
   available: '✓',
   low: '!',
   unavailable: '×',
+  none: '?',
 };
 
-/** A drink is only as good as its scarcest ingredient — and the machine itself. */
+/**
+ * A drink is only as good as its scarcest ingredient — and the machine itself.
+ *
+ * Certainty ranks above ignorance: a confirmed missing ingredient says
+ * 作れません even if another ingredient is unreported, because that answer is
+ * already decided. Only when nothing rules the drink out but some requirement
+ * is unreported does it become 情報がありません — the honest refusal to vouch
+ * for materials nobody has checked.
+ */
 export function drinkAvailability(
   recipe: Recipe,
-  statuses: Record<SupplySubjectKey, StatusKey>,
+  statuses: Record<SupplySubjectKey, StatusOrNone>,
 ): DrinkAvailability {
   const machineDown = statuses.machine === 'unavailable';
   const missing = recipe.requires.filter((k) => statuses[k] === 'unavailable');
-  let status: StatusKey = 'available';
+  let status: StatusOrNone = 'available';
   let reason = '材料が十分にあります';
 
   if (machineDown || missing.length > 0) {
@@ -93,6 +104,9 @@ export function drinkAvailability(
     reason = machineDown
       ? 'マシンを利用できません'
       : `${missing.map((k) => SUBJECT_LABELS[k]).join('・')}がありません`;
+  } else if (recipe.requires.some((k) => statuses[k] === 'none')) {
+    status = 'none';
+    reason = '必要な材料の投稿が過去30分にありません';
   } else if (recipe.requires.some((k) => statuses[k] === 'low')) {
     status = 'low';
     reason = `${recipe.requires
