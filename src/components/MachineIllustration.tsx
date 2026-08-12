@@ -103,8 +103,8 @@ function cubes(pct: number): Cube[] {
   return out;
 }
 
-/** The percentage label, knocked out of whatever is behind it. */
-function LevelLabel({ x, pct }: { x: number; pct: number }) {
+/** The percentage label, knocked out of whatever is behind it — 「—」 when unknown. */
+function LevelLabel({ x, pct }: { x: number; pct: number | null }) {
   return (
     <text
       x={x}
@@ -117,21 +117,23 @@ function LevelLabel({ x, pct }: { x: number; pct: number }) {
       paintOrder="stroke"
       strokeLinejoin="round"
     >
-      {Math.round(pct)}%
+      {pct === null ? '—' : `${Math.round(pct)}%`}
     </text>
   );
 }
 
 interface UnitProps {
-  levels: Record<MaterialKey, number>;
+  levels: Record<MaterialKey, number | null>;
   clip: (name: string) => string;
 }
 
 function DrinkMachineUnit({ levels, clip }: UnitProps) {
-  const coffeePct = clamp(levels.coffeeBeans);
+  // null = unreported: an empty-looking hopper with a 「—」 label, distinct
+  // from 0% (empty hopper labelled 0%) by the label alone.
+  const coffeePct = levels.coffeeBeans === null ? 0 : clamp(levels.coffeeBeans);
   const coffeeTop = pileTop(coffeePct);
-  const cocoa = column(levels.cocoaPowder);
-  const milk = column(levels.milkPowder);
+  const cocoa = column(levels.cocoaPowder ?? 0);
+  const milk = column(levels.milkPowder ?? 0);
 
   return (
     <g transform={`translate(${MACHINE_SHIFT} 0)`}>
@@ -196,9 +198,9 @@ function DrinkMachineUnit({ levels, clip }: UnitProps) {
         />
       </g>
 
-      <LevelLabel x={140} pct={coffeePct} />
-      <LevelLabel x={280} pct={clamp(levels.cocoaPowder)} />
-      <LevelLabel x={420} pct={clamp(levels.milkPowder)} />
+      <LevelLabel x={140} pct={levels.coffeeBeans === null ? null : coffeePct} />
+      <LevelLabel x={280} pct={levels.cocoaPowder === null ? null : clamp(levels.cocoaPowder)} />
+      <LevelLabel x={420} pct={levels.milkPowder === null ? null : clamp(levels.milkPowder)} />
 
       {/* cabinet */}
       <rect x={55} y={200} width={450} height={276} rx={28} className="fig-body" strokeWidth={5} />
@@ -242,7 +244,7 @@ function DrinkMachineUnit({ levels, clip }: UnitProps) {
 }
 
 function IceMakerUnit({ levels, clip }: UnitProps) {
-  const icePct = clamp(levels.ice);
+  const icePct = levels.ice === null ? 0 : clamp(levels.ice);
   const iceTop = pileTop(icePct);
 
   return (
@@ -279,7 +281,7 @@ function IceMakerUnit({ levels, clip }: UnitProps) {
           </>
         )}
       </g>
-      <LevelLabel x={130} pct={icePct} />
+      <LevelLabel x={130} pct={levels.ice === null ? null : icePct} />
 
       {/* cabinet, scoop chute, and dispense tray */}
       <rect x={55} y={200} width={150} height={276} rx={28} className="fig-body" strokeWidth={5} />
@@ -296,19 +298,22 @@ function IceMakerUnit({ levels, clip }: UnitProps) {
 }
 
 export interface MachineIllustrationProps {
-  levels: Record<MaterialKey, number>;
+  levels: Record<MaterialKey, number | null>;
 }
 
 export function MachineIllustration({ levels }: MachineIllustrationProps) {
   const uid = useId().replace(/:/g, '');
   const clip = (name: string) => `${uid}-${name}`;
-  const pct = (k: MaterialKey) => Math.round(clamp(levels[k]));
+  const pct = (k: MaterialKey) => {
+    const v = levels[k];
+    return v === null ? '情報なし' : `約${Math.round(clamp(v))}%`;
+  };
 
   return (
     <svg
       viewBox="0 0 735 520"
       role="img"
-      aria-label={`製氷機とドリンクマシンの推定残量。氷 約${pct('ice')}%、コーヒー豆 約${pct('coffeeBeans')}%、ココア 約${pct('cocoaPowder')}%、ミルク 約${pct('milkPowder')}%`}
+      aria-label={`製氷機とドリンクマシンの推定残量。氷 ${pct('ice')}、コーヒー豆 ${pct('coffeeBeans')}、ココア ${pct('cocoaPowder')}、ミルク ${pct('milkPowder')}`}
       className="machine-card__svg"
     >
       <defs>

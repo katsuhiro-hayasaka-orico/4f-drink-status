@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import type { DrinkBase } from '../../shared/drinks.js';
-import type { StatusKey } from '../../shared/domain.js';
+import type { StatusOrNone } from '../../shared/domain.js';
 
 /**
  * The drink itself, drawn in the availability card.
@@ -30,10 +30,13 @@ const SURFACE: Record<DrinkBase, string> = {
 };
 
 /** Full, half, or empty — the picture carries the same fact as the words. */
-const FILL: Record<StatusKey, number> = {
+const FILL: Record<StatusOrNone, number> = {
   available: 1,
   low: 0.45,
   unavailable: 0,
+  // Unknown draws as empty *plus* a question mark: an empty cup alone would
+  // read as 作れません, which is a claim this state exactly refuses to make.
+  none: 0,
 };
 
 const VESSEL = 'var(--vessel)';
@@ -47,7 +50,7 @@ function cubeTop(surfaceY: number, rise: number): number {
 export interface DrinkFigureProps {
   base: DrinkBase;
   iced: boolean;
-  status: StatusKey;
+  status: StatusOrNone;
 }
 
 export function DrinkFigure({ base, iced, status }: DrinkFigureProps) {
@@ -55,6 +58,7 @@ export function DrinkFigure({ base, iced, status }: DrinkFigureProps) {
   const clipId = `${uid}-cup`;
   const level = FILL[status];
   const empty = level <= 0;
+  const unknown = status === 'none';
 
   // Interior of the vessel, in viewBox units — the liquid fills up from here.
   const top = iced ? 20 : 25;
@@ -136,6 +140,11 @@ export function DrinkFigure({ base, iced, status }: DrinkFigureProps) {
             )}
           </g>
           <path d="M17 19h26" style={{ stroke: RIM }} strokeWidth={2.4} strokeLinecap="round" />
+          {unknown && (
+            <text x={30} y={48} textAnchor="middle" fontSize={22} fontWeight={800} style={{ fill: 'var(--muted)' }}>
+              ?
+            </text>
+          )}
         </>
       ) : (
         <>
@@ -171,6 +180,11 @@ export function DrinkFigure({ base, iced, status }: DrinkFigureProps) {
           <path d="M11 24h30" style={{ stroke: RIM }} strokeWidth={2.4} strokeLinecap="round" />
           {/* saucer */}
           <rect x={8} y={64} width={36} height={4.5} rx={2.25} style={{ fill: RIM }} />
+          {unknown && (
+            <text x={26} y={50} textAnchor="middle" fontSize={22} fontWeight={800} style={{ fill: 'var(--muted)' }}>
+              ?
+            </text>
+          )}
         </>
       )}
     </svg>
