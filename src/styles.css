@@ -1264,3 +1264,10 @@ a:focus-visible {
   color: var(--body-text);
   line-height: 1.6;
 }
+
+/* Toggles that lead with an icon (the notification bell). */
+.header__toggle--icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   aggregate,
   focusSummary,
@@ -29,6 +29,7 @@ import { Section } from './components/Section.js';
 import { SummaryPanel, type Metric } from './components/SummaryPanel.js';
 import { ToastBar } from './components/ToastBar.js';
 import { useDrinkStatus } from './hooks/useDrinkStatus.js';
+import { useNotifications } from './hooks/useNotifications.js';
 import { useTheme } from './hooks/useTheme.js';
 import { PALETTE } from './lib/palette.js';
 
@@ -70,13 +71,45 @@ function buildMetrics(
 }
 
 export function App() {
-  const { reports, me, now, loadError, posting, toast, autoOn, toggleAuto, post, undo } =
-    useDrinkStatus();
+  const {
+    reports,
+    me,
+    now,
+    loadError,
+    posting,
+    toast,
+    autoOn,
+    toggleAuto,
+    ensureAutoOn,
+    post,
+    undo,
+  } = useDrinkStatus();
 
   const { preference: themePreference, choose: chooseTheme } = useTheme();
+  const { state: notifyState, toggle: toggleNotify, observe: observeReports } = useNotifications();
   const [selectedSubject, setSelectedSubject] = useState<SubjectKey>('coffeeBeans');
   const [filter, setFilter] = useState<FilterKey>('all');
   const [aboutOpen, setAboutOpen] = useState(false);
+
+  // Every fresh copy of the reports goes past the notifier, whether it came
+  // from the poll, a post, or an undo.
+  useEffect(() => {
+    observeReports(reports, me);
+  }, [observeReports, reports, me]);
+
+  const onToggleNotify = () => {
+    void toggleNotify()
+      .then((enabled) => {
+        // Notifications ride the poll; enabling them with the poll off would
+        // be agreeing to news and then unplugging the radio. ensureAutoOn is
+        // idempotent, so neither a stale closure (the permission prompt kept
+        // this callback waiting) nor a double click can flip polling off.
+        if (enabled) ensureAutoOn();
+      })
+      .catch(() => {
+        /* toggle() contains its own failure handling; never crash the click */
+      });
+  };
 
   const view = useMemo(() => {
     const { summaries, statuses, levels } = aggregate(reports, now);
@@ -123,6 +156,8 @@ export function App() {
         autoOn={autoOn}
         onToggleAuto={toggleAuto}
         hours={view.hours}
+        notifyState={notifyState}
+        onToggleNotify={onToggleNotify}
         themePreference={themePreference}
         onThemeChange={chooseTheme}
       />

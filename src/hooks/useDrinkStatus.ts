@@ -58,6 +58,15 @@ export function useDrinkStatus() {
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /**
+   * Bumped whenever local state changes authoritatively outside the poll
+   * (optimistic insert, post/undo responses, rollbacks). A poll GET that was
+   * already in flight when that happened is a snapshot of the older world;
+   * adopting it would erase the newer rows until the next poll. The
+   * generation check discards those stale responses instead.
+   */
+  const generation = useRef(0);
+
   const adopt = useCallback((res: { reports: Report[]; me: string; serverNow: number }) => {
     setReports(res.reports);
     setMe(res.me);
@@ -65,8 +74,11 @@ export function useDrinkStatus() {
   }, []);
 
   const refresh = useCallback(async () => {
+    const startedAt = generation.current;
     try {
-      adopt(await fetchReports());
+      const res = await fetchReports();
+      if (startedAt !== generation.current) return; // a mutation won the race
+      adopt(res);
       setLoadError(null);
     } catch (err) {
       setLoadError(err instanceof ApiError ? err.message : '読み込みに失敗しました');
@@ -106,6 +118,11 @@ export function useDrinkStatus() {
       if (posting) return;
       setPosting(true);
 
+      // A stale error toast's timer would otherwise fire mid-undo-window and
+      // clear the undo toast this post is about to show.
+      if (errorTimer.current) clearTimeout(errorTimer.current);
+
+      generation.current += 1;
       const optimisticId = `pending-${crypto.randomUUID()}`;
       const optimistic: Report = {
         id: optimisticId,
@@ -129,17 +146,21 @@ export function useDrinkStatus() {
 
       try {
         const res = await postReport(subject, action);
+        generation.current += 1;
         adopt(res);
         setLoadError(null);
 
         if (undoRequested.current) {
           // Undo was tapped while the post was still in flight.
           undoRequested.current = false;
-          adopt(await deleteReport(res.report.id));
+          const deleted = await deleteReport(res.report.id);
+          generation.current += 1;
+          adopt(deleted);
         } else {
           undoTargetId.current = res.report.id;
         }
       } catch (err) {
+        generation.current += 1;
         setReports((prev) => prev.filter((r) => r.id !== optimisticId));
         if (undoTimer.current) clearTimeout(undoTimer.current);
         showError(err instanceof ApiError ? err.message : '投稿に失敗しました');
@@ -165,7 +186,9 @@ export function useDrinkStatus() {
 
     undoTargetId.current = null;
     try {
-      adopt(await deleteReport(id));
+      const res = await deleteReport(id);
+      generation.current += 1;
+      adopt(res);
     } catch (err) {
       showError(err instanceof ApiError ? err.message : '取り消しに失敗しました');
       void refresh();
@@ -173,6 +196,13 @@ export function useDrinkStatus() {
   }, [adopt, refresh, showError]);
 
   const toggleAuto = useCallback(() => setAutoOn((v) => !v), []);
+
+  /**
+   * Idempotent "make sure polling is on", for callers that decide across an
+   * await (the notification toggle). A blind toggle there would flip the
+   * value the user set while the permission prompt was open.
+   */
+  const ensureAutoOn = useCallback(() => setAutoOn(true), []);
 
   /** Current time on the server's clock, refreshed whenever the board does. */
   const now = useMemo(() => Date.now() + skewMs, [skewMs, reports, tick]);
@@ -187,6 +217,7 @@ export function useDrinkStatus() {
     toast,
     autoOn,
     toggleAuto,
+    ensureAutoOn,
     post,
     undo,
     refresh,
