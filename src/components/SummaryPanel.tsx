@@ -33,9 +33,7 @@ export function SummaryPanel({ overall, metrics, hours }: SummaryPanelProps) {
           <>
             <h1 className="summary__headline summary__headline--closed">いまは閉まっています</h1>
             <p className="summary__reason">{hours.note}</p>
-            <p className="summary__aside">
-              開放時間 {hours.rangeLabel}　—　最後に確認された状態：{overall.label}
-            </p>
+            <p className="summary__aside">開放時間 {hours.rangeLabel}</p>
           </>
         ) : (
           <>

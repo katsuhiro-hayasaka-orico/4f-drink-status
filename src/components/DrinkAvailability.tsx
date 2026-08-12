@@ -1,5 +1,5 @@
 import { RECIPES, drinkAvailability, type Recipe } from '../../shared/drinks.js';
-import type { StatusKey, SupplySubjectKey } from '../../shared/domain.js';
+import type { StatusOrNone, SupplySubjectKey } from '../../shared/domain.js';
 import { statusColor } from '../lib/palette.js';
 import { DrinkFigure } from './DrinkFigure.js';
 
@@ -36,7 +36,7 @@ const GROUPS: Group[] = [
 ];
 
 export interface DrinkAvailabilityProps {
-  statuses: Record<SupplySubjectKey, StatusKey>;
+  statuses: Record<SupplySubjectKey, StatusOrNone>;
 }
 
 export function DrinkAvailability({ statuses }: DrinkAvailabilityProps) {

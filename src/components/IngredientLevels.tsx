@@ -3,6 +3,7 @@ import {
   SUBJECT_LABELS,
   type MaterialKey,
   type StatusKey,
+  type StatusOrNone,
   type SupplySubjectKey,
 } from '../../shared/domain.js';
 import { statusColor } from '../lib/palette.js';
@@ -14,8 +15,8 @@ const DESCRIPTION: Record<StatusKey, string> = {
 };
 
 export interface IngredientLevelsProps {
-  statuses: Record<SupplySubjectKey, StatusKey>;
-  levels: Record<MaterialKey, number>;
+  statuses: Record<SupplySubjectKey, StatusOrNone>;
+  levels: Record<MaterialKey, number | null>;
 }
 
 export function IngredientLevels({ statuses, levels }: IngredientLevelsProps) {
@@ -23,23 +24,39 @@ export function IngredientLevels({ statuses, levels }: IngredientLevelsProps) {
     <div className="grid-240">
       {MATERIAL_KEYS.map((key) => {
         const status = statuses[key];
-        const color = statusColor(status);
-        const pct = levels[key];
+        const level = levels[key];
         const label = SUBJECT_LABELS[key];
+
+        // Unreported inside the window (or the board is closed): say so,
+        // rather than dressing a guess up as a percentage.
+        if (status === 'none' || level === null) {
+          return (
+            <div className="card" key={key}>
+              <div className="ingredient__head">
+                <span className="ingredient__name">{label}</span>
+                <span className="ingredient__pct" style={{ color: statusColor('none') }}>
+                  —
+                </span>
+              </div>
+              <div className="meter" role="img" aria-label={`${label}の推定残量は情報がありません`}>
+                <div className="meter__fill" style={{ width: 0 }} />
+              </div>
+              <div className="ingredient__desc">情報がありません</div>
+            </div>
+          );
+        }
+
+        const color = statusColor(status);
         return (
           <div className="card" key={key}>
             <div className="ingredient__head">
               <span className="ingredient__name">{label}</span>
               <span className="ingredient__pct" style={{ color }}>
-                約{pct}%
+                約{level}%
               </span>
             </div>
-            <div
-              className="meter"
-              role="img"
-              aria-label={`${label}の推定残量 約${pct}%`}
-            >
-              <div className="meter__fill" style={{ width: `${pct}%`, background: color }} />
+            <div className="meter" role="img" aria-label={`${label}の推定残量 約${level}%`}>
+              <div className="meter__fill" style={{ width: `${level}%`, background: color }} />
             </div>
             <div className="ingredient__desc">{DESCRIPTION[status]}</div>
           </div>
