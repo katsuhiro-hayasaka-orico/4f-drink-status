@@ -99,6 +99,17 @@ export function useDrinkStatus() {
     return () => clearInterval(id);
   }, [autoOn, refresh]);
 
+  // Coming back to the tab refreshes immediately: background timers get
+  // coalesced by the browser, and the first thing a returning user should
+  // see is the present, not the last throttled poll.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refresh]);
+
   useEffect(
     () => () => {
       if (undoTimer.current) clearTimeout(undoTimer.current);
