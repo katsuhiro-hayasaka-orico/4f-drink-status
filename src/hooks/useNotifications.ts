@@ -17,8 +17,20 @@ import { advanceWatermark, buildNotificationBody } from '../lib/notifyLogic.js';
  */
 
 const STORAGE_KEY = 'drink-status-notify';
-/** One tag, so a newer notification replaces a stale one instead of stacking. */
+/**
+ * One tag for report news, so a newer notification replaces a stale one
+ * instead of stacking. Same-tag replacement is SILENT by default — no banner,
+ * no sound, the notification just changes in the tray — so every news
+ * notification also sets `renotify: true` to make the replacement announce
+ * itself. Without that, one unread notification mutes every one after it.
+ *
+ * The enable-confirmation deliberately does NOT share this tag. It shipped
+ * sharing it, and the result was exactly that trap: the confirmation sat in
+ * the notification center, and every real report after it was swallowed as a
+ * silent replacement — "notifications on, nothing ever arrives".
+ */
 const TAG = 'drink-status-reports';
+const HELLO_TAG = 'drink-status-hello';
 const TITLE = '4Fドリンク速報';
 const ICON = '/apple-touch-icon.png';
 
@@ -70,9 +82,18 @@ function pageIsUnattended(): boolean {
  * inside a React effect and unmount the whole tree, so the constructor is
  * the one place this feature touches that must never leak.
  */
-function show(body: string): boolean {
+function show(body: string, tag: string, renotify: boolean): boolean {
   try {
-    const n = new Notification(TITLE, { body, tag: TAG, icon: ICON, lang: 'ja' });
+    // `renotify` is missing from some lib.dom versions but understood by
+    // Chromium; browsers that don't know it (Safari) simply ignore it.
+    const options: NotificationOptions & { renotify?: boolean } = {
+      body,
+      tag,
+      icon: ICON,
+      lang: 'ja',
+    };
+    if (renotify) options.renotify = true;
+    const n = new Notification(TITLE, options);
     n.onclick = () => {
       window.focus();
       n.close();
@@ -113,7 +134,7 @@ export function useNotifications() {
     if (!supported() || Notification.permission !== 'granted') return;
     if (!pageIsUnattended()) return;
 
-    if (!show(buildNotificationBody(fresh))) {
+    if (!show(buildNotificationBody(fresh), TAG, true)) {
       // The constructor is unusable on this browser. Stop pretending, so the
       // button stops promising something that cannot be delivered.
       setState('unsupported');
@@ -164,7 +185,7 @@ export function useNotifications() {
 
       // Prove the constructor works before claiming to be on: the demo
       // doubles as the capability check Android Chrome fails.
-      if (!show('通知をONにしました。新しい投稿があると、このタブを開いている間お知らせします')) {
+      if (!show('通知をONにしました。新しい投稿があると、このタブを開いている間お知らせします', HELLO_TAG, false)) {
         setState('unsupported');
         save('off');
         return false;
