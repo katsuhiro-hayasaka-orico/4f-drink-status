@@ -1,34 +1,54 @@
 /**
  * 4Fドリンク速報 — Cloudflare Worker API.
  *
- * Three endpoints over one D1 table:
+ * The machine board, over one D1 table:
  *   GET    /api/reports      the last 24h of observations
  *   POST   /api/reports      post one ({ subject, action })
  *   DELETE /api/reports/:id  take your own back, inside the undo window
+ *
+ * And みんなの声, site feedback with likes:
+ *   GET    /api/feedback          newest entries, likes folded in
+ *   POST   /api/feedback          post one ({ mood, body })
+ *   POST   /api/feedback/:id/like toggle your like on an entry
  *
  * Mutations return the refreshed list too, so the client never needs a second
  * round trip to re-render. Everything else falls through to the static assets
  * built by Vite.
  */
 
+import { CONFIG } from '../shared/config.js';
 import {
   QUEUE_SUBJECT,
+  isMoodKey,
   isSubjectKey,
   isValidReportValue,
+  normalizeFeedbackBody,
+  type FeedbackResponse,
   type Report,
   type ReportsResponse,
 } from '../shared/domain.js';
 import type { Env } from './env.js';
 import { resolveIdentity, withIdentityCookie, type Identity } from './identity.js';
 import {
+  countRecentFeedback,
   deleteOwnRecentReport,
   ensureUserLabel,
+  insertFeedback,
   insertReport,
+  listFeedback,
   listRecentReports,
+  toggleFeedbackLike,
 } from './store.js';
 
 /** Ceiling on how many reports one device may post per minute. */
 const POST_RATE_LIMIT = 20;
+
+/**
+ * Ceiling on feedback per device per day. Machine reports are the product and
+ * get a generous per-minute limit; feedback is commentary on a public page,
+ * so the budget is small enough that a prankster's evening is short.
+ */
+const FEEDBACK_RATE_LIMIT = 5;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -111,6 +131,64 @@ async function handleDelete(
   return json({ ok: true, ...(await snapshot(env, identity, now)) });
 }
 
+async function feedbackSnapshot(
+  env: Env,
+  identity: Identity,
+  now: number,
+): Promise<FeedbackResponse> {
+  return {
+    feedback: await listFeedback(env.DB, identity.userId),
+    serverNow: now,
+  };
+}
+
+async function handleFeedbackPost(
+  request: Request,
+  env: Env,
+  identity: Identity,
+  now: number,
+): Promise<Response> {
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return fail(400, 'リクエストの形式が正しくありません');
+  }
+
+  const { mood, body } = (payload ?? {}) as { mood?: unknown; body?: unknown };
+  if (!isMoodKey(mood)) return fail(400, '満足度の指定が正しくありません');
+  const normalized = normalizeFeedbackBody(body ?? '', CONFIG.feedbackMaxLength);
+  if (normalized === null) {
+    return fail(400, `ご意見は${CONFIG.feedbackMaxLength}文字以内でお願いします`);
+  }
+
+  if ((await countRecentFeedback(env.DB, identity.userId, now - 86_400_000)) >= FEEDBACK_RATE_LIMIT) {
+    return fail(429, '本日のご意見はここまでです。また明日お聞かせください');
+  }
+
+  await insertFeedback(env.DB, {
+    id: crypto.randomUUID(),
+    mood,
+    body: normalized,
+    userId: identity.userId,
+    userLabel: await ensureUserLabel(env.DB, identity.userId, now),
+    createdAt: now,
+  });
+
+  return json(await feedbackSnapshot(env, identity, now), 201);
+}
+
+async function handleFeedbackLike(
+  id: string,
+  env: Env,
+  identity: Identity,
+  now: number,
+): Promise<Response> {
+  const found = await toggleFeedbackLike(env.DB, id, identity.userId, now);
+  if (!found) return fail(404, '対象のご意見が見つかりませんでした');
+  return json(await feedbackSnapshot(env, identity, now));
+}
+
 async function route(
   request: Request,
   env: Env,
@@ -129,6 +207,20 @@ async function route(
   const match = /^\/api\/reports\/([^/]+)$/.exec(path);
   if (match) {
     if (request.method === 'DELETE') return handleDelete(decodeURIComponent(match[1]), env, identity, now);
+    return fail(405, 'サポートされていないメソッドです');
+  }
+
+  if (path === '/api/feedback') {
+    if (request.method === 'GET') return json(await feedbackSnapshot(env, identity, now));
+    if (request.method === 'POST') return handleFeedbackPost(request, env, identity, now);
+    return fail(405, 'サポートされていないメソッドです');
+  }
+
+  const like = /^\/api\/feedback\/([^/]+)\/like$/.exec(path);
+  if (like) {
+    if (request.method === 'POST') {
+      return handleFeedbackLike(decodeURIComponent(like[1]), env, identity, now);
+    }
     return fail(405, 'サポートされていないメソッドです');
   }
 

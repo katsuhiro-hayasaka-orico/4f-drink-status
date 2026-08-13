@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   UNKNOWN_LEVELS,
   UNKNOWN_STATUSES,
@@ -20,6 +20,7 @@ import { relativeTime } from '../shared/time.js';
 
 import { AboutDialog } from './components/AboutDialog.js';
 import { DrinkAvailability } from './components/DrinkAvailability.js';
+import { FeedbackDialog } from './components/FeedbackDialog.js';
 import { Header } from './components/Header.js';
 import { IngredientLevels } from './components/IngredientLevels.js';
 import { MachineIllustration } from './components/MachineIllustration.js';
@@ -30,9 +31,12 @@ import { ReportForm } from './components/ReportForm.js';
 import { Section } from './components/Section.js';
 import { SummaryPanel, type Metric } from './components/SummaryPanel.js';
 import { ToastBar } from './components/ToastBar.js';
+import { Voices } from './components/Voices.js';
 import { useDrinkStatus } from './hooks/useDrinkStatus.js';
+import { useFeedback } from './hooks/useFeedback.js';
 import { useNotifications } from './hooks/useNotifications.js';
 import { useTheme } from './hooks/useTheme.js';
+import { markPrompted, shouldAutoPrompt } from './lib/feedbackPrompt.js';
 import { PALETTE } from './lib/palette.js';
 
 const CONFIDENCE_SHORT: Record<ConfidenceKey, string> = {
@@ -89,9 +93,27 @@ export function App() {
 
   const { preference: themePreference, choose: chooseTheme } = useTheme();
   const { state: notifyState, toggle: toggleNotify, observe: observeReports } = useNotifications();
+  const feedback = useFeedback();
   const [selectedSubject, setSelectedSubject] = useState<SubjectKey>('coffeeBeans');
   const [filter, setFilter] = useState<FilterKey>('all');
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState<'auto' | 'manual' | null>(null);
+
+  // The thanks toast is the cue: if this device hasn't submitted or dismissed
+  // the form within the cooldown, the dialog opens itself. The toast's small
+  // link stays available every time regardless.
+  useEffect(() => {
+    if (toast?.kind !== 'thanks') return;
+    if (feedbackOpen === null && shouldAutoPrompt(Date.now())) setFeedbackOpen('auto');
+  }, [toast, feedbackOpen]);
+
+  // Submitting *or* closing counts as "asked recently" — someone who waved
+  // the form away should not see it again tomorrow. Stable identity, so the
+  // dialog's Escape listener isn't re-bound on every poll re-render.
+  const closeFeedback = useCallback(() => {
+    markPrompted(Date.now());
+    setFeedbackOpen(null);
+  }, []);
 
   // Every fresh copy of the reports goes past the notifier, whether it came
   // from the poll, a post, or an undo.
@@ -231,6 +253,20 @@ export function App() {
           />
         </Section>
 
+        <Section
+          title="みんなの声"
+          ariaLabel="みんなの声"
+          note="このサイトへのご意見・ご感想"
+          footnote="お寄せいただいた声はサイトの改善に使わせていただきます。"
+        >
+          <Voices
+            entries={feedback.entries}
+            now={now}
+            onLike={(id) => void feedback.toggleLike(id)}
+            onWrite={() => setFeedbackOpen('manual')}
+          />
+        </Section>
+
         <footer className="footer">
           <span>集合知 — 利用者ごとの最新投稿を1票として集計しています</span>
           <button type="button" className="footer__link" onClick={() => setAboutOpen(true)}>
@@ -239,8 +275,17 @@ export function App() {
         </footer>
       </main>
 
-      {toast && <ToastBar toast={toast} onUndo={() => void undo()} />}
+      {toast && (
+        <ToastBar
+          toast={toast}
+          onUndo={() => void undo()}
+          onFeedback={() => setFeedbackOpen('manual')}
+        />
+      )}
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+      {feedbackOpen && (
+        <FeedbackDialog variant={feedbackOpen} onSubmit={feedback.submit} onClose={closeFeedback} />
+      )}
     </div>
   );
 }
