@@ -1294,6 +1294,14 @@ a:focus-visible {
   color: var(--muted);
 }
 
+.voice__edited {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  font-size: 10px;
+}
+
 .voice__body {
   margin: 0;
   font-size: 14px;
@@ -1304,8 +1312,42 @@ a:focus-visible {
 
 .voice__foot {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   margin-top: 10px;
+}
+
+.voice__own-actions {
+  display: inline-flex;
+  gap: 8px;
+  margin-right: auto;
+}
+
+.voice__action {
+  padding: 5px 12px;
+  border: 2px solid var(--line);
+  border-radius: 99px;
+  background: none;
+  color: var(--muted);
+  font-weight: 900;
+  font-size: 11px;
+}
+
+.voice__action:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.voice__action--danger {
+  border-color: var(--unavailable);
+  background: var(--unavailable);
+  color: var(--on-status);
+}
+
+.voice__body--empty {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .voice__like {

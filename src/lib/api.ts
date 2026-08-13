@@ -67,3 +67,14 @@ export function postFeedback(mood: MoodKey, body: string): Promise<FeedbackRespo
 export function toggleFeedbackLike(id: string): Promise<FeedbackResponse> {
   return request(`/api/feedback/${encodeURIComponent(id)}/like`, { method: 'POST' });
 }
+
+export function updateFeedback(id: string, mood: MoodKey, body: string): Promise<FeedbackResponse> {
+  return request(`/api/feedback/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ mood, body }),
+  });
+}
+
+export function deleteFeedback(id: string): Promise<FeedbackResponse> {
+  return request(`/api/feedback/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
