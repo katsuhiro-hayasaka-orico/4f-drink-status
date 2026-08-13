@@ -160,6 +160,32 @@ export function isQueueReport(report: { subject: SubjectKey }): boolean {
   return report.subject === QUEUE_SUBJECT;
 }
 
+/**
+ * Button copy tuned per subject (display only — the stored value, aggregation
+ * and the breakdown table's quotes are unchanged). 「取れた・作れた」 had to
+ * mean three different things at once; a material runs out, a machine breaks,
+ * and the two deserve different words.
+ */
+const MATERIAL_ACTION_LABELS: Record<ActionKey, string> = {
+  available: '十分にある',
+  low: '残り少なめ',
+  unavailable: 'なくなっている',
+  refilled: '補充された',
+};
+
+const MACHINE_ACTION_LABELS: Record<ActionKey, string> = {
+  available: '正常に使えた',
+  low: '調子が悪い',
+  unavailable: '使えない・故障',
+  refilled: '復旧した',
+};
+
+export function actionLabelFor(subject: SubjectKey, value: ReportValue): string {
+  if (subject === QUEUE_SUBJECT) return QUEUE_META[value as QueueLevel].label;
+  if (subject === 'machine') return MACHINE_ACTION_LABELS[value as ActionKey];
+  return MATERIAL_ACTION_LABELS[value as ActionKey];
+}
+
 /** The label shown for a report's value in the breakdown table. */
 export function reportValueQuote(subject: SubjectKey, value: ReportValue): string {
   return subject === QUEUE_SUBJECT
@@ -253,4 +279,20 @@ export interface FeedbackEntry {
 export interface FeedbackResponse {
   feedback: FeedbackEntry[];
   serverNow: number;
+}
+
+/* --------------------------------------------------------------- metrics -- */
+
+/**
+ * The anonymous usage events the audit asked us to measure: whether people
+ * find the report form, whether they finish, and whether they take posts
+ * back. Nothing else is accepted — the allowlist is the privacy policy.
+ * `value` is used by post_done only: seconds from page load to the post,
+ * for the 「初回投稿までの秒数」 metric.
+ */
+export const EVENT_NAMES = ['cta_click', 'report_view', 'post_done', 'post_undone'] as const;
+export type EventName = (typeof EVENT_NAMES)[number];
+
+export function isEventName(v: unknown): v is EventName {
+  return typeof v === 'string' && (EVENT_NAMES as readonly string[]).includes(v);
 }

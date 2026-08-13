@@ -12,6 +12,7 @@ import {
   type SubjectKey,
 } from '../../shared/domain.js';
 import { ApiError, deleteReport, fetchReports, postReport } from '../lib/api.js';
+import { secondsSinceLoad, track } from '../lib/metrics.js';
 
 export interface Toast {
   /** `thanks` appears once the undo window closes without an undo. */
@@ -159,6 +160,8 @@ export function useDrinkStatus() {
         // truly settled — which makes it the honest moment to say thanks and
         // invite feedback. An undone post never reaches this line: undo()
         // clears this timer, and a failed POST clears it in the catch.
+        // Settled is also what post_done measures, for the same reason.
+        track('post_done', secondsSinceLoad());
         setToast((t) =>
           t?.kind === 'undo' ? { kind: 'thanks', text: '投稿ありがとうございます！' } : t,
         );
@@ -199,6 +202,7 @@ export function useDrinkStatus() {
   const undo = useCallback(async () => {
     if (undoTimer.current) clearTimeout(undoTimer.current);
     setToast(null);
+    track('post_undone');
 
     const id = undoTargetId.current;
     if (!id) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   UNKNOWN_LEVELS,
   UNKNOWN_STATUSES,
@@ -6,7 +6,6 @@ import {
   focusSummary,
   overallState,
   summarizeQueue,
-  type Summary,
 } from '../shared/aggregate.js';
 import { CONFIG, OBSERVATION_WINDOW_MS } from '../shared/config.js';
 import {
@@ -35,10 +34,11 @@ import { ToastBar } from './components/ToastBar.js';
 import { Voices } from './components/Voices.js';
 import { useDrinkStatus } from './hooks/useDrinkStatus.js';
 import { useFeedback } from './hooks/useFeedback.js';
+import { useInView } from './hooks/useInView.js';
 import { useNotifications } from './hooks/useNotifications.js';
 import { useTheme } from './hooks/useTheme.js';
 import { markPrompted, shouldAutoPrompt } from './lib/feedbackPrompt.js';
-import { PALETTE } from './lib/palette.js';
+import { track } from './lib/metrics.js';
 
 const CONFIDENCE_SHORT: Record<ConfidenceKey, string> = {
   high: '高',
@@ -47,31 +47,19 @@ const CONFIDENCE_SHORT: Record<ConfidenceKey, string> = {
   none: '情報なし',
 };
 
-const CONFIDENCE_COLOR: Record<ConfidenceKey, string> = {
-  high: PALETTE.available,
-  medium: PALETTE.low,
-  low: PALETTE.unavailable,
-  none: PALETTE.unavailable,
-};
-
+// 確からしさ is no longer a metrics row — it moved into the headline as a
+// pill, right next to the verdict it qualifies.
 function buildMetrics(
-  focus: Summary | undefined,
   lastUpdated: string,
   validVotes: number,
   recentPeople: number,
   dayPeople: number,
 ): Metric[] {
-  const confidence = focus?.confidence ?? 'none';
   return [
     { label: '最終更新', value: lastUpdated },
     {
       label: `過去${CONFIG.observationWindowMin}分の有効観測`,
       value: `${validVotes}票・${recentPeople}人`,
-    },
-    {
-      label: '観測の確からしさ',
-      value: CONFIDENCE_SHORT[confidence],
-      color: CONFIDENCE_COLOR[confidence],
     },
     { label: '直近24時間の協力者', value: `${dayPeople}人` },
   ];
@@ -95,7 +83,9 @@ export function App() {
   const { preference: themePreference, choose: chooseTheme } = useTheme();
   const { state: notifyState, toggle: toggleNotify, observe: observeReports } = useNotifications();
   const feedback = useFeedback();
-  const [selectedSubject, setSelectedSubject] = useState<SubjectKey>('coffeeBeans');
+  // No default subject: with one pre-chosen, a state button tapped first
+  // would silently file a coffee-bean report about something else.
+  const [selectedSubject, setSelectedSubject] = useState<SubjectKey | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [aboutOpen, setAboutOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState<'auto' | 'manual' | { edit: FeedbackEntry } | null>(
@@ -116,6 +106,31 @@ export function App() {
   const closeFeedback = useCallback(() => {
     markPrompted(Date.now());
     setFeedbackOpen(null);
+  }, []);
+
+  // Report-form visibility: hides the floating CTA while the real form is
+  // reachable, and fires the one-shot report_view metric (the audit's
+  // "did they ever find it" number). `null` = not measured yet — neither.
+  const { ref: reportRef, inView: reportInView } = useInView<HTMLDivElement>();
+  const reportViewTracked = useRef(false);
+  useEffect(() => {
+    if (reportInView === true && !reportViewTracked.current) {
+      reportViewTracked.current = true;
+      track('report_view');
+    }
+  }, [reportInView]);
+
+  const goToReport = useCallback(() => {
+    track('cta_click');
+    const el = document.getElementById('report');
+    if (!el) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    // Land keyboard/AT focus on step 1 once the scroll has had its moment.
+    window.setTimeout(
+      () => el.querySelector<HTMLButtonElement>('.chip')?.focus({ preventScroll: true }),
+      reduce ? 0 : 400,
+    );
   }, []);
 
   // Every fresh copy of the reports goes past the notifier, whether it came
@@ -151,6 +166,7 @@ export function App() {
     const levels = closed ? UNKNOWN_LEVELS : agg.levels;
     const overall = overallState(statuses, SUBJECT_LABELS);
     const focus = focusSummary(summaries, agg.statuses);
+    const confidence = closed ? ('none' as const) : (focus?.confidence ?? 'none');
     const queue = summarizeQueue(reports, now);
 
     const latest = reports.reduce<number | null>(
@@ -177,10 +193,11 @@ export function App() {
       statuses,
       levels,
       overall,
+      confidence,
       queue,
       hours,
       lastUpdated,
-      metrics: buildMetrics(focus, lastUpdated, validVotes, recentPeople, dayPeople),
+      metrics: buildMetrics(lastUpdated, validVotes, recentPeople, dayPeople),
     };
   }, [reports, now]);
 
@@ -204,14 +221,40 @@ export function App() {
           </p>
         )}
 
+        {/* One short line for screen readers instead of the old whole-board
+            live region: only the verdict, only when it changes. */}
+        <p className="visually-hidden" aria-live="polite">
+          {view.overall.label}・確からしさ{CONFIDENCE_SHORT[view.confidence]}
+        </p>
+
         <section className="overview" aria-label="ドリンクマシンの全体状況">
           {CONFIG.showMachine && (
             <div className="machine-card">
               <MachineIllustration levels={view.levels} />
             </div>
           )}
-          <SummaryPanel overall={view.overall} metrics={view.metrics} hours={view.hours} />
+          <SummaryPanel
+            overall={view.overall}
+            confidence={view.confidence}
+            metrics={view.metrics}
+            hours={view.hours}
+            onReport={goToReport}
+          />
         </section>
+
+        {/* The audit's core finding: the form sat 1.6 screens down and the
+            page read as view-only. Posting now comes right after the hero. */}
+        <div ref={reportRef}>
+          <ReportForm
+            hours={view.hours}
+            selected={selectedSubject}
+            onSelect={setSelectedSubject}
+            onPost={(action) => {
+              if (selectedSubject) void post(selectedSubject, action);
+            }}
+            posting={posting}
+          />
+        </div>
 
         <Section
           title="行列の待ち状況"
@@ -225,17 +268,9 @@ export function App() {
           <IngredientLevels statuses={view.statuses} levels={view.levels} />
         </Section>
 
-        <Section title="ドリンクの作成可否">
+        <Section title="ドリンクの作成可否" note="要約のみ・詳細は開いて確認">
           <DrinkAvailability statuses={view.statuses} />
         </Section>
-
-        <ReportForm
-          hours={view.hours}
-          selected={selectedSubject}
-          onSelect={setSelectedSubject}
-          onPost={(action) => void post(selectedSubject, action)}
-          posting={posting}
-        />
 
         <Section
           title="みんなの観測"
@@ -279,6 +314,13 @@ export function App() {
           </button>
         </footer>
       </main>
+
+      {/* Floating fallback CTA: only once we know the form is off-screen. */}
+      {reportInView === false && (
+        <button type="button" className="report-fab" onClick={goToReport}>
+          ＋ 投稿する
+        </button>
+      )}
 
       {toast && (
         <ToastBar

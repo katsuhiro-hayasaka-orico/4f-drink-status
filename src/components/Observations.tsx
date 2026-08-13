@@ -1,9 +1,9 @@
-import type { CSSProperties } from 'react';
 import type { Summary } from '../../shared/aggregate.js';
 import { CONFIG } from '../../shared/config.js';
-import { SUBJECT_LABELS, type ConfidenceKey, type StatusOrNone } from '../../shared/domain.js';
+import { SUBJECT_LABELS, type StatusOrNone } from '../../shared/domain.js';
 import { relativeTime } from '../../shared/time.js';
-import { NEUTRAL_LINE, ON_STATUS, PALETTE, statusColor } from '../lib/palette.js';
+import { CONFIDENCE_LABEL, confidenceStyle } from '../lib/confidence.js';
+import { NEUTRAL_LINE, statusColor } from '../lib/palette.js';
 
 const STATUS_TEXT: Record<StatusOrNone, string> = {
   available: '利用できます',
@@ -20,35 +20,17 @@ const STATUS_QUOTE: Record<StatusOrNone, string> = {
   none: '情報なし',
 };
 
-const CONFIDENCE_LABEL: Record<ConfidenceKey, string> = {
-  high: '確からしさ：高',
-  medium: '確からしさ：中',
-  low: '確からしさ：低',
-  none: '情報なし',
-};
-
-/** 高 is filled; the weaker grades are outlined, so certainty reads at a glance. */
-function confidenceStyle(confidence: ConfidenceKey): CSSProperties {
-  switch (confidence) {
-    case 'high':
-      return { background: PALETTE.available, color: ON_STATUS };
-    case 'medium':
-      return { border: `2px solid ${PALETTE.low}`, color: PALETTE.low };
-    case 'low':
-      return { border: `2px solid ${PALETTE.unavailable}`, color: PALETTE.unavailable };
-    case 'none':
-      return { border: `2px solid ${NEUTRAL_LINE}`, color: PALETTE.none };
-  }
-}
-
 export interface ObservationsProps {
   summaries: readonly Summary[];
   now: number;
 }
 
 export function Observations({ summaries, now }: ObservationsProps) {
+  // Deliberately NOT a live region: five cards re-rendering on every poll
+  // would read out the whole board. The App keeps a one-line hidden live
+  // region with just the headline instead.
   return (
-    <div className="grid-250" aria-live="polite">
+    <div className="grid-250">
       {summaries.map((s) => {
         const label = SUBJECT_LABELS[s.subject];
         const agreementText = s.total ? `${s.agreement}%` : '—';
@@ -74,11 +56,9 @@ export function Observations({ summaries, now }: ObservationsProps) {
               <span>みんなの一致度</span>
               <strong>{agreementText}</strong>
             </div>
-            <div
-              className="observation__meter"
-              role="img"
-              aria-label={`${label}の一致度 ${agreementText}`}
-            >
+            {/* Decorative: the visible 「みんなの一致度」 line above already
+                carries the same number, so a labelled meter reads it twice. */}
+            <div className="observation__meter" aria-hidden="true">
               <div
                 style={{
                   width: `${s.agreement}%`,
