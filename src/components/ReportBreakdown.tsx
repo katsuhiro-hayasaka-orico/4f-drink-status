@@ -18,6 +18,7 @@ import {
   type SubjectKey,
 } from '../../shared/domain.js';
 import { relativeTime } from '../../shared/time.js';
+import { collapsePostings } from '../lib/notifyLogic.js';
 import { ON_STATUS, PALETTE, statusColor } from '../lib/palette.js';
 
 export type FilterKey = SubjectKey | 'all' | 'drinks';
@@ -57,7 +58,12 @@ export interface ReportBreakdownProps {
 }
 
 export function ReportBreakdown({ reports, me, now, filter, onFilter }: ReportBreakdownProps) {
-  const rows = reports
+  // The table shows postings, not rows: a drink report's fanned-out material
+  // votes are its derivation, and listing コーヒー豆・氷・マシン全体 next to
+  // the アイスコーヒー that implied them reads as noise. collapsePostings
+  // keeps one row per posting (the drink row when there is one), which also
+  // leaves standalone reports — refills, machine down/up, the queue — intact.
+  const rows = collapsePostings(reports)
     .filter((r) =>
       filter === 'all' ? true : filter === 'drinks' ? isDrinkKey(r.subject) : r.subject === filter,
     )
