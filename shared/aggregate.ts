@@ -29,7 +29,12 @@ import {
   type SubjectKey,
   type SupplySubjectKey,
 } from './domain.js';
-import { AVAILABLE_RETENTION_MS, OBSERVATION_WINDOW_MS, QUEUE_WINDOW_MS } from './config.js';
+import {
+  AVAILABLE_RETENTION_MS,
+  CONFIG,
+  OBSERVATION_WINDOW_MS,
+  QUEUE_WINDOW_MS,
+} from './config.js';
 
 const MINUTE = 60_000;
 
@@ -244,22 +249,27 @@ export function overallState(
     };
   }
 
-  const known = MATERIAL_KEYS.filter((k) => statuses[k] !== 'none');
-  if (known.length === 0 && statuses.machine === 'none') {
+  const unknown = MATERIAL_KEYS.filter((k) => statuses[k] === 'none');
+  if (unknown.length === MATERIAL_KEYS.length && statuses.machine === 'none') {
     return {
       label: '情報がありません',
-      reason: '過去30分に有効な投稿がありません',
+      reason: `過去${CONFIG.observationWindowMin}分に有効な投稿がありません`,
       tone: 'none',
+    };
+  }
+  if (unknown.length > 0) {
+    // The headline's precision must match the data's: a green 利用できます
+    // over a board with unreported materials reads as vouching for them.
+    // Name what is known, name what isn't.
+    return {
+      label: '確認済みの材料は利用できます',
+      reason: `${unknown.map((k) => subjectLabels[k]).join('・')}は情報がありません`,
+      tone: 'available',
     };
   }
   return {
     label: '利用できます',
-    // Claim only what was actually seen: with unreported materials in the
-    // mix, 「各材料は十分」 would be vouching for things nobody checked.
-    reason:
-      known.length === MATERIAL_KEYS.length
-        ? '各材料は十分にあります'
-        : '確認できた材料は十分にあります',
+    reason: '各材料は十分にあります',
     tone: 'available',
   };
 }

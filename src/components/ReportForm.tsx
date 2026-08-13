@@ -7,6 +7,7 @@ import {
   QUEUE_SUBJECT,
   SUBJECT_KEYS,
   SUBJECT_LABELS,
+  actionLabelFor,
   type ActionKey,
   type ReportValue,
   type SubjectKey,
@@ -36,23 +37,28 @@ interface Choice {
   tone: string;
 }
 
-const SUPPLY_CHOICES: Choice[] = ACTION_KEYS.map((k) => ({
-  key: k,
-  label: ACTION_META[k].label,
-  mark: ACTION_META[k].mark,
-  tone: ACTION_TONE[k],
-}));
-
-const QUEUE_CHOICES: Choice[] = QUEUE_LEVELS.map((l) => ({
-  key: l,
-  label: QUEUE_META[l].label,
-  mark: QUEUE_META[l].mark,
-  tone: statusColor(QUEUE_META[l].tone),
-}));
+/** Step 2's buttons, worded for the chosen subject. */
+function choicesFor(subject: SubjectKey): Choice[] {
+  if (subject === QUEUE_SUBJECT) {
+    return QUEUE_LEVELS.map((l) => ({
+      key: l,
+      label: QUEUE_META[l].label,
+      mark: QUEUE_META[l].mark,
+      tone: statusColor(QUEUE_META[l].tone),
+    }));
+  }
+  return ACTION_KEYS.map((k) => ({
+    key: k,
+    label: actionLabelFor(subject, k),
+    mark: ACTION_META[k].mark,
+    tone: ACTION_TONE[k],
+  }));
+}
 
 export interface ReportFormProps {
   hours: LoungeHours;
-  selected: SubjectKey;
+  /** null until the person picks — nothing is pre-chosen for them. */
+  selected: SubjectKey | null;
   onSelect: (subject: SubjectKey) => void;
   onPost: (value: ReportValue) => void;
   posting: boolean;
@@ -61,12 +67,15 @@ export interface ReportFormProps {
 /**
  * 「対象を選ぶ → 状態を押す」 — two taps, no free text, no login.
  *
- * Step 2 swaps its buttons based on step 1: stock states for the materials,
- * head counts for the queue. Same two taps either way.
+ * Nothing starts selected: with a default subject, someone reporting the ice
+ * who tapped a state button first would silently file a coffee-bean report.
+ * The state buttons stay disabled until step 1 is answered, and step 2's
+ * heading names the chosen subject so what is about to be posted is never
+ * a matter of scrolling back up.
  */
 export function ReportForm({ hours, selected, onSelect, onPost, posting }: ReportFormProps) {
   const isQueue = selected === QUEUE_SUBJECT;
-  const choices = isQueue ? QUEUE_CHOICES : SUPPLY_CHOICES;
+  const choices = choicesFor(selected ?? 'coffeeBeans');
 
   return (
     <section id="report" className="section" aria-label="今の状態を投稿">
@@ -109,7 +118,14 @@ export function ReportForm({ hours, selected, onSelect, onPost, posting }: Repor
           <span className="report__step-no" aria-hidden="true">
             2
           </span>
-          {isQueue ? '待っている人数を選択して投稿' : '状態を選択して投稿'}
+          {selected === null ? (
+            'まず対象を選択してください'
+          ) : (
+            <>
+              <strong className="report__target">{SUBJECT_LABELS[selected]}</strong>
+              {isQueue ? 'の待ち人数を選択して投稿' : 'の状態を選択して投稿'}
+            </>
+          )}
         </div>
         <div className="actions">
           {choices.map((c) => (
@@ -119,7 +135,7 @@ export function ReportForm({ hours, selected, onSelect, onPost, posting }: Repor
               className="action"
               style={{ '--tone': c.tone } as CSSProperties}
               onClick={() => onPost(c.key)}
-              disabled={posting}
+              disabled={posting || selected === null}
             >
               <span className="action__mark" aria-hidden="true">
                 {c.mark}
@@ -132,7 +148,7 @@ export function ReportForm({ hours, selected, onSelect, onPost, posting }: Repor
         <p className="report__note">
           投稿後{CONFIG.undoWindowMs / 1000}秒だけ取り消し可能です。
           {isQueue
-            ? `行列の投稿は過去${CONFIG.queueWindowMin}分だけを集計します。混雑はすぐ変わるため、材料より短い window を使っています。`
+            ? `行列の投稿は過去${CONFIG.queueWindowMin}分だけを集計します。混雑はすぐ変わるため、材料より短い集計ウィンドウを使っています。`
             : `材料別の投稿は推定残量へ即時反映します：${LEVEL_LEGEND}。`}
         </p>
       </div>

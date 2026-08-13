@@ -38,7 +38,7 @@ export function IngredientLevels({ statuses, levels }: IngredientLevelsProps) {
                   —
                 </span>
               </div>
-              <div className="meter" role="img" aria-label={`${label}の推定残量は情報がありません`}>
+              <div className="meter" aria-hidden="true">
                 <div className="meter__fill" style={{ width: 0 }} />
               </div>
               <div className="ingredient__desc">情報がありません</div>
@@ -55,7 +55,8 @@ export function IngredientLevels({ statuses, levels }: IngredientLevelsProps) {
                 約{level}%
               </span>
             </div>
-            <div className="meter" role="img" aria-label={`${label}の推定残量 約${level}%`}>
+            {/* Decorative: the visible 「約N%」 beside the name already says it. */}
+            <div className="meter" aria-hidden="true">
               <div className="meter__fill" style={{ width: `${level}%`, background: color }} />
             </div>
             <div className="ingredient__desc">{DESCRIPTION[status]}</div>
