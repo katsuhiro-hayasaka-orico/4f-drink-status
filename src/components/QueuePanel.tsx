@@ -1,6 +1,6 @@
 import type { QueueSummary } from '../../shared/aggregate.js';
 import { CONFIG } from '../../shared/config.js';
-import { QUEUE_META } from '../../shared/domain.js';
+import { QUEUE_LEVELS, QUEUE_META, type QueueLevel } from '../../shared/domain.js';
 import { relativeTime } from '../../shared/time.js';
 import { CONFIDENCE_LABEL, confidenceStyle } from '../lib/confidence.js';
 import { NEUTRAL_LINE, PALETTE, statusColor } from '../lib/palette.js';
@@ -18,9 +18,12 @@ function Figure({ color, faded }: { color: string; faded?: boolean }) {
 export interface QueuePanelProps {
   summary: QueueSummary;
   now: number;
+  posting: boolean;
+  /** Queue reporting lives here, next to what it describes — not in the drink form. */
+  onPostQueue: (level: QueueLevel) => void;
 }
 
-export function QueuePanel({ summary, now }: QueuePanelProps) {
+export function QueuePanel({ summary, now, posting, onPostQueue }: QueuePanelProps) {
   const meta = summary.level ? QUEUE_META[summary.level] : null;
   const color = meta ? statusColor(meta.tone) : PALETTE.none;
   const agreementText = summary.total ? `${summary.agreement}%` : '—';
@@ -79,6 +82,23 @@ export function QueuePanel({ summary, now }: QueuePanelProps) {
             {summary.lastAt ? `最終観測 ${relativeTime(summary.lastAt, now)}` : '最終観測なし'}
           </span>
           <span>{summary.total}票</span>
+        </div>
+      </div>
+
+      <div className="queue__report">
+        <span className="queue__report-label">いま何人並んでいますか？</span>
+        <div className="queue__report-buttons">
+          {QUEUE_LEVELS.map((level) => (
+            <button
+              key={level}
+              type="button"
+              className="chip chip--small"
+              disabled={posting}
+              onClick={() => onPostQueue(level)}
+            >
+              {QUEUE_META[level].label}
+            </button>
+          ))}
         </div>
       </div>
     </div>

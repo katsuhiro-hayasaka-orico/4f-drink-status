@@ -12,7 +12,7 @@
  * newest thing I've already seen" is exactly the question being asked.
  */
 
-import { SUBJECT_LABELS, reportValueQuote, type Report } from '../../shared/domain.js';
+import { isDrinkKey, reportValueQuote, subjectLabel, type Report } from '../../shared/domain.js';
 
 export interface WatermarkResult {
   watermark: number;
@@ -55,9 +55,26 @@ export function advanceWatermark(
   return { watermark: Math.max(watermark, maxAt), fresh };
 }
 
-/** 「ココア「残り少なめ」」 — the subject and what was said about it. */
+/** 「カフェモカ「作れた」」 — the subject and what was said about it. */
 function reportLabel(r: Report): string {
-  return `${SUBJECT_LABELS[r.subject]}「${reportValueQuote(r.subject, r.action)}」`;
+  return `${subjectLabel(r.subject)}「${reportValueQuote(r.subject, r.action)}」`;
+}
+
+/**
+ * A drink report fans out into several rows sharing one author and instant.
+ * To a reader that is ONE posting, and its drink row is the one worth
+ * quoting — the material votes are its derivation, not separate news.
+ */
+export function collapsePostings(fresh: readonly Report[]): Report[] {
+  const byPosting = new Map<string, Report>();
+  for (const r of fresh) {
+    const key = `${r.userId}:${r.createdAt}`;
+    const current = byPosting.get(key);
+    if (!current || (isDrinkKey(r.subject) && !isDrinkKey(current.subject))) {
+      byPosting.set(key, r);
+    }
+  }
+  return [...byPosting.values()];
 }
 
 /**
@@ -65,9 +82,10 @@ function reportLabel(r: Report): string {
  * posts is one piece of news — the machine's state changed — not five.
  */
 export function buildNotificationBody(fresh: readonly Report[]): string {
-  const newest = fresh[0];
-  if (fresh.length === 1) {
+  const postings = collapsePostings(fresh);
+  const newest = postings[0];
+  if (postings.length === 1) {
     return `${newest.userLabel}さんが ${reportLabel(newest)} と投稿しました`;
   }
-  return `新しい投稿が${fresh.length}件あります。最新: ${reportLabel(newest)}`;
+  return `新しい投稿が${postings.length}件あります。最新: ${reportLabel(newest)}`;
 }

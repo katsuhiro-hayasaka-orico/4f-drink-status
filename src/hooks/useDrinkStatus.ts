@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CONFIG } from '../../shared/config.js';
 import {
   ACTION_META,
+  DRINK_LABELS,
   QUEUE_META,
   QUEUE_SUBJECT,
   SUBJECT_LABELS,
@@ -11,7 +12,15 @@ import {
   type ReportValue,
   type SubjectKey,
 } from '../../shared/domain.js';
-import { ApiError, deleteReport, fetchReports, postReport } from '../lib/api.js';
+import { buildDrinkReportRows, type DrinkReportInput } from '../../shared/drinkReport.js';
+import {
+  ApiError,
+  deleteReport,
+  deleteReportGroup,
+  fetchReports,
+  postDrinkReport,
+  postReport,
+} from '../lib/api.js';
 import { secondsSinceLoad, track } from '../lib/metrics.js';
 
 export interface Toast {
@@ -26,8 +35,30 @@ function postedToast(subject: SubjectKey, value: ReportValue): string {
     return `行列を「${QUEUE_META[value as QueueLevel].label}」で投稿しました。いまの混雑を再集計しました`;
   }
   const action = value as ActionKey;
-  const levelNote = subject === 'machine' ? '' : `（推定残量 ${ACTION_META[action].level}%）`;
+  if (subject === 'machine') {
+    return `マシンを「${action === 'unavailable' ? '故障中' : '復旧した'}」で投稿しました。再集計しました`;
+  }
+  const levelNote = `（推定残量 ${ACTION_META[action].level}%）`;
   return `${SUBJECT_LABELS[subject]}を「${ACTION_META[action].label}」で投稿しました。みんなの観測を再集計しました${levelNote}`;
+}
+
+/** Same, for a drink report — names the drink and what it implied. */
+function postedDrinkToast(input: DrinkReportInput): string {
+  const name = DRINK_LABELS[input.drink];
+  if (input.result === 'made') {
+    return input.low.length > 0
+      ? `${name}を「作れた」で投稿しました（${input.low
+          .map((m) => SUBJECT_LABELS[m])
+          .join('・')}は残り少なめとして再集計）`
+      : `${name}を「作れた」で投稿しました。使った材料を「十分にある」として再集計しました`;
+  }
+  const causeText =
+    input.cause === 'machine'
+      ? 'マシンの故障'
+      : input.cause === 'unknown'
+        ? '原因は不明'
+        : `${SUBJECT_LABELS[input.cause!]}切れ`;
+  return `${name}を「作れなかった（${causeText}）」で投稿しました。再集計しました`;
 }
 
 /**
@@ -53,8 +84,11 @@ export function useDrinkStatus() {
   const [skewMs, setSkewMs] = useState(0);
   const [tick, setTick] = useState(0);
 
-  /** Server id of the report the toast can take back, once it is known. */
-  const undoTargetId = useRef<string | null>(null);
+  /**
+   * What the toast can take back, once the server has confirmed it: a single
+   * report row, or a whole fanned-out drink posting (group).
+   */
+  const undoTargetId = useRef<{ kind: 'report' | 'group'; id: string } | null>(null);
   /** Set when undo is tapped before the POST has come back. */
   const undoRequested = useRef(false);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -185,11 +219,83 @@ export function useDrinkStatus() {
           generation.current += 1;
           adopt(deleted);
         } else {
-          undoTargetId.current = res.report.id;
+          undoTargetId.current = { kind: 'report', id: res.report.id };
         }
       } catch (err) {
         generation.current += 1;
         setReports((prev) => prev.filter((r) => r.id !== optimisticId));
+        if (undoTimer.current) clearTimeout(undoTimer.current);
+        showError(err instanceof ApiError ? err.message : '投稿に失敗しました');
+      } finally {
+        setPosting(false);
+      }
+    },
+    [adopt, me, posting, showError, skewMs],
+  );
+
+  /**
+   * A drink report. Same optimistic dance as post(), but one posting fans
+   * out into several rows — the same expansion the server does, so the
+   * meters move on the tap exactly the way they will settle.
+   */
+  const postDrink = useCallback(
+    async (input: DrinkReportInput) => {
+      if (posting) return;
+      setPosting(true);
+      if (errorTimer.current) clearTimeout(errorTimer.current);
+
+      generation.current += 1;
+      const stamp = Date.now() + skewMs;
+      const optimisticIds: string[] = [];
+      const optimisticRows: Report[] = buildDrinkReportRows(input).map((seed) => {
+        const id = `pending-${crypto.randomUUID()}`;
+        optimisticIds.push(id);
+        return {
+          id,
+          subject: seed.subject,
+          action: seed.action,
+          userId: me,
+          userLabel: '利用者（あなた）',
+          createdAt: stamp,
+        };
+      });
+      setReports((prev) => [...optimisticRows, ...prev]);
+
+      setToast({ kind: 'undo', text: postedDrinkToast(input) });
+
+      undoTargetId.current = null;
+      undoRequested.current = false;
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+      undoTimer.current = setTimeout(() => {
+        undoTargetId.current = null;
+        track('post_done', secondsSinceLoad());
+        setToast((t) =>
+          t?.kind === 'undo' ? { kind: 'thanks', text: '投稿ありがとうございます！' } : t,
+        );
+        if (thanksTimer.current) clearTimeout(thanksTimer.current);
+        thanksTimer.current = setTimeout(
+          () => setToast((t) => (t?.kind === 'thanks' ? null : t)),
+          6_000,
+        );
+      }, CONFIG.undoWindowMs);
+
+      try {
+        const res = await postDrinkReport(input);
+        generation.current += 1;
+        adopt(res);
+        setLoadError(null);
+
+        if (undoRequested.current) {
+          undoRequested.current = false;
+          const deleted = await deleteReportGroup(res.groupId);
+          generation.current += 1;
+          adopt(deleted);
+        } else {
+          undoTargetId.current = { kind: 'group', id: res.groupId };
+        }
+      } catch (err) {
+        generation.current += 1;
+        setReports((prev) => prev.filter((r) => !optimisticIds.includes(r.id)));
         if (undoTimer.current) clearTimeout(undoTimer.current);
         showError(err instanceof ApiError ? err.message : '投稿に失敗しました');
       } finally {
@@ -204,10 +310,10 @@ export function useDrinkStatus() {
     setToast(null);
     track('post_undone');
 
-    const id = undoTargetId.current;
-    if (!id) {
-      // The post hasn't landed yet — drop the optimistic row now and delete
-      // the real one the moment it exists.
+    const target = undoTargetId.current;
+    if (!target) {
+      // The post hasn't landed yet — drop the optimistic rows now and delete
+      // the real ones the moment they exist.
       undoRequested.current = true;
       setReports((prev) => prev.filter((r) => !r.id.startsWith('pending-')));
       return;
@@ -215,7 +321,8 @@ export function useDrinkStatus() {
 
     undoTargetId.current = null;
     try {
-      const res = await deleteReport(id);
+      const res =
+        target.kind === 'group' ? await deleteReportGroup(target.id) : await deleteReport(target.id);
       generation.current += 1;
       adopt(res);
     } catch (err) {
@@ -248,6 +355,7 @@ export function useDrinkStatus() {
     toggleAuto,
     ensureAutoOn,
     post,
+    postDrink,
     undo,
     refresh,
   };

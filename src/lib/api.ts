@@ -6,6 +6,7 @@ import type {
   ReportValue,
   SubjectKey,
 } from '../../shared/domain.js';
+import type { DrinkReportInput } from '../../shared/drinkReport.js';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -51,6 +52,19 @@ export function postReport(
 
 export function deleteReport(id: string): Promise<ReportsResponse & { ok: true }> {
   return request(`/api/reports/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export function postDrinkReport(
+  input: DrinkReportInput,
+): Promise<ReportsResponse & { groupId: string }> {
+  return request('/api/reports/drink', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteReportGroup(groupId: string): Promise<ReportsResponse & { ok: true }> {
+  return request(`/api/reports/group/${encodeURIComponent(groupId)}`, { method: 'DELETE' });
 }
 
 export function fetchFeedback(): Promise<FeedbackResponse> {

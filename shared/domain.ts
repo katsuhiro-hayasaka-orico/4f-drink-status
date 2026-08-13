@@ -156,7 +156,60 @@ export function isValidReportValue(subject: SubjectKey, value: unknown): value i
   return subject === QUEUE_SUBJECT ? isQueueLevel(value) : isActionKey(value);
 }
 
-export function isQueueReport(report: { subject: SubjectKey }): boolean {
+/* ---------------------------------------------------------- drink reports -- */
+
+/**
+ * Reporting pivoted from materials to drinks: 「カフェモカを作れた」 is what
+ * a person actually experienced, and the server expands it into material
+ * votes. These keys go into the reports table as subjects — never rename
+ * them casually. Recipes (what each drink consumes) live in drinks.ts.
+ */
+export const DRINK_KEYS = [
+  'hotCoffee',
+  'caffeLatte',
+  'caffeMocha',
+  'hotCocoa',
+  'iceCoffee',
+  'iceCaffeLatte',
+  'iceCaffeMocha',
+  'iceCocoa',
+] as const;
+export type DrinkKey = (typeof DRINK_KEYS)[number];
+
+/** The one place drink names live; recipes and UI both read from here. */
+export const DRINK_LABELS: Record<DrinkKey, string> = {
+  hotCoffee: 'ホットコーヒー',
+  caffeLatte: 'カフェラテ',
+  caffeMocha: 'カフェモカ',
+  hotCocoa: 'ホットココア',
+  iceCoffee: 'アイスコーヒー',
+  iceCaffeLatte: 'アイスカフェラテ',
+  iceCaffeMocha: 'アイスカフェモカ',
+  iceCocoa: 'アイスココア',
+};
+
+export const DRINK_RESULTS = ['made', 'failed'] as const;
+export type DrinkResult = (typeof DRINK_RESULTS)[number];
+
+export function isDrinkKey(v: unknown): v is DrinkKey {
+  return typeof v === 'string' && (DRINK_KEYS as readonly string[]).includes(v);
+}
+
+export function isDrinkResult(v: unknown): v is DrinkResult {
+  return typeof v === 'string' && (DRINK_RESULTS as readonly string[]).includes(v);
+}
+
+/** Everything a stored report row's subject column can hold. */
+export type ReportSubject = SubjectKey | DrinkKey;
+/** Everything a stored report row's action column can hold. */
+export type ReportRowValue = ReportValue | DrinkResult;
+
+/** Display name for any report subject, drink or otherwise. */
+export function subjectLabel(subject: ReportSubject): string {
+  return isDrinkKey(subject) ? DRINK_LABELS[subject] : SUBJECT_LABELS[subject];
+}
+
+export function isQueueReport(report: { subject: ReportSubject }): boolean {
   return report.subject === QUEUE_SUBJECT;
 }
 
@@ -186,8 +239,14 @@ export function actionLabelFor(subject: SubjectKey, value: ReportValue): string 
   return MATERIAL_ACTION_LABELS[value as ActionKey];
 }
 
+export const DRINK_RESULT_QUOTES: Record<DrinkResult, string> = {
+  made: '作れた',
+  failed: '作れなかった',
+};
+
 /** The label shown for a report's value in the breakdown table. */
-export function reportValueQuote(subject: SubjectKey, value: ReportValue): string {
+export function reportValueQuote(subject: ReportSubject, value: ReportRowValue): string {
+  if (isDrinkKey(subject)) return DRINK_RESULT_QUOTES[value as DrinkResult];
   return subject === QUEUE_SUBJECT
     ? QUEUE_META[value as QueueLevel].quote
     : ACTION_META[value as ActionKey].quote;
@@ -196,9 +255,12 @@ export function reportValueQuote(subject: SubjectKey, value: ReportValue): strin
 /** A single observation posted by one person. */
 export interface Report {
   id: string;
-  subject: SubjectKey;
-  /** An `ActionKey` for supply subjects, a `QueueLevel` for the queue. */
-  action: ReportValue;
+  subject: ReportSubject;
+  /**
+   * An `ActionKey` for supply subjects, a `QueueLevel` for the queue,
+   * a `DrinkResult` for drink subjects.
+   */
+  action: ReportRowValue;
   /** Opaque per-device identifier; the unit of "one vote". */
   userId: string;
   /** Human-readable name shown in the breakdown table, e.g. 利用者A. */

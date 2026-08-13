@@ -1,6 +1,11 @@
 import { useId, useState } from 'react';
 import { RECIPES, drinkAvailability, type Recipe } from '../../shared/drinks.js';
-import type { StatusOrNone, SupplySubjectKey } from '../../shared/domain.js';
+import type {
+  DrinkKey,
+  DrinkResult,
+  StatusOrNone,
+  SupplySubjectKey,
+} from '../../shared/domain.js';
 import { statusColor } from '../lib/palette.js';
 import { DrinkFigure } from './DrinkFigure.js';
 
@@ -38,12 +43,19 @@ const GROUPS: Group[] = [
 
 export interface DrinkAvailabilityProps {
   statuses: Record<SupplySubjectKey, StatusOrNone>;
+  /** Fresh direct verdicts (作れた／作れなかった) per drink, if any. */
+  direct: Record<DrinkKey, DrinkResult | null>;
 }
 
 /** 「作れません 2種・作れます 5種…」 — trouble first, then good news. */
-function summaryLine(statuses: Record<SupplySubjectKey, StatusOrNone>): string {
+function summaryLine(
+  statuses: Record<SupplySubjectKey, StatusOrNone>,
+  direct: Record<DrinkKey, DrinkResult | null>,
+): string {
   const counts = { unavailable: 0, low: 0, available: 0, none: 0 };
-  for (const recipe of RECIPES) counts[drinkAvailability(recipe, statuses).status] += 1;
+  for (const recipe of RECIPES) {
+    counts[drinkAvailability(recipe, statuses, direct[recipe.key]).status] += 1;
+  }
   const parts: string[] = [];
   if (counts.unavailable) parts.push(`作れません ${counts.unavailable}種`);
   if (counts.low) parts.push(`残り少なめ ${counts.low}種`);
@@ -58,14 +70,14 @@ function summaryLine(statuses: Record<SupplySubjectKey, StatusOrNone>): string {
  * The always-visible one-line tally answers the common question; the cards
  * are a click away for anyone who wants the per-drink detail.
  */
-export function DrinkAvailability({ statuses }: DrinkAvailabilityProps) {
+export function DrinkAvailability({ statuses, direct }: DrinkAvailabilityProps) {
   const [open, setOpen] = useState(false);
   const detailId = useId().replace(/:/g, '');
 
   return (
     <>
       <div className="drink-summary">
-        <span className="drink-summary__text">いま{summaryLine(statuses)}</span>
+        <span className="drink-summary__text">いま{summaryLine(statuses, direct)}</span>
         <button
           type="button"
           className="drink-toggle"
@@ -89,7 +101,7 @@ export function DrinkAvailability({ statuses }: DrinkAvailabilityProps) {
           </h3>
           <div className="grid-240">
             {group.recipes.map((recipe) => {
-              const d = drinkAvailability(recipe, statuses);
+              const d = drinkAvailability(recipe, statuses, direct[recipe.key]);
               const color = statusColor(d.status);
               return (
                 <div className="card drink" key={d.name}>
