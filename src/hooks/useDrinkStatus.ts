@@ -14,7 +14,8 @@ import {
 import { ApiError, deleteReport, fetchReports, postReport } from '../lib/api.js';
 
 export interface Toast {
-  kind: 'undo' | 'error';
+  /** `thanks` appears once the undo window closes without an undo. */
+  kind: 'undo' | 'error' | 'thanks';
   text: string;
 }
 
@@ -57,6 +58,7 @@ export function useDrinkStatus() {
   const undoRequested = useRef(false);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const thanksTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
    * Bumped whenever local state changes authoritatively outside the poll
@@ -114,6 +116,7 @@ export function useDrinkStatus() {
     () => () => {
       if (undoTimer.current) clearTimeout(undoTimer.current);
       if (errorTimer.current) clearTimeout(errorTimer.current);
+      if (thanksTimer.current) clearTimeout(thanksTimer.current);
     },
     [],
   );
@@ -152,7 +155,18 @@ export function useDrinkStatus() {
       if (undoTimer.current) clearTimeout(undoTimer.current);
       undoTimer.current = setTimeout(() => {
         undoTargetId.current = null;
-        setToast((t) => (t?.kind === 'undo' ? null : t));
+        // The undo window closing without an undo is the moment the post is
+        // truly settled — which makes it the honest moment to say thanks and
+        // invite feedback. An undone post never reaches this line: undo()
+        // clears this timer, and a failed POST clears it in the catch.
+        setToast((t) =>
+          t?.kind === 'undo' ? { kind: 'thanks', text: '投稿ありがとうございます！' } : t,
+        );
+        if (thanksTimer.current) clearTimeout(thanksTimer.current);
+        thanksTimer.current = setTimeout(
+          () => setToast((t) => (t?.kind === 'thanks' ? null : t)),
+          6_000,
+        );
       }, CONFIG.undoWindowMs);
 
       try {

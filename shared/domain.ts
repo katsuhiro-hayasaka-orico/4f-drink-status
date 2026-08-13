@@ -188,3 +188,64 @@ export interface ReportsResponse {
   /** Server clock at response time — used to keep relative times honest. */
   serverNow: number;
 }
+
+/* -------------------------------------------------------------- feedback -- */
+
+/**
+ * Feedback about the site itself (みんなの声), separate from machine reports:
+ * a three-step mood plus an optional free-text comment. The list is public,
+ * so the wire types below carry no user ids — whether an entry is "mine" or
+ * already liked is folded into booleans server-side.
+ */
+
+export const MOOD_KEYS = ['happy', 'neutral', 'sad'] as const;
+export type MoodKey = (typeof MOOD_KEYS)[number];
+
+export interface MoodMeta {
+  emoji: string;
+  label: string;
+}
+
+export const MOOD_META: Record<MoodKey, MoodMeta> = {
+  happy: { emoji: '😊', label: '満足' },
+  neutral: { emoji: '😐', label: 'ふつう' },
+  sad: { emoji: '😞', label: '不満' },
+};
+
+export function isMoodKey(v: unknown): v is MoodKey {
+  return typeof v === 'string' && (MOOD_KEYS as readonly string[]).includes(v);
+}
+
+/**
+ * The one place that decides what a feedback comment may contain. Both the
+ * API and the form go through here. Returns the trimmed body, or null when
+ * the value is not usable ('' is fine — that's a mood-only submission).
+ */
+export function normalizeFeedbackBody(v: unknown, maxLength: number): string | null {
+  if (typeof v !== 'string') return null;
+  const body = v.trim();
+  return body.length > maxLength ? null : body;
+}
+
+/** One public feedback entry, as the client sees it. */
+export interface FeedbackEntry {
+  id: string;
+  mood: MoodKey;
+  /** Trimmed comment; '' means the person only tapped a mood. */
+  body: string;
+  /** 利用者A etc. — the same anonymous label the breakdown table uses. */
+  userLabel: string;
+  /** Epoch milliseconds. */
+  createdAt: number;
+  /** How many people currently like this entry. */
+  likes: number;
+  /** Whether the requesting device likes it — folded in so no ids leak. */
+  likedByMe: boolean;
+  /** Whether the requesting device wrote it. */
+  mine: boolean;
+}
+
+export interface FeedbackResponse {
+  feedback: FeedbackEntry[];
+  serverNow: number;
+}

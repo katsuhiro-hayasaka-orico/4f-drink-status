@@ -1,4 +1,11 @@
-import type { Report, ReportsResponse, ReportValue, SubjectKey } from '../../shared/domain.js';
+import type {
+  FeedbackResponse,
+  MoodKey,
+  Report,
+  ReportsResponse,
+  ReportValue,
+  SubjectKey,
+} from '../../shared/domain.js';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -44,4 +51,19 @@ export function postReport(
 
 export function deleteReport(id: string): Promise<ReportsResponse & { ok: true }> {
   return request(`/api/reports/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export function fetchFeedback(): Promise<FeedbackResponse> {
+  return request<FeedbackResponse>('/api/feedback');
+}
+
+export function postFeedback(mood: MoodKey, body: string): Promise<FeedbackResponse> {
+  return request('/api/feedback', {
+    method: 'POST',
+    body: JSON.stringify({ mood, body }),
+  });
+}
+
+export function toggleFeedbackLike(id: string): Promise<FeedbackResponse> {
+  return request(`/api/feedback/${encodeURIComponent(id)}/like`, { method: 'POST' });
 }
