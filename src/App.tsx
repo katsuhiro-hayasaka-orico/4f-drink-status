@@ -13,6 +13,7 @@ import {
   QUEUE_SUBJECT,
   SUBJECT_LABELS,
   type ConfidenceKey,
+  type FeedbackEntry,
   type SubjectKey,
 } from '../shared/domain.js';
 import { loungeHours } from '../shared/hours.js';
@@ -97,7 +98,9 @@ export function App() {
   const [selectedSubject, setSelectedSubject] = useState<SubjectKey>('coffeeBeans');
   const [filter, setFilter] = useState<FilterKey>('all');
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState<'auto' | 'manual' | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState<'auto' | 'manual' | { edit: FeedbackEntry } | null>(
+    null,
+  );
 
   // The thanks toast is the cue: if this device hasn't submitted or dismissed
   // the form within the cooldown, the dialog opens itself. The toast's small
@@ -264,6 +267,8 @@ export function App() {
             now={now}
             onLike={(id) => void feedback.toggleLike(id)}
             onWrite={() => setFeedbackOpen('manual')}
+            onEdit={(entry) => setFeedbackOpen({ edit: entry })}
+            onDelete={(id) => void feedback.remove(id)}
           />
         </Section>
 
@@ -283,9 +288,21 @@ export function App() {
         />
       )}
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
-      {feedbackOpen && (
-        <FeedbackDialog variant={feedbackOpen} onSubmit={feedback.submit} onClose={closeFeedback} />
-      )}
+      {feedbackOpen &&
+        (typeof feedbackOpen === 'string' ? (
+          <FeedbackDialog
+            variant={feedbackOpen}
+            onSubmit={feedback.submit}
+            onClose={closeFeedback}
+          />
+        ) : (
+          <FeedbackDialog
+            variant="edit"
+            initial={{ mood: feedbackOpen.edit.mood, body: feedbackOpen.edit.body }}
+            onSubmit={(mood, body) => feedback.update(feedbackOpen.edit.id, mood, body)}
+            onClose={closeFeedback}
+          />
+        ))}
     </div>
   );
 }
