@@ -9,6 +9,8 @@
  * And みんなの声, site feedback with likes:
  *   GET    /api/feedback          newest entries, likes folded in
  *   POST   /api/feedback          post one ({ mood, body })
+ *   PUT    /api/feedback/:id      edit your own entry (marks it 編集済み)
+ *   DELETE /api/feedback/:id      delete your own entry and its likes
  *   POST   /api/feedback/:id/like toggle your like on an entry
  *
  * Mutations return the refreshed list too, so the client never needs a second
@@ -24,6 +26,7 @@ import {
   isValidReportValue,
   normalizeFeedbackBody,
   type FeedbackResponse,
+  type MoodKey,
   type Report,
   type ReportsResponse,
 } from '../shared/domain.js';
@@ -31,6 +34,7 @@ import type { Env } from './env.js';
 import { resolveIdentity, withIdentityCookie, type Identity } from './identity.js';
 import {
   countRecentFeedback,
+  deleteOwnFeedback,
   deleteOwnRecentReport,
   ensureUserLabel,
   insertFeedback,
@@ -38,6 +42,7 @@ import {
   listFeedback,
   listRecentReports,
   toggleFeedbackLike,
+  updateOwnFeedback,
 } from './store.js';
 
 /** Ceiling on how many reports one device may post per minute. */
@@ -142,12 +147,10 @@ async function feedbackSnapshot(
   };
 }
 
-async function handleFeedbackPost(
+/** POST and PUT accept the same body; a Response here is the 400 to return. */
+async function parseFeedbackPayload(
   request: Request,
-  env: Env,
-  identity: Identity,
-  now: number,
-): Promise<Response> {
+): Promise<{ mood: MoodKey; body: string } | Response> {
   let payload: unknown;
   try {
     payload = await request.json();
@@ -161,6 +164,17 @@ async function handleFeedbackPost(
   if (normalized === null) {
     return fail(400, `ご意見は${CONFIG.feedbackMaxLength}文字以内でお願いします`);
   }
+  return { mood, body: normalized };
+}
+
+async function handleFeedbackPost(
+  request: Request,
+  env: Env,
+  identity: Identity,
+  now: number,
+): Promise<Response> {
+  const parsed = await parseFeedbackPayload(request);
+  if (parsed instanceof Response) return parsed;
 
   if ((await countRecentFeedback(env.DB, identity.userId, now - 86_400_000)) >= FEEDBACK_RATE_LIMIT) {
     return fail(429, '本日のご意見はここまでです。また明日お聞かせください');
@@ -168,14 +182,45 @@ async function handleFeedbackPost(
 
   await insertFeedback(env.DB, {
     id: crypto.randomUUID(),
-    mood,
-    body: normalized,
+    mood: parsed.mood,
+    body: parsed.body,
     userId: identity.userId,
     userLabel: await ensureUserLabel(env.DB, identity.userId, now),
     createdAt: now,
   });
 
   return json(await feedbackSnapshot(env, identity, now), 201);
+}
+
+/**
+ * Editing is not rate-limited: it can only touch this device's own handful
+ * of entries and creates nothing new. Not-yours and not-found are the same
+ * 404 on purpose — ownership probing should learn nothing.
+ */
+async function handleFeedbackPut(
+  id: string,
+  request: Request,
+  env: Env,
+  identity: Identity,
+  now: number,
+): Promise<Response> {
+  const parsed = await parseFeedbackPayload(request);
+  if (parsed instanceof Response) return parsed;
+
+  const updated = await updateOwnFeedback(env.DB, id, identity.userId, parsed.mood, parsed.body, now);
+  if (!updated) return fail(404, '編集できるご意見が見つかりませんでした');
+  return json(await feedbackSnapshot(env, identity, now));
+}
+
+async function handleFeedbackDelete(
+  id: string,
+  env: Env,
+  identity: Identity,
+  now: number,
+): Promise<Response> {
+  const removed = await deleteOwnFeedback(env.DB, id, identity.userId);
+  if (!removed) return fail(404, '削除できるご意見が見つかりませんでした');
+  return json(await feedbackSnapshot(env, identity, now));
 }
 
 async function handleFeedbackLike(
@@ -221,6 +266,14 @@ async function route(
     if (request.method === 'POST') {
       return handleFeedbackLike(decodeURIComponent(like[1]), env, identity, now);
     }
+    return fail(405, 'サポートされていないメソッドです');
+  }
+
+  const entry = /^\/api\/feedback\/([^/]+)$/.exec(path);
+  if (entry) {
+    const id = decodeURIComponent(entry[1]);
+    if (request.method === 'PUT') return handleFeedbackPut(id, request, env, identity, now);
+    if (request.method === 'DELETE') return handleFeedbackDelete(id, env, identity, now);
     return fail(405, 'サポートされていないメソッドです');
   }
 

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FeedbackEntry, FeedbackResponse, MoodKey } from '../../shared/domain.js';
-import { fetchFeedback, postFeedback, toggleFeedbackLike } from '../lib/api.js';
+import {
+  deleteFeedback,
+  fetchFeedback,
+  postFeedback,
+  toggleFeedbackLike,
+  updateFeedback,
+} from '../lib/api.js';
 
 /**
  * みんなの声 — the feedback list, one submit, and like toggling.
@@ -42,6 +48,40 @@ export function useFeedback() {
     [adopt],
   );
 
+  /** Edit an own entry. Throws ApiError like submit does. */
+  const update = useCallback(
+    async (id: string, mood: MoodKey, body: string) => {
+      const res = await updateFeedback(id, mood, body);
+      generation.current += 1;
+      adopt(res);
+    },
+    [adopt],
+  );
+
+  /** Delete an own entry. The card's two-tap confirm already happened. */
+  const remove = useCallback(
+    async (id: string) => {
+      // Optimistic: the card disappears on the tap, the snapshot confirms it.
+      generation.current += 1;
+      setEntries((list) => list.filter((e) => e.id !== id));
+      try {
+        const res = await deleteFeedback(id);
+        generation.current += 1;
+        adopt(res);
+      } catch {
+        // The server still has the entry — re-fetch to bring the card back.
+        try {
+          const res = await fetchFeedback();
+          generation.current += 1;
+          adopt(res);
+        } catch {
+          /* offline; the next successful load reconciles */
+        }
+      }
+    },
+    [adopt],
+  );
+
   const toggleLike = useCallback(
     async (id: string) => {
       // Optimistic flip so the heart responds on the tap; the server snapshot
@@ -66,5 +106,5 @@ export function useFeedback() {
     [adopt],
   );
 
-  return { entries, submit, toggleLike };
+  return { entries, submit, update, remove, toggleLike };
 }

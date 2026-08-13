@@ -237,6 +237,11 @@ export interface FeedbackEntry {
   userLabel: string;
   /** Epoch milliseconds. */
   createdAt: number;
+  /**
+   * When the author last edited it, or null. Public and deliberate: likes
+   * may predate the current wording, so an edit never happens silently.
+   */
+  editedAt: number | null;
   /** How many people currently like this entry. */
   likes: number;
   /** Whether the requesting device likes it — folded in so no ids leak. */

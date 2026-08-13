@@ -4,20 +4,32 @@ import { MOOD_KEYS, MOOD_META, type MoodKey } from '../../shared/domain.js';
 import { ApiError } from '../lib/api.js';
 
 export interface FeedbackDialogProps {
-  /** `auto` = opened itself after a post; `manual` = the user asked for it. */
-  variant: 'auto' | 'manual';
+  /**
+   * `auto` = opened itself after a post; `manual` = the user asked for it;
+   * `edit` = re-opening one of their own entries with its current content.
+   */
+  variant: 'auto' | 'manual' | 'edit';
+  /** Pre-filled values when editing. */
+  initial?: { mood: MoodKey; body: string };
   onSubmit: (mood: MoodKey, body: string) => Promise<void>;
   onClose: () => void;
 }
 
+const TITLES = {
+  auto: '投稿ありがとうございます！',
+  manual: 'ご意見箱',
+  edit: 'ご意見を編集',
+} as const;
+
 /**
  * The feedback form (ご意見箱). A mood is required, the comment is not —
  * one tap on 😊 and 送信 is a complete submission, which is what makes the
- * form cheap enough to answer.
+ * form cheap enough to answer. The same form edits an existing entry, just
+ * pre-filled and worded accordingly.
  */
-export function FeedbackDialog({ variant, onSubmit, onClose }: FeedbackDialogProps) {
-  const [mood, setMood] = useState<MoodKey | null>(null);
-  const [body, setBody] = useState('');
+export function FeedbackDialog({ variant, initial, onSubmit, onClose }: FeedbackDialogProps) {
+  const [mood, setMood] = useState<MoodKey | null>(initial?.mood ?? null);
+  const [body, setBody] = useState(initial?.body ?? '');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,19 +82,23 @@ export function FeedbackDialog({ variant, onSubmit, onClose }: FeedbackDialogPro
         <div className="dialog__head">
           <div className="dialog__dot" aria-hidden="true" />
           <h2 id="feedback-title" className="dialog__title">
-            {variant === 'auto' ? '投稿ありがとうございます！' : 'ご意見箱'}
+            {TITLES[variant]}
           </h2>
         </div>
 
         {sent ? (
           <p className="dialog__body feedback__done">
-            ご意見ありがとうございました！今後の改善に役立てます。
+            {variant === 'edit'
+              ? '更新しました。ご意見ありがとうございます！'
+              : 'ご意見ありがとうございました！今後の改善に役立てます。'}
           </p>
         ) : (
           <>
             <p className="dialog__body">
-              このサイトの使い心地はいかがですか？困ったことや改善してほしい点があれば、
-              ぜひ聞かせてください。満足度だけの送信でも助かります。
+              {variant === 'edit'
+                ? '満足度と本文を修正できます。編集した投稿には「編集済み」と表示されます。'
+                : 'このサイトの使い心地はいかがですか？困ったことや改善してほしい点があれば、' +
+                  'ぜひ聞かせてください。満足度だけの送信でも助かります。'}
             </p>
 
             <div className="feedback__moods" role="radiogroup" aria-label="満足度">
@@ -123,7 +139,7 @@ export function FeedbackDialog({ variant, onSubmit, onClose }: FeedbackDialogPro
 
             <div className="dialog__foot">
               <button type="button" ref={closeRef} className="feedback__skip" onClick={onClose}>
-                また今度
+                {variant === 'edit' ? 'やめる' : 'また今度'}
               </button>
               <button
                 type="button"
@@ -131,7 +147,7 @@ export function FeedbackDialog({ variant, onSubmit, onClose }: FeedbackDialogPro
                 disabled={!mood || sending}
                 onClick={() => void submit()}
               >
-                {sending ? '送信中…' : '送信する'}
+                {sending ? '送信中…' : variant === 'edit' ? '保存する' : '送信する'}
               </button>
             </div>
           </>

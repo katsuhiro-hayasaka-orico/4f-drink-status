@@ -147,6 +147,7 @@ interface FeedbackRow {
   body: string;
   user_label: string;
   created_at: number;
+  updated_at: number | null;
   likes: number;
   liked_by_me: number;
   mine: number;
@@ -164,7 +165,7 @@ export async function listFeedback(
 ): Promise<FeedbackEntry[]> {
   const { results } = await db
     .prepare(
-      `SELECT f.id, f.mood, f.body, f.user_label, f.created_at,
+      `SELECT f.id, f.mood, f.body, f.user_label, f.created_at, f.updated_at,
               (SELECT COUNT(*) FROM feedback_likes l
                 WHERE l.feedback_id = f.id) AS likes,
               EXISTS(SELECT 1 FROM feedback_likes l
@@ -182,6 +183,7 @@ export async function listFeedback(
     body: row.body,
     userLabel: row.user_label,
     createdAt: Number(row.created_at),
+    editedAt: row.updated_at === null ? null : Number(row.updated_at),
     likes: Number(row.likes),
     likedByMe: Boolean(row.liked_by_me),
     mine: Boolean(row.mine),
@@ -218,6 +220,44 @@ export async function countRecentFeedback(
     .bind(userId, since)
     .first<{ n: number }>();
   return Number(row?.n ?? 0);
+}
+
+/**
+ * Edit your own entry. The user_id in the WHERE clause is the whole security
+ * model: someone else's id simply matches no row, indistinguishable from an
+ * entry that never existed. Unlike report undo there is no time window —
+ * feedback is a standing opinion, not a perishable observation.
+ */
+export async function updateOwnFeedback(
+  db: D1Database,
+  id: string,
+  userId: string,
+  mood: MoodKey,
+  body: string,
+  now: number,
+): Promise<boolean> {
+  const res = await db
+    .prepare(
+      'UPDATE feedback SET mood = ?1, body = ?2, updated_at = ?3 WHERE id = ?4 AND user_id = ?5',
+    )
+    .bind(mood, body, now, id, userId)
+    .run();
+  return (res.meta?.changes ?? 0) > 0;
+}
+
+/** Delete your own entry, taking its likes with it. */
+export async function deleteOwnFeedback(
+  db: D1Database,
+  id: string,
+  userId: string,
+): Promise<boolean> {
+  const res = await db
+    .prepare('DELETE FROM feedback WHERE id = ?1 AND user_id = ?2')
+    .bind(id, userId)
+    .run();
+  if ((res.meta?.changes ?? 0) === 0) return false;
+  await db.prepare('DELETE FROM feedback_likes WHERE feedback_id = ?1').bind(id).run();
+  return true;
 }
 
 /**
