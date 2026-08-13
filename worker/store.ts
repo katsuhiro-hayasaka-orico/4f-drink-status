@@ -103,11 +103,15 @@ export async function ensureUserLabel(
   return stored?.label ?? label;
 }
 
+/**
+ * Single-row reports store their own id as the group, so undo and rate
+ * limiting can treat every posting uniformly as one group.
+ */
 export async function insertReport(db: D1Database, report: Report): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO reports (id, subject, action, user_id, user_label, created_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+      `INSERT INTO reports (id, subject, action, user_id, user_label, created_at, group_id)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?1)`,
     )
     .bind(
       report.id,
@@ -118,6 +122,43 @@ export async function insertReport(db: D1Database, report: Report): Promise<void
       report.createdAt,
     )
     .run();
+}
+
+/** One drink posting, fanned out into several rows under one group id. */
+export async function insertReportRows(
+  db: D1Database,
+  rows: readonly Report[],
+  groupId: string,
+): Promise<void> {
+  const stmt = db.prepare(
+    `INSERT INTO reports (id, subject, action, user_id, user_label, created_at, group_id)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+  );
+  await db.batch(
+    rows.map((r) =>
+      stmt.bind(r.id, r.subject, r.action, r.userId, r.userLabel, r.createdAt, groupId),
+    ),
+  );
+}
+
+/**
+ * Postings per device inside a window — counted as groups, not rows, so a
+ * drink report that fanned out into six rows still spends one unit of the
+ * rate limit. Historical NULL-group rows count as one each via COALESCE.
+ */
+export async function countRecentPostings(
+  db: D1Database,
+  userId: string,
+  since: number,
+): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COUNT(DISTINCT COALESCE(group_id, id)) AS n
+         FROM reports WHERE user_id = ?1 AND created_at >= ?2`,
+    )
+    .bind(userId, since)
+    .first<{ n: number }>();
+  return Number(row?.n ?? 0);
 }
 
 /**
@@ -136,6 +177,21 @@ export async function deleteOwnRecentReport(
   const res = await db
     .prepare('DELETE FROM reports WHERE id = ?1 AND user_id = ?2 AND created_at >= ?3')
     .bind(id, userId, cutoff)
+    .run();
+  return (res.meta?.changes ?? 0) > 0;
+}
+
+/** Undo for fanned-out postings: the whole group goes, or nothing does. */
+export async function deleteOwnRecentGroup(
+  db: D1Database,
+  groupId: string,
+  userId: string,
+  now: number,
+): Promise<boolean> {
+  const cutoff = now - (CONFIG.undoWindowMs + 15_000);
+  const res = await db
+    .prepare('DELETE FROM reports WHERE group_id = ?1 AND user_id = ?2 AND created_at >= ?3')
+    .bind(groupId, userId, cutoff)
     .run();
   return (res.meta?.changes ?? 0) > 0;
 }

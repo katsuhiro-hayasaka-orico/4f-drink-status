@@ -34,17 +34,21 @@ import {
   type Report,
   type ReportsResponse,
 } from '../shared/domain.js';
+import { buildDrinkReportRows, parseDrinkReport } from '../shared/drinkReport.js';
 import type { Env } from './env.js';
 import { resolveIdentity, withIdentityCookie, type Identity } from './identity.js';
 import {
   countRecentEvents,
   countRecentFeedback,
+  countRecentPostings,
   deleteOwnFeedback,
+  deleteOwnRecentGroup,
   deleteOwnRecentReport,
   ensureUserLabel,
   insertEvent,
   insertFeedback,
   insertReport,
+  insertReportRows,
   listFeedback,
   listRecentReports,
   toggleFeedbackLike,
@@ -112,12 +116,7 @@ async function handlePost(
     );
   }
 
-  const recent = await env.DB.prepare(
-    'SELECT COUNT(*) AS n FROM reports WHERE user_id = ?1 AND created_at >= ?2',
-  )
-    .bind(identity.userId, now - 60_000)
-    .first<{ n: number }>();
-  if (Number(recent?.n ?? 0) >= POST_RATE_LIMIT) {
+  if ((await countRecentPostings(env.DB, identity.userId, now - 60_000)) >= POST_RATE_LIMIT) {
     return fail(429, '投稿が多すぎます。少し時間をおいてからお試しください');
   }
 
@@ -132,6 +131,58 @@ async function handlePost(
   await insertReport(env.DB, report);
 
   return json({ report, ...(await snapshot(env, identity, now)) }, 201);
+}
+
+/**
+ * A drink report: 「カフェモカを作れた／作れなかった」. One posting fans out
+ * into the drink verdict plus the material votes it implies (see
+ * shared/drinkReport.ts for the expansion rules), all under one group id so
+ * undo removes the posting as a whole.
+ */
+async function handleDrinkPost(
+  request: Request,
+  env: Env,
+  identity: Identity,
+  now: number,
+): Promise<Response> {
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return fail(400, 'リクエストの形式が正しくありません');
+  }
+
+  const input = parseDrinkReport(payload);
+  if (!input) return fail(400, 'ドリンク報告の内容が正しくありません');
+
+  if ((await countRecentPostings(env.DB, identity.userId, now - 60_000)) >= POST_RATE_LIMIT) {
+    return fail(429, '投稿が多すぎます。少し時間をおいてからお試しください');
+  }
+
+  const userLabel = await ensureUserLabel(env.DB, identity.userId, now);
+  const groupId = crypto.randomUUID();
+  const rows: Report[] = buildDrinkReportRows(input).map((seed) => ({
+    id: crypto.randomUUID(),
+    subject: seed.subject,
+    action: seed.action,
+    userId: identity.userId,
+    userLabel,
+    createdAt: now,
+  }));
+  await insertReportRows(env.DB, rows, groupId);
+
+  return json({ groupId, ...(await snapshot(env, identity, now)) }, 201);
+}
+
+async function handleGroupDelete(
+  groupId: string,
+  env: Env,
+  identity: Identity,
+  now: number,
+): Promise<Response> {
+  const removed = await deleteOwnRecentGroup(env.DB, groupId, identity.userId, now);
+  if (!removed) return fail(404, '取り消せる投稿が見つかりませんでした');
+  return json({ ok: true, ...(await snapshot(env, identity, now)) });
 }
 
 async function handleDelete(
@@ -291,6 +342,21 @@ async function route(
   if (path === '/api/reports') {
     if (request.method === 'GET') return handleGet(env, identity, now);
     if (request.method === 'POST') return handlePost(request, env, identity, now);
+    return fail(405, 'サポートされていないメソッドです');
+  }
+
+  // Both fixed paths must be tested before the /api/reports/:id pattern,
+  // which would otherwise swallow them as report ids.
+  if (path === '/api/reports/drink') {
+    if (request.method === 'POST') return handleDrinkPost(request, env, identity, now);
+    return fail(405, 'サポートされていないメソッドです');
+  }
+
+  const group = /^\/api\/reports\/group\/([^/]+)$/.exec(path);
+  if (group) {
+    if (request.method === 'DELETE') {
+      return handleGroupDelete(decodeURIComponent(group[1]), env, identity, now);
+    }
     return fail(405, 'サポートされていないメソッドです');
   }
 

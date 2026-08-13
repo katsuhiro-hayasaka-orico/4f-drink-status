@@ -704,6 +704,86 @@ a:focus-visible {
   font-weight: 900;
 }
 
+/* Drink picker rows: HOT and ICE, each led by the same badge the
+   availability section uses. */
+.report__drink-row {
+  align-items: center;
+}
+
+.report__drink-row + .report__drink-row {
+  margin-top: 10px;
+}
+
+.report__row-badge {
+  flex: none;
+}
+
+/* Result buttons stay side by side where the grid allows. */
+.actions--results {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+/* Step 3 (low materials / failure causes) sits in a sunken well so it reads
+   as a continuation of the tapped button, not a new section. */
+.report__detail {
+  margin-top: 14px;
+  padding: 16px 18px;
+  background: var(--card);
+  border: 2px dashed var(--line);
+  border-radius: 16px;
+}
+
+.report__detail .report__step {
+  margin-top: 0;
+}
+
+.report__submit {
+  margin-top: 14px;
+  background: var(--selected-bg);
+  color: var(--selected-fg);
+  border: none;
+  border-radius: 99px;
+  padding: 12px 24px;
+  font-weight: 900;
+  font-size: 14px;
+}
+
+.report__submit:hover {
+  background: var(--accent);
+}
+
+.report__submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.chip--small {
+  min-height: 36px;
+  padding: 6px 14px 6px 11px;
+  font-size: 12px;
+}
+
+/* Refills and machine down/up — reports that can't be phrased as a drink. */
+.report__others {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.report__others-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--body-text);
+}
+
+.report__others-label--machine {
+  margin-left: 10px;
+}
+
 /* ------------------------------------------------- drink summary/toggle -- */
 
 .drink-summary {
@@ -851,6 +931,30 @@ a:focus-visible {
   grid-template-columns: minmax(0, 1.6fr) minmax(200px, 1fr);
   gap: 18px 28px;
   align-items: center;
+}
+
+/* Queue reporting lives in the queue panel — beside what it describes,
+   deliberately apart from the drink form. Spans both columns. */
+.queue__report {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.queue__report-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--body-text);
+}
+
+.queue__report-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 @media (max-width: 640px) {
