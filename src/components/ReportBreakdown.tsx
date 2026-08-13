@@ -6,25 +6,35 @@ import {
   QUEUE_SUBJECT,
   SUBJECT_KEYS,
   SUBJECT_LABELS,
+  isDrinkKey,
   reportValueQuote,
+  subjectLabel,
   type ActionKey,
+  type DrinkResult,
   type QueueLevel,
   type Report,
-  type ReportValue,
+  type ReportRowValue,
+  type ReportSubject,
   type SubjectKey,
 } from '../../shared/domain.js';
 import { relativeTime } from '../../shared/time.js';
 import { ON_STATUS, PALETTE, statusColor } from '../lib/palette.js';
 
-export type FilterKey = SubjectKey | 'all';
+export type FilterKey = SubjectKey | 'all' | 'drinks';
 
 const FILTERS: readonly { key: FilterKey; label: string }[] = [
   { key: 'all', label: 'すべて' },
+  { key: 'drinks', label: 'ドリンク' },
   ...SUBJECT_KEYS.map((k) => ({ key: k as FilterKey, label: SUBJECT_LABELS[k] })),
 ];
 
-/** 作れない is filled rather than outlined — it's the one worth spotting. */
-function tagStyle(subject: SubjectKey, value: ReportValue): CSSProperties {
+/** 作れない／作れなかった is filled rather than outlined — the ones worth spotting. */
+function tagStyle(subject: ReportSubject, value: ReportRowValue): CSSProperties {
+  if (isDrinkKey(subject)) {
+    return (value as DrinkResult) === 'failed'
+      ? { background: PALETTE.unavailable, color: ON_STATUS }
+      : { border: `2px solid ${PALETTE.available}`, color: PALETTE.available };
+  }
   if (subject === QUEUE_SUBJECT) {
     const tone = QUEUE_META[value as QueueLevel].tone;
     return tone === 'unavailable'
@@ -48,7 +58,9 @@ export interface ReportBreakdownProps {
 
 export function ReportBreakdown({ reports, me, now, filter, onFilter }: ReportBreakdownProps) {
   const rows = reports
-    .filter((r) => filter === 'all' || r.subject === filter)
+    .filter((r) =>
+      filter === 'all' ? true : filter === 'drinks' ? isDrinkKey(r.subject) : r.subject === filter,
+    )
     .slice(0, CONFIG.reportTableLimit);
 
   return (
@@ -76,7 +88,7 @@ export function ReportBreakdown({ reports, me, now, filter, onFilter }: ReportBr
           </div>
           {rows.map((r) => (
             <div className="reports__row" key={r.id}>
-              <span className="reports__subject">{SUBJECT_LABELS[r.subject]}</span>
+              <span className="reports__subject">{subjectLabel(r.subject)}</span>
               <span>
                 <span className="tag" style={tagStyle(r.subject, r.action)}>
                   {reportValueQuote(r.subject, r.action)}

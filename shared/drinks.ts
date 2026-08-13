@@ -1,5 +1,7 @@
 import {
+  DRINK_LABELS,
   SUBJECT_LABELS,
+  type DrinkKey,
   type MaterialKey,
   type StatusOrNone,
   type SupplySubjectKey,
@@ -10,6 +12,7 @@ export type DrinkBase = 'coffee' | 'latte' | 'mocha' | 'cocoa';
 
 /** What the machine can pour, and what each pour consumes. */
 export interface Recipe {
+  key: DrinkKey;
   name: string;
   requires: readonly MaterialKey[];
   /** Iced drinks additionally depend on the ice maker. */
@@ -27,32 +30,70 @@ export interface Recipe {
  * Ordered coffee → latte → mocha → cocoa, so the hot row and the iced row below
  * it line up drink-for-drink.
  */
+/* Names come from DRINK_LABELS in domain.ts — the one place they live. */
 export const RECIPES: readonly Recipe[] = [
-  { name: 'ホットコーヒー', requires: ['coffeeBeans'], iced: false, base: 'coffee' },
-  { name: 'カフェラテ', requires: ['coffeeBeans', 'milkPowder'], iced: false, base: 'latte' },
   {
-    name: 'カフェモカ',
+    key: 'hotCoffee',
+    name: DRINK_LABELS.hotCoffee,
+    requires: ['coffeeBeans'],
+    iced: false,
+    base: 'coffee',
+  },
+  {
+    key: 'caffeLatte',
+    name: DRINK_LABELS.caffeLatte,
+    requires: ['coffeeBeans', 'milkPowder'],
+    iced: false,
+    base: 'latte',
+  },
+  {
+    key: 'caffeMocha',
+    name: DRINK_LABELS.caffeMocha,
     requires: ['coffeeBeans', 'cocoaPowder', 'milkPowder'],
     iced: false,
     base: 'mocha',
   },
-  { name: 'ホットココア', requires: ['cocoaPowder'], iced: false, base: 'cocoa' },
-
-  { name: 'アイスコーヒー', requires: ['coffeeBeans', 'ice'], iced: true, base: 'coffee' },
   {
-    name: 'アイスカフェラテ',
+    key: 'hotCocoa',
+    name: DRINK_LABELS.hotCocoa,
+    requires: ['cocoaPowder'],
+    iced: false,
+    base: 'cocoa',
+  },
+
+  {
+    key: 'iceCoffee',
+    name: DRINK_LABELS.iceCoffee,
+    requires: ['coffeeBeans', 'ice'],
+    iced: true,
+    base: 'coffee',
+  },
+  {
+    key: 'iceCaffeLatte',
+    name: DRINK_LABELS.iceCaffeLatte,
     requires: ['coffeeBeans', 'milkPowder', 'ice'],
     iced: true,
     base: 'latte',
   },
   {
-    name: 'アイスカフェモカ',
+    key: 'iceCaffeMocha',
+    name: DRINK_LABELS.iceCaffeMocha,
     requires: ['coffeeBeans', 'cocoaPowder', 'milkPowder', 'ice'],
     iced: true,
     base: 'mocha',
   },
-  { name: 'アイスココア', requires: ['cocoaPowder', 'ice'], iced: true, base: 'cocoa' },
+  {
+    key: 'iceCocoa',
+    name: DRINK_LABELS.iceCocoa,
+    requires: ['cocoaPowder', 'ice'],
+    iced: true,
+    base: 'cocoa',
+  },
 ];
+
+export const RECIPE_BY_KEY: Record<DrinkKey, Recipe> = Object.fromEntries(
+  RECIPES.map((r) => [r.key, r]),
+) as Record<DrinkKey, Recipe>;
 
 export interface DrinkAvailability {
   name: string;
@@ -82,16 +123,38 @@ const STATE_MARK: Record<StatusOrNone, string> = {
 /**
  * A drink is only as good as its scarcest ingredient — and the machine itself.
  *
- * Certainty ranks above ignorance: a confirmed missing ingredient says
- * 作れません even if another ingredient is unreported, because that answer is
- * already decided. Only when nothing rules the drink out but some requirement
- * is unreported does it become 情報がありません — the honest refusal to vouch
- * for materials nobody has checked.
+ * A fresh direct report about THIS drink beats any derivation: someone who
+ * watched it pour (or fail to) inside the window knows more than our
+ * inference from ingredients. This is also the only channel through which a
+ * failure with an unknown cause reaches the board — it expanded into no
+ * material votes, so the card is where it speaks.
+ *
+ * Otherwise, certainty ranks above ignorance: a confirmed missing ingredient
+ * says 作れません even if another ingredient is unreported, because that
+ * answer is already decided. Only when nothing rules the drink out but some
+ * requirement is unreported does it become 情報がありません — the honest
+ * refusal to vouch for materials nobody has checked.
  */
 export function drinkAvailability(
   recipe: Recipe,
   statuses: Record<SupplySubjectKey, StatusOrNone>,
+  direct: 'made' | 'failed' | null = null,
 ): DrinkAvailability {
+  if (direct !== null) {
+    const status = direct === 'made' ? 'available' : 'unavailable';
+    return {
+      name: recipe.name,
+      status,
+      stateText: STATE_TEXT[status],
+      mark: STATE_MARK[status],
+      reason:
+        direct === 'made'
+          ? '実際に作れたという報告があります'
+          : '作れなかったという報告があります',
+      requiredLabel: recipe.requires.map((k) => SUBJECT_LABELS[k]).join('、'),
+    };
+  }
+
   const machineDown = statuses.machine === 'unavailable';
   const missing = recipe.requires.filter((k) => statuses[k] === 'unavailable');
   let status: StatusOrNone = 'available';

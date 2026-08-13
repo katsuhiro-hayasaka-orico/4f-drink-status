@@ -21,6 +21,8 @@ import {
   SUPPLY_SUBJECT_KEYS,
   type ActionKey,
   type ConfidenceKey,
+  type DrinkKey,
+  type DrinkResult,
   type MaterialKey,
   type QueueLevel,
   type Report,
@@ -294,6 +296,39 @@ export function focusSummary(
     [...reported].sort((a, b) => a.agreement - b.agreement)[0] ??
     materials[0]
   );
+}
+
+/* ----------------------------------------------------------------- drinks -- */
+
+/**
+ * The direct verdict on one drink: did people get it out of the machine?
+ * Same window, one vote per person, same age weighting as supply votes.
+ * Ties break toward failed — being told it didn't pour outweighs optimism.
+ * No afterglow here: a made report's long-term effect lives on through the
+ * material votes it expanded into.
+ */
+export function summarizeDrinkReports(
+  reports: readonly Report[],
+  drink: DrinkKey,
+  now: number,
+): DrinkResult | null {
+  const cutoff = now - OBSERVATION_WINDOW_MS;
+  const candidates = reports
+    .filter((r) => r.subject === drink && r.createdAt >= cutoff)
+    .sort((a, b) => b.createdAt - a.createdAt);
+
+  const byUser = new Map<string, Report>();
+  for (const r of candidates) if (!byUser.has(r.userId)) byUser.set(r.userId, r);
+  if (byUser.size === 0) return null;
+
+  let made = 0;
+  let failed = 0;
+  for (const v of byUser.values()) {
+    const w = weight(v.createdAt, now);
+    if (v.action === 'made') made += w;
+    else failed += w;
+  }
+  return made > failed ? 'made' : 'failed';
 }
 
 /* ------------------------------------------------------------------ queue -- */

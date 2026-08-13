@@ -5,15 +5,18 @@ import {
   aggregate,
   focusSummary,
   overallState,
+  summarizeDrinkReports,
   summarizeQueue,
 } from '../shared/aggregate.js';
 import { CONFIG, OBSERVATION_WINDOW_MS } from '../shared/config.js';
 import {
+  DRINK_KEYS,
   QUEUE_SUBJECT,
   SUBJECT_LABELS,
   type ConfidenceKey,
+  type DrinkKey,
+  type DrinkResult,
   type FeedbackEntry,
-  type SubjectKey,
 } from '../shared/domain.js';
 import { loungeHours } from '../shared/hours.js';
 import { relativeTime } from '../shared/time.js';
@@ -77,15 +80,13 @@ export function App() {
     toggleAuto,
     ensureAutoOn,
     post,
+    postDrink,
     undo,
   } = useDrinkStatus();
 
   const { preference: themePreference, choose: chooseTheme } = useTheme();
   const { state: notifyState, toggle: toggleNotify, observe: observeReports } = useNotifications();
   const feedback = useFeedback();
-  // No default subject: with one pre-chosen, a state button tapped first
-  // would silently file a coffee-bean report about something else.
-  const [selectedSubject, setSelectedSubject] = useState<SubjectKey | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [aboutOpen, setAboutOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState<'auto' | 'manual' | { edit: FeedbackEntry } | null>(
@@ -168,6 +169,10 @@ export function App() {
     const focus = focusSummary(summaries, agg.statuses);
     const confidence = closed ? ('none' as const) : (focus?.confidence ?? 'none');
     const queue = summarizeQueue(reports, now);
+    // Direct made/failed verdicts per drink; masked while closed like the rest.
+    const drinkDirect = Object.fromEntries(
+      DRINK_KEYS.map((k) => [k, closed ? null : summarizeDrinkReports(reports, k, now)]),
+    ) as Record<DrinkKey, DrinkResult | null>;
 
     const latest = reports.reduce<number | null>(
       (max, r) => (max === null || r.createdAt > max ? r.createdAt : max),
@@ -195,6 +200,7 @@ export function App() {
       overall,
       confidence,
       queue,
+      drinkDirect,
       hours,
       lastUpdated,
       metrics: buildMetrics(lastUpdated, validVotes, recentPeople, dayPeople),
@@ -247,12 +253,9 @@ export function App() {
         <div ref={reportRef}>
           <ReportForm
             hours={view.hours}
-            selected={selectedSubject}
-            onSelect={setSelectedSubject}
-            onPost={(action) => {
-              if (selectedSubject) void post(selectedSubject, action);
-            }}
             posting={posting}
+            onPostDrink={(input) => void postDrink(input)}
+            onPostSimple={(subject, action) => void post(subject, action)}
           />
         </div>
 
@@ -261,15 +264,20 @@ export function App() {
           note={`過去${CONFIG.queueWindowMin}分の投稿から集約`}
           footnote="混雑はすぐ変わるため、材料より短い集計ウィンドウを使い、新しい投稿ほど強く重み付けしています。"
         >
-          <QueuePanel summary={view.queue} now={now} />
+          <QueuePanel
+            summary={view.queue}
+            now={now}
+            posting={posting}
+            onPostQueue={(level) => void post(QUEUE_SUBJECT, level)}
+          />
         </Section>
 
-        <Section title="材料の推定残量" note="みんなの投稿に基づく目安です">
+        <Section title="材料の推定残量" note="作れたドリンクの報告から推定した目安です">
           <IngredientLevels statuses={view.statuses} levels={view.levels} />
         </Section>
 
         <Section title="ドリンクの作成可否" note="要約のみ・詳細は開いて確認">
-          <DrinkAvailability statuses={view.statuses} />
+          <DrinkAvailability statuses={view.statuses} direct={view.drinkDirect} />
         </Section>
 
         <Section
