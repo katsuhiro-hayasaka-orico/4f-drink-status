@@ -41,8 +41,25 @@ export const CONFIG = {
    * re-checking, so it degrades to 情報なし instead.
    */
   availableRetentionMin: 120,
+
+  /**
+   * Ceiling on a feedback comment (みんなの声). Long enough for a real
+   * request, short enough that the public board can't be turned into a blog —
+   * the site is open to anyone, so the limit is a moderation tool too.
+   */
+  feedbackMaxLength: 500,
+  /**
+   * How long after someone submits — or explicitly closes — the feedback form
+   * before it auto-opens again after a post. The thank-you toast keeps its
+   * small 「ご意見を聞かせてください」 link every time; only the unprompted
+   * dialog is throttled, so regulars aren't nagged weekly-plus.
+   */
+  feedbackPromptCooldownDays: 7,
+  /** Newest feedback entries the board shows and the API returns. */
+  feedbackListLimit: 30,
 } as const;
 
 export const OBSERVATION_WINDOW_MS = CONFIG.observationWindowMin * 60_000;
 export const QUEUE_WINDOW_MS = CONFIG.queueWindowMin * 60_000;
 export const AVAILABLE_RETENTION_MS = CONFIG.availableRetentionMin * 60_000;
+export const FEEDBACK_PROMPT_COOLDOWN_MS = CONFIG.feedbackPromptCooldownDays * 86_400_000;

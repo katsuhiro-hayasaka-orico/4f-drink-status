@@ -1,6 +1,12 @@
 /** All D1 access lives here. */
 
-import type { ActionKey, Report, SubjectKey } from '../shared/domain.js';
+import type {
+  ActionKey,
+  FeedbackEntry,
+  MoodKey,
+  Report,
+  SubjectKey,
+} from '../shared/domain.js';
 import { CONFIG } from '../shared/config.js';
 
 /** Reports older than this are never sent to the client. */
@@ -131,4 +137,117 @@ export async function deleteOwnRecentReport(
     .bind(id, userId, cutoff)
     .run();
   return (res.meta?.changes ?? 0) > 0;
+}
+
+/* -------------------------------------------------------------- feedback -- */
+
+interface FeedbackRow {
+  id: string;
+  mood: string;
+  body: string;
+  user_label: string;
+  created_at: number;
+  likes: number;
+  liked_by_me: number;
+  mine: number;
+}
+
+/**
+ * The newest feedback entries, with like counts and the two per-requester
+ * booleans computed in SQL. The public list never carries user ids — whether
+ * an entry is the caller's own, or already liked by them, leaves the database
+ * as 0/1 and nothing more.
+ */
+export async function listFeedback(
+  db: D1Database,
+  userId: string,
+): Promise<FeedbackEntry[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT f.id, f.mood, f.body, f.user_label, f.created_at,
+              (SELECT COUNT(*) FROM feedback_likes l
+                WHERE l.feedback_id = f.id) AS likes,
+              EXISTS(SELECT 1 FROM feedback_likes l
+                      WHERE l.feedback_id = f.id AND l.user_id = ?1) AS liked_by_me,
+              (f.user_id = ?1) AS mine
+         FROM feedback f
+        ORDER BY f.created_at DESC
+        LIMIT ?2`,
+    )
+    .bind(userId, CONFIG.feedbackListLimit)
+    .all<FeedbackRow>();
+  return (results ?? []).map((row) => ({
+    id: row.id,
+    mood: row.mood as MoodKey,
+    body: row.body,
+    userLabel: row.user_label,
+    createdAt: Number(row.created_at),
+    likes: Number(row.likes),
+    likedByMe: Boolean(row.liked_by_me),
+    mine: Boolean(row.mine),
+  }));
+}
+
+export interface FeedbackInsert {
+  id: string;
+  mood: MoodKey;
+  body: string;
+  userId: string;
+  userLabel: string;
+  createdAt: number;
+}
+
+export async function insertFeedback(db: D1Database, entry: FeedbackInsert): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO feedback (id, mood, body, user_id, user_label, created_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+    )
+    .bind(entry.id, entry.mood, entry.body, entry.userId, entry.userLabel, entry.createdAt)
+    .run();
+}
+
+/** Feeds the feedback rate limit, same shape as the reports one. */
+export async function countRecentFeedback(
+  db: D1Database,
+  userId: string,
+  since: number,
+): Promise<number> {
+  const row = await db
+    .prepare('SELECT COUNT(*) AS n FROM feedback WHERE user_id = ?1 AND created_at >= ?2')
+    .bind(userId, since)
+    .first<{ n: number }>();
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * One tap likes, a second tap takes it back. Returns false when the target
+ * entry doesn't exist (deleted between render and click, or a made-up id).
+ * The composite primary key makes the like idempotent even under a race.
+ */
+export async function toggleFeedbackLike(
+  db: D1Database,
+  feedbackId: string,
+  userId: string,
+  now: number,
+): Promise<boolean> {
+  const exists = await db
+    .prepare('SELECT 1 AS one FROM feedback WHERE id = ?1')
+    .bind(feedbackId)
+    .first<{ one: number }>();
+  if (!exists) return false;
+
+  const removed = await db
+    .prepare('DELETE FROM feedback_likes WHERE feedback_id = ?1 AND user_id = ?2')
+    .bind(feedbackId, userId)
+    .run();
+  if ((removed.meta?.changes ?? 0) === 0) {
+    await db
+      .prepare(
+        'INSERT OR IGNORE INTO feedback_likes (feedback_id, user_id, created_at) VALUES (?1, ?2, ?3)',
+      )
+      .bind(feedbackId, userId, now)
+      .run();
+  }
+  return true;
 }

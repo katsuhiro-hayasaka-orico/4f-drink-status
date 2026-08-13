@@ -1111,6 +1111,227 @@ a:focus-visible {
   background: var(--accent);
 }
 
+/* ---------------------------------------------------- feedback dialog ---- */
+
+.feedback__moods {
+  display: flex;
+  gap: 10px;
+  margin: 4px 0 14px;
+}
+
+.feedback__mood {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--body-text);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.feedback__mood-emoji {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.feedback__mood--on {
+  border-color: var(--selected-bg);
+  background: var(--selected-bg);
+  color: var(--selected-fg);
+}
+
+.feedback__mood:hover:not(.feedback__mood--on) {
+  border-color: var(--accent);
+}
+
+.feedback__textarea {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+  padding: 12px 14px;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.feedback__textarea:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.feedback__counter {
+  margin-top: 6px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.feedback__error {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--unavailable);
+}
+
+.feedback__done {
+  font-weight: 700;
+}
+
+.feedback__skip {
+  margin-right: auto;
+  background: none;
+  border: 2px solid var(--line);
+  border-radius: 99px;
+  padding: 11px 18px;
+  font-weight: 900;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.feedback__skip:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.dialog__close:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* -------------------------------------------------------------- voices --- */
+
+.voices__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.voices__tally {
+  display: flex;
+  gap: 14px;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--body-text);
+}
+
+.voices__tally-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.voices__write {
+  background: var(--selected-bg);
+  color: var(--selected-fg);
+  border: none;
+  border-radius: 99px;
+  padding: 9px 18px;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.voices__write:hover {
+  background: var(--accent);
+}
+
+.voices__empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.voices__list {
+  display: grid;
+  gap: 12px;
+}
+
+.voice {
+  padding: 16px 18px;
+}
+
+.voice__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.voice__mood {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.voice__who {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--muted);
+}
+
+.voice__mine {
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--selected-bg);
+  color: var(--selected-fg);
+  font-size: 10px;
+}
+
+.voice__when {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.voice__body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--body-text);
+  overflow-wrap: anywhere;
+}
+
+.voice__foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.voice__like {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 2px solid var(--line);
+  border-radius: 99px;
+  background: none;
+  color: var(--muted);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.voice__like:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.voice__like--on {
+  border-color: var(--selected-bg);
+  background: var(--selected-bg);
+  color: var(--selected-fg);
+}
+
 /* ------------------------------------------------------------- a11y/etc -- */
 
 .visually-hidden {
