@@ -326,10 +326,15 @@ describe('overallState', () => {
     expect(o.tone).toBe('none');
   });
 
-  it('vouches only for the materials people actually checked', () => {
+  it('scopes the verdict and names the unchecked materials', () => {
+    // The audit's P0: a green blanket 利用できます next to ココア：情報なし
+    // read as a contradiction. The headline now claims only what was seen.
     const o = overallState({ ...base, ice: 'none' }, SUBJECT_LABELS);
-    expect(o.label).toBe('利用できます');
-    expect(o.reason).toBe('確認できた材料は十分にあります');
+    expect(o.label).toBe('確認済みの材料は利用できます');
+    expect(o.reason).toBe('氷は情報がありません');
+
+    const two = overallState({ ...base, ice: 'none', cocoaPowder: 'none' }, SUBJECT_LABELS);
+    expect(two.reason).toBe('ココア・氷は情報がありません');
   });
 
   it('reports a confirmed problem even with unreported materials around', () => {

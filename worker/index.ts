@@ -13,6 +13,9 @@
  *   DELETE /api/feedback/:id      delete your own entry and its likes
  *   POST   /api/feedback/:id/like toggle your like on an entry
  *
+ * Plus a write-only measurement drop box (allowlisted names, no GET):
+ *   POST   /api/events            record one usage event ({ name, value? })
+ *
  * Mutations return the refreshed list too, so the client never needs a second
  * round trip to re-render. Everything else falls through to the static assets
  * built by Vite.
@@ -21,6 +24,7 @@
 import { CONFIG } from '../shared/config.js';
 import {
   QUEUE_SUBJECT,
+  isEventName,
   isMoodKey,
   isSubjectKey,
   isValidReportValue,
@@ -33,10 +37,12 @@ import {
 import type { Env } from './env.js';
 import { resolveIdentity, withIdentityCookie, type Identity } from './identity.js';
 import {
+  countRecentEvents,
   countRecentFeedback,
   deleteOwnFeedback,
   deleteOwnRecentReport,
   ensureUserLabel,
+  insertEvent,
   insertFeedback,
   insertReport,
   listFeedback,
@@ -54,6 +60,9 @@ const POST_RATE_LIMIT = 20;
  * so the budget is small enough that a prankster's evening is short.
  */
 const FEEDBACK_RATE_LIMIT = 5;
+
+/** Usage events per device per minute — generous, but a flood stays local. */
+const EVENT_RATE_LIMIT = 30;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -234,6 +243,42 @@ async function handleFeedbackLike(
   return json(await feedbackSnapshot(env, identity, now));
 }
 
+/**
+ * The measurement drop box. Only allowlisted names are stored, `value` must
+ * be a small non-negative number, and over-limit devices get a silent 200 —
+ * metrics are not worth teaching a client to retry, and not worth an error
+ * toast in anyone's face.
+ */
+async function handleEventPost(
+  request: Request,
+  env: Env,
+  identity: Identity,
+  now: number,
+): Promise<Response> {
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return fail(400, 'リクエストの形式が正しくありません');
+  }
+
+  const { name, value } = (payload ?? {}) as { name?: unknown; value?: unknown };
+  if (!isEventName(name)) return fail(400, 'イベント名が正しくありません');
+
+  let stored: number | null = null;
+  if (value !== undefined && value !== null) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 86_400) {
+      return fail(400, 'イベント値が正しくありません');
+    }
+    stored = Math.round(value);
+  }
+
+  if ((await countRecentEvents(env.DB, identity.userId, now - 60_000)) < EVENT_RATE_LIMIT) {
+    await insertEvent(env.DB, name, stored, identity.userId, now);
+  }
+  return json({ ok: true });
+}
+
 async function route(
   request: Request,
   env: Env,
@@ -274,6 +319,11 @@ async function route(
     const id = decodeURIComponent(entry[1]);
     if (request.method === 'PUT') return handleFeedbackPut(id, request, env, identity, now);
     if (request.method === 'DELETE') return handleFeedbackDelete(id, env, identity, now);
+    return fail(405, 'サポートされていないメソッドです');
+  }
+
+  if (path === '/api/events') {
+    if (request.method === 'POST') return handleEventPost(request, env, identity, now);
     return fail(405, 'サポートされていないメソッドです');
   }
 

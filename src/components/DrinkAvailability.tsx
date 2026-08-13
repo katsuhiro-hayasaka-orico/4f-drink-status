@@ -1,3 +1,4 @@
+import { useId, useState } from 'react';
 import { RECIPES, drinkAvailability, type Recipe } from '../../shared/drinks.js';
 import type { StatusOrNone, SupplySubjectKey } from '../../shared/domain.js';
 import { statusColor } from '../lib/palette.js';
@@ -39,10 +40,45 @@ export interface DrinkAvailabilityProps {
   statuses: Record<SupplySubjectKey, StatusOrNone>;
 }
 
+/** 「作れません 2種・作れます 5種…」 — trouble first, then good news. */
+function summaryLine(statuses: Record<SupplySubjectKey, StatusOrNone>): string {
+  const counts = { unavailable: 0, low: 0, available: 0, none: 0 };
+  for (const recipe of RECIPES) counts[drinkAvailability(recipe, statuses).status] += 1;
+  const parts: string[] = [];
+  if (counts.unavailable) parts.push(`作れません ${counts.unavailable}種`);
+  if (counts.low) parts.push(`残り少なめ ${counts.low}種`);
+  if (counts.available) parts.push(`作れます ${counts.available}種`);
+  if (counts.none) parts.push(`情報なし ${counts.none}種`);
+  return parts.join('・');
+}
+
+/**
+ * Eight cards was the page's longest block, and it sat between a first-time
+ * visitor and the report form (audit P1: pre-form information overload).
+ * The always-visible one-line tally answers the common question; the cards
+ * are a click away for anyone who wants the per-drink detail.
+ */
 export function DrinkAvailability({ statuses }: DrinkAvailabilityProps) {
+  const [open, setOpen] = useState(false);
+  const detailId = useId().replace(/:/g, '');
+
   return (
     <>
-      {GROUPS.map((group) => (
+      <div className="drink-summary">
+        <span className="drink-summary__text">いま{summaryLine(statuses)}</span>
+        <button
+          type="button"
+          className="drink-toggle"
+          aria-expanded={open}
+          aria-controls={detailId}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? '詳細を閉じる' : 'ドリンク別の詳細を見る'}
+        </button>
+      </div>
+
+      <div id={detailId} hidden={!open}>
+        {GROUPS.map((group) => (
         <div className="drink-group" key={group.key}>
           <h3 className="drink-group__head">
             <span className={`drink-group__badge drink-group__badge--${group.key}`}>
@@ -84,7 +120,8 @@ export function DrinkAvailability({ statuses }: DrinkAvailabilityProps) {
             })}
           </div>
         </div>
-      ))}
+        ))}
+      </div>
     </>
   );
 }

@@ -2,6 +2,7 @@
 
 import type {
   ActionKey,
+  EventName,
   FeedbackEntry,
   MoodKey,
   Report,
@@ -258,6 +259,33 @@ export async function deleteOwnFeedback(
   if ((res.meta?.changes ?? 0) === 0) return false;
   await db.prepare('DELETE FROM feedback_likes WHERE feedback_id = ?1').bind(id).run();
   return true;
+}
+
+/* ---------------------------------------------------------------- events -- */
+
+export async function insertEvent(
+  db: D1Database,
+  name: EventName,
+  value: number | null,
+  userId: string,
+  now: number,
+): Promise<void> {
+  await db
+    .prepare('INSERT INTO events (id, name, value, user_id, created_at) VALUES (?1, ?2, ?3, ?4, ?5)')
+    .bind(crypto.randomUUID(), name, value, userId, now)
+    .run();
+}
+
+export async function countRecentEvents(
+  db: D1Database,
+  userId: string,
+  since: number,
+): Promise<number> {
+  const row = await db
+    .prepare('SELECT COUNT(*) AS n FROM events WHERE user_id = ?1 AND created_at >= ?2')
+    .bind(userId, since)
+    .first<{ n: number }>();
+  return Number(row?.n ?? 0);
 }
 
 /**

@@ -9,11 +9,7 @@ export interface ToastBarProps {
 
 export function ToastBar({ toast, onUndo, onFeedback }: ToastBarProps) {
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={`toast${toast.kind === 'error' ? ' toast--error' : ''}`}
-    >
+    <div role="status" className={`toast${toast.kind === 'error' ? ' toast--error' : ''}`}>
       <span className="toast__text">{toast.text}</span>
       {toast.kind === 'undo' && (
         <button type="button" className="toast__undo" onClick={onUndo}>
