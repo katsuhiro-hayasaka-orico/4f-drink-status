@@ -1,11 +1,15 @@
 /** All D1 access lives here. */
 
-import type {
-  ActionKey,
-  EventName,
-  MoodKey,
-  Report,
-  SubjectKey,
+import {
+  DRINK_KEYS,
+  emptyDrinkTally,
+  type ActionKey,
+  type DrinkKey,
+  type DrinkTally,
+  type EventName,
+  type MoodKey,
+  type Report,
+  type SubjectKey,
 } from '../shared/domain.js';
 import { CONFIG } from '../shared/config.js';
 
@@ -193,6 +197,33 @@ export async function deleteOwnRecentGroup(
     .bind(groupId, userId, cutoff)
     .run();
   return (res.meta?.changes ?? 0) > 0;
+}
+
+/**
+ * All-time drink popularity: how many times each drink was reported, split
+ * by outcome. Deliberately unwindowed — the recent list caps at 24h/200
+ * rows, but 人気度 is the one number that should keep growing.
+ */
+export async function tallyDrinkReports(db: D1Database): Promise<DrinkTally> {
+  const placeholders = DRINK_KEYS.map((_, i) => `?${i + 1}`).join(', ');
+  const { results } = await db
+    .prepare(
+      `SELECT subject, action, COUNT(*) AS n
+         FROM reports
+        WHERE subject IN (${placeholders})
+        GROUP BY subject, action`,
+    )
+    .bind(...DRINK_KEYS)
+    .all<{ subject: string; action: string; n: number }>();
+
+  const tally = emptyDrinkTally();
+  for (const row of results ?? []) {
+    const bucket = tally[row.subject as DrinkKey];
+    if (!bucket) continue;
+    if (row.action === 'made') bucket.made = Number(row.n);
+    else if (row.action === 'failed') bucket.failed = Number(row.n);
+  }
+  return tally;
 }
 
 /* -------------------------------------------------------------- feedback -- */

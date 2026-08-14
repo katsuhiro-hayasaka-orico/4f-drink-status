@@ -47,8 +47,9 @@ import {
   insertFeedback,
   insertReport,
   insertReportRows,
-  tallyFeedback,
   listRecentReports,
+  tallyDrinkReports,
+  tallyFeedback,
 } from './store.js';
 
 /** Ceiling on how many reports one device may post per minute. */
@@ -81,6 +82,7 @@ function fail(status: number, message: string): Response {
 async function snapshot(env: Env, identity: Identity, now: number): Promise<ReportsResponse> {
   return {
     reports: await listRecentReports(env.DB, now),
+    drinkTotals: await tallyDrinkReports(env.DB),
     me: identity.userId,
     serverNow: now,
   };

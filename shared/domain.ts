@@ -269,8 +269,22 @@ export interface Report {
   createdAt: number;
 }
 
+/** All-time drink report counts, split by outcome. */
+export type DrinkTally = Record<DrinkKey, { made: number; failed: number }>;
+
+export function emptyDrinkTally(): DrinkTally {
+  return Object.fromEntries(
+    DRINK_KEYS.map((k) => [k, { made: 0, failed: 0 }]),
+  ) as DrinkTally;
+}
+
 export interface ReportsResponse {
   reports: Report[];
+  /**
+   * All-time popularity tally per drink. Computed server-side because the
+   * reports list itself only carries the last 24 hours.
+   */
+  drinkTotals: DrinkTally;
   /** The caller's own userId, so the client can label its own posts. */
   me: string;
   /** Server clock at response time — used to keep relative times honest. */
