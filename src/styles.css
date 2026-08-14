@@ -1578,7 +1578,11 @@ a:focus-visible {
 
 .popularity__row {
   display: grid;
-  grid-template-columns: 26px minmax(150px, auto) 1fr 92px;
+  /* The name column is FIXED so every row's bar starts at the same x.
+     Sized to the longest case — アイスカフェモカ + ICE + 人気No.1 — because
+     each row is its own grid: an auto column would let the badge widen row 1
+     alone and shove its bar out of line with the others. */
+  grid-template-columns: 26px 232px 1fr 92px;
   align-items: center;
   gap: 10px;
 }
@@ -1657,17 +1661,17 @@ a:focus-visible {
   font-weight: 400;
 }
 
-@media (max-width: 640px) {
+/* Below this the fixed name column starves the bar: wrap the bar onto its
+   own full-width line instead (threshold set above phone width because the
+   232px column + counts leave little room even on small tablets). */
+@media (max-width: 720px) {
   .popularity__row {
     grid-template-columns: 26px 1fr 72px;
+    row-gap: 4px;
   }
 
   .popularity__bar {
     grid-column: 2 / -1;
-  }
-
-  .popularity__row {
-    row-gap: 4px;
   }
 }
 
