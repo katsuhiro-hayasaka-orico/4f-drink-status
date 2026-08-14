@@ -16,7 +16,6 @@ import {
   type ConfidenceKey,
   type DrinkKey,
   type DrinkResult,
-  type FeedbackEntry,
 } from '../shared/domain.js';
 import { loungeHours } from '../shared/hours.js';
 import { relativeTime } from '../shared/time.js';
@@ -34,7 +33,7 @@ import { ReportForm } from './components/ReportForm.js';
 import { Section } from './components/Section.js';
 import { SummaryPanel, type Metric } from './components/SummaryPanel.js';
 import { ToastBar } from './components/ToastBar.js';
-import { Voices } from './components/Voices.js';
+import { FeedbackBox } from './components/FeedbackBox.js';
 import { useDrinkStatus } from './hooks/useDrinkStatus.js';
 import { useFeedback } from './hooks/useFeedback.js';
 import { useInView } from './hooks/useInView.js';
@@ -89,9 +88,7 @@ export function App() {
   const feedback = useFeedback();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState<'auto' | 'manual' | { edit: FeedbackEntry } | null>(
-    null,
-  );
+  const [feedbackOpen, setFeedbackOpen] = useState<'auto' | 'manual' | null>(null);
 
   // The thanks toast is the cue: if this device hasn't submitted or dismissed
   // the form within the cooldown, the dialog opens itself. The toast's small
@@ -300,19 +297,12 @@ export function App() {
         </Section>
 
         <Section
-          title="みんなの声"
-          ariaLabel="みんなの声"
-          note="このサイトへのご意見・ご感想"
-          footnote="お寄せいただいた声はサイトの改善に使わせていただきます。"
+          title="ご意見箱"
+          ariaLabel="ご意見箱"
+          note="サイトへのご意見・ご感想（非公開）"
+          footnote="お寄せいただいた声はサイトの改善に使わせていただきます。内容が画面や API に表示されることはありません。"
         >
-          <Voices
-            entries={feedback.entries}
-            now={now}
-            onLike={(id) => void feedback.toggleLike(id)}
-            onWrite={() => setFeedbackOpen('manual')}
-            onEdit={(entry) => setFeedbackOpen({ edit: entry })}
-            onDelete={(id) => void feedback.remove(id)}
-          />
+          <FeedbackBox tally={feedback.tally} onWrite={() => setFeedbackOpen('manual')} />
         </Section>
 
         <footer className="footer">
@@ -338,21 +328,9 @@ export function App() {
         />
       )}
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
-      {feedbackOpen &&
-        (typeof feedbackOpen === 'string' ? (
-          <FeedbackDialog
-            variant={feedbackOpen}
-            onSubmit={feedback.submit}
-            onClose={closeFeedback}
-          />
-        ) : (
-          <FeedbackDialog
-            variant="edit"
-            initial={{ mood: feedbackOpen.edit.mood, body: feedbackOpen.edit.body }}
-            onSubmit={(mood, body) => feedback.update(feedbackOpen.edit.id, mood, body)}
-            onClose={closeFeedback}
-          />
-        ))}
+      {feedbackOpen && (
+        <FeedbackDialog variant={feedbackOpen} onSubmit={feedback.submit} onClose={closeFeedback} />
+      )}
     </div>
   );
 }

@@ -315,31 +315,18 @@ export function normalizeFeedbackBody(v: unknown, maxLength: number): string | n
   return body.length > maxLength ? null : body;
 }
 
-/** One public feedback entry, as the client sees it. */
-export interface FeedbackEntry {
-  id: string;
-  mood: MoodKey;
-  /** Trimmed comment; '' means the person only tapped a mood. */
-  body: string;
-  /** 利用者A etc. — the same anonymous label the breakdown table uses. */
-  userLabel: string;
-  /** Epoch milliseconds. */
-  createdAt: number;
-  /**
-   * When the author last edited it, or null. Public and deliberate: likes
-   * may predate the current wording, so an edit never happens silently.
-   */
-  editedAt: number | null;
-  /** How many people currently like this entry. */
-  likes: number;
-  /** Whether the requesting device likes it — folded in so no ids leak. */
-  likedByMe: boolean;
-  /** Whether the requesting device wrote it. */
-  mine: boolean;
-}
-
+/**
+ * What the public API says about feedback: the mood tally and nothing else.
+ * Comment bodies never leave the database through any endpoint — the site is
+ * public, and a free-text field is where personal or confidential details
+ * end up. Admins read the bodies with wrangler, off the wire entirely.
+ * The empty `feedback` array keeps clients cached from the era when a
+ * public list existed from crashing on the new shape.
+ */
 export interface FeedbackResponse {
-  feedback: FeedbackEntry[];
+  feedback: never[];
+  /** How many opinions of each mood have been received, all time. */
+  tally: Record<MoodKey, number>;
   serverNow: number;
 }
 

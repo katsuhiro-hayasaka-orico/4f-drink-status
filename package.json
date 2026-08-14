@@ -14,6 +14,8 @@
     "db:migrate:local": "wrangler d1 migrations apply drink-status --local",
     "db:migrate:remote": "wrangler d1 migrations apply drink-status --remote",
     "db:seed:local": "node scripts/seed.mjs > .seed.sql && wrangler d1 execute drink-status --local --file .seed.sql && node -e \"require('fs').rmSync('.seed.sql', { force: true })\"",
+    "feedback": "wrangler d1 execute drink-status --remote --command \"SELECT user_label AS who, mood, body, datetime(created_at/1000,'unixepoch','+9 hours') AS at FROM feedback ORDER BY created_at DESC LIMIT 50\"",
+    "feedback:tally": "wrangler d1 execute drink-status --remote --command \"SELECT mood, COUNT(*) AS n FROM feedback GROUP BY mood\"",
     "deploy": "npm run build && wrangler deploy",
     "predeploy": "node scripts/preflight.mjs"
   },
