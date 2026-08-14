@@ -3,7 +3,7 @@ import { CONFIG } from '../../shared/config.js';
 import { SUBJECT_LABELS, type StatusOrNone } from '../../shared/domain.js';
 import { relativeTime } from '../../shared/time.js';
 import { CONFIDENCE_LABEL, confidenceStyle } from '../lib/confidence.js';
-import { NEUTRAL_LINE, statusColor } from '../lib/palette.js';
+import { NEUTRAL_LINE, PALETTE, statusColor } from '../lib/palette.js';
 
 const STATUS_TEXT: Record<StatusOrNone, string> = {
   available: '利用できます',
@@ -34,6 +34,11 @@ export function Observations({ summaries, now }: ObservationsProps) {
       {summaries.map((s) => {
         const label = SUBJECT_LABELS[s.subject];
         const agreementText = s.total ? `${s.agreement}%` : '—';
+        // 清掃中 is an outage with a promise attached: amber, its own words.
+        const cleaning = s.dominantAction === 'cleaning';
+        const statusText = cleaning ? '清掃中' : STATUS_TEXT[s.status];
+        const quote = cleaning ? '清掃中' : STATUS_QUOTE[s.status];
+        const color = cleaning ? PALETTE.low : statusColor(s.status);
         return (
           <div className="card" key={s.subject}>
             <div className="observation__head">
@@ -42,12 +47,12 @@ export function Observations({ summaries, now }: ObservationsProps) {
                 {CONFIDENCE_LABEL[s.confidence]}
               </span>
             </div>
-            <div className="observation__status" style={{ color: statusColor(s.status) }}>
-              {STATUS_TEXT[s.status]}
+            <div className="observation__status" style={{ color }}>
+              {statusText}
             </div>
             <p className="observation__copy">
               {s.total
-                ? `${s.total}人中${s.supporters}人が「${STATUS_QUOTE[s.status]}」と報告`
+                ? `${s.total}人中${s.supporters}人が「${quote}」と報告`
                 : s.carried
                   ? `過去${CONFIG.observationWindowMin}分の投稿はなく、最後の「${STATUS_QUOTE.available}」報告を保持中`
                   : `過去${CONFIG.observationWindowMin}分に有効な投稿がありません`}
@@ -62,7 +67,7 @@ export function Observations({ summaries, now }: ObservationsProps) {
               <div
                 style={{
                   width: `${s.agreement}%`,
-                  background: s.status === 'none' ? NEUTRAL_LINE : statusColor(s.status),
+                  background: s.status === 'none' ? NEUTRAL_LINE : color,
                 }}
               />
             </div>

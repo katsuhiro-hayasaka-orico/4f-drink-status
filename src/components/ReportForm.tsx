@@ -273,6 +273,14 @@ export function ReportForm({ hours, posting, onPostDrink, onPostSimple }: Report
             type="button"
             className="chip chip--small"
             disabled={posting}
+            onClick={() => onPostSimple('machine', 'cleaning')}
+          >
+            清掃中
+          </button>
+          <button
+            type="button"
+            className="chip chip--small"
+            disabled={posting}
             onClick={() => onPostSimple('machine', 'refilled')}
           >
             復旧した

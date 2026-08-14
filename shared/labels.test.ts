@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { actionLabelFor, isEventName } from './domain.js';
+import { actionLabelFor, isEventName, isValidReportValue, reportValueQuote } from './domain.js';
+
+describe('清掃中 (machine-only cleaning)', () => {
+  it('is valid only for the machine', () => {
+    expect(isValidReportValue('machine', 'cleaning')).toBe(true);
+    expect(isValidReportValue('coffeeBeans', 'cleaning')).toBe(false);
+    expect(isValidReportValue('ice', 'cleaning')).toBe(false);
+    expect(isValidReportValue('queue', 'cleaning')).toBe(false);
+  });
+
+  it('labels and quotes as 清掃中', () => {
+    expect(actionLabelFor('machine', 'cleaning')).toBe('清掃中');
+    expect(reportValueQuote('machine', 'cleaning')).toBe('清掃中');
+  });
+});
 
 describe('actionLabelFor', () => {
   it('words material states as stock levels', () => {
