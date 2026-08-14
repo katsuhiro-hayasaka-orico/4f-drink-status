@@ -6,12 +6,11 @@
  *   POST   /api/reports      post one ({ subject, action })
  *   DELETE /api/reports/:id  take your own back, inside the undo window
  *
- * And みんなの声, site feedback with likes:
- *   GET    /api/feedback          newest entries, likes folded in
+ * And ご意見箱 — collected publicly, read privately. Bodies may carry
+ * personal or confidential details, so no endpoint ever returns them;
+ * admins read them with wrangler, off the wire entirely:
+ *   GET    /api/feedback          the mood tally only (no bodies, ever)
  *   POST   /api/feedback          post one ({ mood, body })
- *   PUT    /api/feedback/:id      edit your own entry (marks it 編集済み)
- *   DELETE /api/feedback/:id      delete your own entry and its likes
- *   POST   /api/feedback/:id/like toggle your like on an entry
  *
  * Plus a write-only measurement drop box (allowlisted names, no GET):
  *   POST   /api/events            record one usage event ({ name, value? })
@@ -41,7 +40,6 @@ import {
   countRecentEvents,
   countRecentFeedback,
   countRecentPostings,
-  deleteOwnFeedback,
   deleteOwnRecentGroup,
   deleteOwnRecentReport,
   ensureUserLabel,
@@ -49,10 +47,8 @@ import {
   insertFeedback,
   insertReport,
   insertReportRows,
-  listFeedback,
+  tallyFeedback,
   listRecentReports,
-  toggleFeedbackLike,
-  updateOwnFeedback,
 } from './store.js';
 
 /** Ceiling on how many reports one device may post per minute. */
@@ -196,13 +192,15 @@ async function handleDelete(
   return json({ ok: true, ...(await snapshot(env, identity, now)) });
 }
 
-async function feedbackSnapshot(
-  env: Env,
-  identity: Identity,
-  now: number,
-): Promise<FeedbackResponse> {
+/**
+ * Bodies never leave the database through the API — the mood tally is the
+ * whole public surface of ご意見箱. The empty feedback array keeps clients
+ * cached from the public-list era from crashing on the new shape.
+ */
+async function feedbackSnapshot(env: Env, now: number): Promise<FeedbackResponse> {
   return {
-    feedback: await listFeedback(env.DB, identity.userId),
+    feedback: [],
+    tally: await tallyFeedback(env.DB),
     serverNow: now,
   };
 }
@@ -249,49 +247,7 @@ async function handleFeedbackPost(
     createdAt: now,
   });
 
-  return json(await feedbackSnapshot(env, identity, now), 201);
-}
-
-/**
- * Editing is not rate-limited: it can only touch this device's own handful
- * of entries and creates nothing new. Not-yours and not-found are the same
- * 404 on purpose — ownership probing should learn nothing.
- */
-async function handleFeedbackPut(
-  id: string,
-  request: Request,
-  env: Env,
-  identity: Identity,
-  now: number,
-): Promise<Response> {
-  const parsed = await parseFeedbackPayload(request);
-  if (parsed instanceof Response) return parsed;
-
-  const updated = await updateOwnFeedback(env.DB, id, identity.userId, parsed.mood, parsed.body, now);
-  if (!updated) return fail(404, '編集できるご意見が見つかりませんでした');
-  return json(await feedbackSnapshot(env, identity, now));
-}
-
-async function handleFeedbackDelete(
-  id: string,
-  env: Env,
-  identity: Identity,
-  now: number,
-): Promise<Response> {
-  const removed = await deleteOwnFeedback(env.DB, id, identity.userId);
-  if (!removed) return fail(404, '削除できるご意見が見つかりませんでした');
-  return json(await feedbackSnapshot(env, identity, now));
-}
-
-async function handleFeedbackLike(
-  id: string,
-  env: Env,
-  identity: Identity,
-  now: number,
-): Promise<Response> {
-  const found = await toggleFeedbackLike(env.DB, id, identity.userId, now);
-  if (!found) return fail(404, '対象のご意見が見つかりませんでした');
-  return json(await feedbackSnapshot(env, identity, now));
+  return json(await feedbackSnapshot(env, now), 201);
 }
 
 /**
@@ -367,26 +323,12 @@ async function route(
   }
 
   if (path === '/api/feedback') {
-    if (request.method === 'GET') return json(await feedbackSnapshot(env, identity, now));
+    if (request.method === 'GET') return json(await feedbackSnapshot(env, now));
     if (request.method === 'POST') return handleFeedbackPost(request, env, identity, now);
     return fail(405, 'サポートされていないメソッドです');
   }
 
-  const like = /^\/api\/feedback\/([^/]+)\/like$/.exec(path);
-  if (like) {
-    if (request.method === 'POST') {
-      return handleFeedbackLike(decodeURIComponent(like[1]), env, identity, now);
-    }
-    return fail(405, 'サポートされていないメソッドです');
-  }
 
-  const entry = /^\/api\/feedback\/([^/]+)$/.exec(path);
-  if (entry) {
-    const id = decodeURIComponent(entry[1]);
-    if (request.method === 'PUT') return handleFeedbackPut(id, request, env, identity, now);
-    if (request.method === 'DELETE') return handleFeedbackDelete(id, env, identity, now);
-    return fail(405, 'サポートされていないメソッドです');
-  }
 
   if (path === '/api/events') {
     if (request.method === 'POST') return handleEventPost(request, env, identity, now);

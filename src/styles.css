@@ -1338,6 +1338,12 @@ a:focus-visible {
 
 /* ---------------------------------------------------- feedback dialog ---- */
 
+.feedback__privacy {
+  display: block;
+  margin-top: 8px;
+  font-weight: 900;
+}
+
 .feedback__moods {
   display: flex;
   gap: 10px;
@@ -1433,12 +1439,32 @@ a:focus-visible {
 
 /* -------------------------------------------------------------- voices --- */
 
-.voices__bar {
+
+.feedback-box {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.feedback-box__info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feedback-box__lead {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--body-text);
+}
+
+.feedback-box__note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--body-text);
 }
 
 .voices__tally {
@@ -1469,135 +1495,24 @@ a:focus-visible {
   background: var(--accent);
 }
 
-.voices__empty {
-  margin: 0;
-  font-size: 13px;
-  color: var(--muted);
-}
 
-.voices__list {
-  display: grid;
-  gap: 12px;
-}
 
-.voice {
-  padding: 16px 18px;
-}
 
-.voice__head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
 
-.voice__mood {
-  font-size: 20px;
-  line-height: 1;
-}
 
-.voice__who {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 900;
-  color: var(--muted);
-}
 
-.voice__mine {
-  padding: 2px 8px;
-  border-radius: 99px;
-  background: var(--selected-bg);
-  color: var(--selected-fg);
-  font-size: 10px;
-}
 
-.voice__when {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--muted);
-}
 
-.voice__edited {
-  margin-left: 6px;
-  padding: 1px 7px;
-  border: 1px solid var(--line);
-  border-radius: 99px;
-  font-size: 10px;
-}
 
-.voice__body {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.8;
-  color: var(--body-text);
-  overflow-wrap: anywhere;
-}
 
-.voice__foot {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 10px;
-}
 
-.voice__own-actions {
-  display: inline-flex;
-  gap: 8px;
-  margin-right: auto;
-}
 
-.voice__action {
-  padding: 5px 12px;
-  border: 2px solid var(--line);
-  border-radius: 99px;
-  background: none;
-  color: var(--muted);
-  font-weight: 900;
-  font-size: 11px;
-}
 
-.voice__action:hover {
-  border-color: var(--accent);
-  color: var(--ink);
-}
 
-.voice__action--danger {
-  border-color: var(--unavailable);
-  background: var(--unavailable);
-  color: var(--on-status);
-}
 
-.voice__body--empty {
-  color: var(--muted);
-  font-size: 12px;
-}
 
-.voice__like {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border: 2px solid var(--line);
-  border-radius: 99px;
-  background: none;
-  color: var(--muted);
-  font-weight: 900;
-  font-size: 12px;
-}
 
-.voice__like:hover {
-  border-color: var(--accent);
-  color: var(--ink);
-}
 
-.voice__like--on {
-  border-color: var(--selected-bg);
-  background: var(--selected-bg);
-  color: var(--selected-fg);
-}
 
 /* ------------------------------------------------------------- a11y/etc -- */
 

@@ -1,110 +1,38 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { FeedbackEntry, FeedbackResponse, MoodKey } from '../../shared/domain.js';
-import {
-  deleteFeedback,
-  fetchFeedback,
-  postFeedback,
-  toggleFeedbackLike,
-  updateFeedback,
-} from '../lib/api.js';
+import type { MoodKey } from '../../shared/domain.js';
+import { fetchFeedback, postFeedback } from '../lib/api.js';
+
+const EMPTY_TALLY: Record<MoodKey, number> = { happy: 0, neutral: 0, sad: 0 };
 
 /**
- * みんなの声 — the feedback list, one submit, and like toggling.
+ * ご意見箱 — submit an opinion, see only the mood tally.
  *
- * Feedback has no realtime pressure, so unlike the reports it does not ride
- * the 30-second poll: one fetch on mount, then every mutation response
- * carries the refreshed list (the same no-second-round-trip pattern the
- * reports API uses).
+ * Comment bodies are collected but never displayed: the site is public and
+ * free text is where personal or confidential details end up, so bodies go
+ * admin-only (read via wrangler, never over the API). The tally is the one
+ * public trace, so contributors can see their voice was counted.
  */
 export function useFeedback() {
-  const [entries, setEntries] = useState<FeedbackEntry[]>([]);
-
-  // Same stale-response guard as useDrinkStatus: a like toggled while another
-  // response is in flight must not be erased by the older snapshot.
+  const [tally, setTally] = useState<Record<MoodKey, number>>(EMPTY_TALLY);
   const generation = useRef(0);
-
-  const adopt = useCallback((res: FeedbackResponse) => {
-    setEntries(res.feedback);
-  }, []);
 
   useEffect(() => {
     const startedAt = generation.current;
     fetchFeedback()
       .then((res) => {
-        if (startedAt === generation.current) adopt(res);
+        if (startedAt === generation.current) setTally(res.tally);
       })
       .catch(() => {
-        /* The board works without the voices section; stay empty quietly. */
+        /* The board works without the tally; stay at zero quietly. */
       });
-  }, [adopt]);
+  }, []);
 
   /** Throws ApiError on failure — the dialog shows the message in place. */
-  const submit = useCallback(
-    async (mood: MoodKey, body: string) => {
-      const res = await postFeedback(mood, body);
-      generation.current += 1;
-      adopt(res);
-    },
-    [adopt],
-  );
+  const submit = useCallback(async (mood: MoodKey, body: string) => {
+    const res = await postFeedback(mood, body);
+    generation.current += 1;
+    setTally(res.tally);
+  }, []);
 
-  /** Edit an own entry. Throws ApiError like submit does. */
-  const update = useCallback(
-    async (id: string, mood: MoodKey, body: string) => {
-      const res = await updateFeedback(id, mood, body);
-      generation.current += 1;
-      adopt(res);
-    },
-    [adopt],
-  );
-
-  /** Delete an own entry. The card's two-tap confirm already happened. */
-  const remove = useCallback(
-    async (id: string) => {
-      // Optimistic: the card disappears on the tap, the snapshot confirms it.
-      generation.current += 1;
-      setEntries((list) => list.filter((e) => e.id !== id));
-      try {
-        const res = await deleteFeedback(id);
-        generation.current += 1;
-        adopt(res);
-      } catch {
-        // The server still has the entry — re-fetch to bring the card back.
-        try {
-          const res = await fetchFeedback();
-          generation.current += 1;
-          adopt(res);
-        } catch {
-          /* offline; the next successful load reconciles */
-        }
-      }
-    },
-    [adopt],
-  );
-
-  const toggleLike = useCallback(
-    async (id: string) => {
-      // Optimistic flip so the heart responds on the tap; the server snapshot
-      // replaces it, and an error rolls the flip back.
-      generation.current += 1;
-      const flip = (list: FeedbackEntry[]) =>
-        list.map((e) =>
-          e.id === id
-            ? { ...e, likedByMe: !e.likedByMe, likes: e.likes + (e.likedByMe ? -1 : 1) }
-            : e,
-        );
-      setEntries(flip);
-      try {
-        const res = await toggleFeedbackLike(id);
-        generation.current += 1;
-        adopt(res);
-      } catch {
-        generation.current += 1;
-        setEntries(flip);
-      }
-    },
-    [adopt],
-  );
-
-  return { entries, submit, update, remove, toggleLike };
+  return { tally, submit };
 }

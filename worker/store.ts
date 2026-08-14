@@ -3,7 +3,6 @@
 import type {
   ActionKey,
   EventName,
-  FeedbackEntry,
   MoodKey,
   Report,
   SubjectKey,
@@ -198,53 +197,21 @@ export async function deleteOwnRecentGroup(
 
 /* -------------------------------------------------------------- feedback -- */
 
-interface FeedbackRow {
-  id: string;
-  mood: string;
-  body: string;
-  user_label: string;
-  created_at: number;
-  updated_at: number | null;
-  likes: number;
-  liked_by_me: number;
-  mine: number;
-}
-
 /**
- * The newest feedback entries, with like counts and the two per-requester
- * booleans computed in SQL. The public list never carries user ids — whether
- * an entry is the caller's own, or already liked by them, leaves the database
- * as 0/1 and nothing more.
+ * The only feedback query the Worker runs: how many of each mood. Bodies
+ * deliberately have no read path here — the site is public, and free text
+ * is where personal or confidential details end up. Admins read them with
+ * wrangler d1 execute, never over the site's API.
  */
-export async function listFeedback(
-  db: D1Database,
-  userId: string,
-): Promise<FeedbackEntry[]> {
+export async function tallyFeedback(db: D1Database): Promise<Record<MoodKey, number>> {
   const { results } = await db
-    .prepare(
-      `SELECT f.id, f.mood, f.body, f.user_label, f.created_at, f.updated_at,
-              (SELECT COUNT(*) FROM feedback_likes l
-                WHERE l.feedback_id = f.id) AS likes,
-              EXISTS(SELECT 1 FROM feedback_likes l
-                      WHERE l.feedback_id = f.id AND l.user_id = ?1) AS liked_by_me,
-              (f.user_id = ?1) AS mine
-         FROM feedback f
-        ORDER BY f.created_at DESC
-        LIMIT ?2`,
-    )
-    .bind(userId, CONFIG.feedbackListLimit)
-    .all<FeedbackRow>();
-  return (results ?? []).map((row) => ({
-    id: row.id,
-    mood: row.mood as MoodKey,
-    body: row.body,
-    userLabel: row.user_label,
-    createdAt: Number(row.created_at),
-    editedAt: row.updated_at === null ? null : Number(row.updated_at),
-    likes: Number(row.likes),
-    likedByMe: Boolean(row.liked_by_me),
-    mine: Boolean(row.mine),
-  }));
+    .prepare('SELECT mood, COUNT(*) AS n FROM feedback GROUP BY mood')
+    .all<{ mood: string; n: number }>();
+  const tally: Record<MoodKey, number> = { happy: 0, neutral: 0, sad: 0 };
+  for (const row of results ?? []) {
+    if (row.mood in tally) tally[row.mood as MoodKey] = Number(row.n);
+  }
+  return tally;
 }
 
 export interface FeedbackInsert {
@@ -279,43 +246,6 @@ export async function countRecentFeedback(
   return Number(row?.n ?? 0);
 }
 
-/**
- * Edit your own entry. The user_id in the WHERE clause is the whole security
- * model: someone else's id simply matches no row, indistinguishable from an
- * entry that never existed. Unlike report undo there is no time window —
- * feedback is a standing opinion, not a perishable observation.
- */
-export async function updateOwnFeedback(
-  db: D1Database,
-  id: string,
-  userId: string,
-  mood: MoodKey,
-  body: string,
-  now: number,
-): Promise<boolean> {
-  const res = await db
-    .prepare(
-      'UPDATE feedback SET mood = ?1, body = ?2, updated_at = ?3 WHERE id = ?4 AND user_id = ?5',
-    )
-    .bind(mood, body, now, id, userId)
-    .run();
-  return (res.meta?.changes ?? 0) > 0;
-}
-
-/** Delete your own entry, taking its likes with it. */
-export async function deleteOwnFeedback(
-  db: D1Database,
-  id: string,
-  userId: string,
-): Promise<boolean> {
-  const res = await db
-    .prepare('DELETE FROM feedback WHERE id = ?1 AND user_id = ?2')
-    .bind(id, userId)
-    .run();
-  if ((res.meta?.changes ?? 0) === 0) return false;
-  await db.prepare('DELETE FROM feedback_likes WHERE feedback_id = ?1').bind(id).run();
-  return true;
-}
 
 /* ---------------------------------------------------------------- events -- */
 
@@ -344,34 +274,3 @@ export async function countRecentEvents(
   return Number(row?.n ?? 0);
 }
 
-/**
- * One tap likes, a second tap takes it back. Returns false when the target
- * entry doesn't exist (deleted between render and click, or a made-up id).
- * The composite primary key makes the like idempotent even under a race.
- */
-export async function toggleFeedbackLike(
-  db: D1Database,
-  feedbackId: string,
-  userId: string,
-  now: number,
-): Promise<boolean> {
-  const exists = await db
-    .prepare('SELECT 1 AS one FROM feedback WHERE id = ?1')
-    .bind(feedbackId)
-    .first<{ one: number }>();
-  if (!exists) return false;
-
-  const removed = await db
-    .prepare('DELETE FROM feedback_likes WHERE feedback_id = ?1 AND user_id = ?2')
-    .bind(feedbackId, userId)
-    .run();
-  if ((removed.meta?.changes ?? 0) === 0) {
-    await db
-      .prepare(
-        'INSERT OR IGNORE INTO feedback_likes (feedback_id, user_id, created_at) VALUES (?1, ?2, ?3)',
-      )
-      .bind(feedbackId, userId, now)
-      .run();
-  }
-  return true;
-}
