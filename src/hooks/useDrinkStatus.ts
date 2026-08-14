@@ -3,11 +3,13 @@ import { CONFIG } from '../../shared/config.js';
 import {
   ACTION_META,
   DRINK_LABELS,
+  emptyDrinkTally,
   QUEUE_META,
   QUEUE_SUBJECT,
   SUBJECT_LABELS,
   type ActionKey,
   type QueueLevel,
+  type DrinkTally,
   type Report,
   type ReportValue,
   type SubjectKey,
@@ -72,6 +74,7 @@ function postedDrinkToast(input: DrinkReportInput): string {
  */
 export function useDrinkStatus() {
   const [reports, setReports] = useState<Report[]>([]);
+  const [drinkTotals, setDrinkTotals] = useState<DrinkTally>(emptyDrinkTally);
   const [me, setMe] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -104,11 +107,15 @@ export function useDrinkStatus() {
    */
   const generation = useRef(0);
 
-  const adopt = useCallback((res: { reports: Report[]; me: string; serverNow: number }) => {
-    setReports(res.reports);
-    setMe(res.me);
-    setSkewMs(res.serverNow - Date.now());
-  }, []);
+  const adopt = useCallback(
+    (res: { reports: Report[]; drinkTotals: DrinkTally; me: string; serverNow: number }) => {
+      setReports(res.reports);
+      setDrinkTotals(res.drinkTotals);
+      setMe(res.me);
+      setSkewMs(res.serverNow - Date.now());
+    },
+    [],
+  );
 
   const refresh = useCallback(async () => {
     const startedAt = generation.current;
@@ -345,6 +352,7 @@ export function useDrinkStatus() {
 
   return {
     reports,
+    drinkTotals,
     me,
     now,
     loading,

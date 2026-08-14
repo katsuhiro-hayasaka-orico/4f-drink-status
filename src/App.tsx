@@ -22,6 +22,7 @@ import { relativeTime } from '../shared/time.js';
 
 import { AboutDialog } from './components/AboutDialog.js';
 import { DrinkAvailability } from './components/DrinkAvailability.js';
+import { DrinkPopularity } from './components/DrinkPopularity.js';
 import { FeedbackDialog } from './components/FeedbackDialog.js';
 import { Header } from './components/Header.js';
 import { IngredientLevels } from './components/IngredientLevels.js';
@@ -70,6 +71,7 @@ function buildMetrics(
 export function App() {
   const {
     reports,
+    drinkTotals,
     me,
     now,
     loadError,
@@ -275,6 +277,15 @@ export function App() {
 
         <Section title="ドリンクの作成可否" note="要約のみ・詳細は開いて確認">
           <DrinkAvailability statuses={view.statuses} direct={view.drinkDirect} />
+        </Section>
+
+        <Section
+          title="ドリンクの人気度"
+          ariaLabel="ドリンクの人気度"
+          note="これまでの報告の累計"
+          footnote="「作れた」「作れなかった」の報告回数の合計で並べています。よく報告されるドリンクほど、よく作られているドリンクです。"
+        >
+          <DrinkPopularity totals={drinkTotals} />
         </Section>
 
         <Section
