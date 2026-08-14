@@ -1514,6 +1514,163 @@ a:focus-visible {
 
 
 
+/* ----------------------------------------------------- drink popularity -- */
+
+.popularity {
+  background: var(--card);
+  border-radius: 18px;
+  box-shadow: var(--card-shadow);
+  padding: 18px 20px;
+}
+
+.popularity__empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--body-text);
+}
+
+.popularity__legend {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--body-text);
+}
+
+.popularity__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.popularity__swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.popularity__swatch--made {
+  background: var(--available);
+}
+
+/* The diagonal texture, not the hue, is what separates this segment for
+   red-green colourblind readers (measured ΔE 4.8 deutan vs the green). */
+.popularity__swatch--failed,
+.popularity__seg--failed {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.5) 0 3px,
+      transparent 3px 7px
+    ),
+    var(--unavailable);
+}
+
+.popularity__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.popularity__row {
+  display: grid;
+  grid-template-columns: 26px minmax(150px, auto) 1fr 92px;
+  align-items: center;
+  gap: 10px;
+}
+
+.popularity__rank {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--panel);
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--body-text);
+}
+
+.popularity__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.popularity__badge {
+  font-size: 9px;
+  padding: 2px 7px;
+}
+
+.popularity__top {
+  padding: 2px 9px;
+  border-radius: 99px;
+  background: var(--accent);
+  color: var(--on-status);
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+/* A 2px surface gap between the two segments keeps them separable even
+   where their colours are not. */
+.popularity__bar {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  height: 16px;
+  border-radius: 6px;
+  background: var(--track);
+  overflow: hidden;
+  padding: 2px;
+}
+
+.popularity__seg {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: 4px;
+}
+
+.popularity__seg--made {
+  background: var(--available);
+}
+
+.popularity__count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--body-text);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.popularity__row--none .popularity__count {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+@media (max-width: 640px) {
+  .popularity__row {
+    grid-template-columns: 26px 1fr 72px;
+  }
+
+  .popularity__bar {
+    grid-column: 2 / -1;
+  }
+
+  .popularity__row {
+    row-gap: 4px;
+  }
+}
+
 /* ------------------------------------------------------------- a11y/etc -- */
 
 .visually-hidden {
