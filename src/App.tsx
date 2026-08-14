@@ -164,7 +164,12 @@ export function App() {
     const summaries = agg.summaries;
     const statuses = closed ? UNKNOWN_STATUSES : agg.statuses;
     const levels = closed ? UNKNOWN_LEVELS : agg.levels;
-    const overall = overallState(statuses, SUBJECT_LABELS);
+    // The 清掃中 sign only counts while the board is open and the machine
+    // reading is actually an outage.
+    const machineCleaning =
+      statuses.machine === 'unavailable' &&
+      summaries.find((s) => s.subject === 'machine')?.dominantAction === 'cleaning';
+    const overall = overallState(statuses, SUBJECT_LABELS, machineCleaning);
     const focus = focusSummary(summaries, agg.statuses);
     const confidence = closed ? ('none' as const) : (focus?.confidence ?? 'none');
     const queue = summarizeQueue(reports, now);
@@ -200,6 +205,7 @@ export function App() {
       confidence,
       queue,
       drinkDirect,
+      machineCleaning,
       hours,
       lastUpdated,
       metrics: buildMetrics(lastUpdated, validVotes, recentPeople, dayPeople),
@@ -276,7 +282,11 @@ export function App() {
         </Section>
 
         <Section title="ドリンクの作成可否" note="要約のみ・詳細は開いて確認">
-          <DrinkAvailability statuses={view.statuses} direct={view.drinkDirect} />
+          <DrinkAvailability
+            statuses={view.statuses}
+            direct={view.drinkDirect}
+            machineCleaning={view.machineCleaning}
+          />
         </Section>
 
         <Section

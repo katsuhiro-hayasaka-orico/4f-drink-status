@@ -176,6 +176,38 @@ describe('summarize', () => {
   });
 });
 
+describe('summarize with 清掃中', () => {
+  it('counts cleaning as unavailable but keeps it as the dominant action', () => {
+    const s = summarize([report('machine', 'cleaning', 'a', 2)], 'machine', NOW);
+    expect(s.status).toBe('unavailable');
+    expect(s.dominantAction).toBe('cleaning');
+  });
+
+  it('lets the newest outage vote pick the sign', () => {
+    // Cleaning sign seen at 8 min, but someone reported an actual breakdown
+    // since: the newer, worse message wins the wording.
+    const broken = summarize(
+      [report('machine', 'cleaning', 'a', 8), report('machine', 'unavailable', 'b', 2)],
+      'machine',
+      NOW,
+    );
+    expect(broken.status).toBe('unavailable');
+    expect(broken.dominantAction).toBe('unavailable');
+
+    const cleaning = summarize(
+      [report('machine', 'unavailable', 'a', 8), report('machine', 'cleaning', 'b', 2)],
+      'machine',
+      NOW,
+    );
+    expect(cleaning.dominantAction).toBe('cleaning');
+  });
+
+  it('gives cleaning no afterglow — it counts as an outage', () => {
+    const s = summarize([report('machine', 'cleaning', 'a', 45)], 'machine', NOW);
+    expect(s.status).toBe('none');
+  });
+});
+
 describe('summarize afterglow (残照)', () => {
   it('carries a good report forward after the window empties', () => {
     const s = summarize([report('coffeeBeans', 'available', 'a', 45)], 'coffeeBeans', NOW);
@@ -301,6 +333,12 @@ describe('overallState', () => {
     const o = overallState({ ...base, machine: 'unavailable' }, SUBJECT_LABELS);
     expect(o.label).toBe('マシンを利用できません');
     expect(o.tone).toBe('unavailable');
+  });
+
+  it('words a cleaning outage as a hopeful pause, in amber', () => {
+    const o = overallState({ ...base, machine: 'unavailable' }, SUBJECT_LABELS, true);
+    expect(o.label).toBe('清掃中です');
+    expect(o.tone).toBe('low');
   });
 
   it('flags a missing ingredient', () => {

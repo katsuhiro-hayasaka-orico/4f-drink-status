@@ -45,16 +45,19 @@ export interface DrinkAvailabilityProps {
   statuses: Record<SupplySubjectKey, StatusOrNone>;
   /** Fresh direct verdicts (作れた／作れなかった) per drink, if any. */
   direct: Record<DrinkKey, DrinkResult | null>;
+  /** True when the machine outage is the 清掃中 sign, not a breakdown. */
+  machineCleaning: boolean;
 }
 
 /** 「作れません 2種・作れます 5種…」 — trouble first, then good news. */
 function summaryLine(
   statuses: Record<SupplySubjectKey, StatusOrNone>,
   direct: Record<DrinkKey, DrinkResult | null>,
+  machineCleaning: boolean,
 ): string {
   const counts = { unavailable: 0, low: 0, available: 0, none: 0 };
   for (const recipe of RECIPES) {
-    counts[drinkAvailability(recipe, statuses, direct[recipe.key]).status] += 1;
+    counts[drinkAvailability(recipe, statuses, direct[recipe.key], machineCleaning).status] += 1;
   }
   const parts: string[] = [];
   if (counts.unavailable) parts.push(`作れません ${counts.unavailable}種`);
@@ -70,14 +73,14 @@ function summaryLine(
  * The always-visible one-line tally answers the common question; the cards
  * are a click away for anyone who wants the per-drink detail.
  */
-export function DrinkAvailability({ statuses, direct }: DrinkAvailabilityProps) {
+export function DrinkAvailability({ statuses, direct, machineCleaning }: DrinkAvailabilityProps) {
   const [open, setOpen] = useState(false);
   const detailId = useId().replace(/:/g, '');
 
   return (
     <>
       <div className="drink-summary">
-        <span className="drink-summary__text">いま{summaryLine(statuses, direct)}</span>
+        <span className="drink-summary__text">いま{summaryLine(statuses, direct, machineCleaning)}</span>
         <button
           type="button"
           className="drink-toggle"
@@ -101,7 +104,7 @@ export function DrinkAvailability({ statuses, direct }: DrinkAvailabilityProps) 
           </h3>
           <div className="grid-240">
             {group.recipes.map((recipe) => {
-              const d = drinkAvailability(recipe, statuses, direct[recipe.key]);
+              const d = drinkAvailability(recipe, statuses, direct[recipe.key], machineCleaning);
               const color = statusColor(d.status);
               return (
                 <div className="card drink" key={d.name}>
