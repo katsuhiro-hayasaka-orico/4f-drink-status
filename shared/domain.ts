@@ -36,8 +36,18 @@ export type ActionKey = (typeof ACTION_KEYS)[number];
 export const QUEUE_LEVELS = ['empty', 'short', 'medium', 'long'] as const;
 export type QueueLevel = (typeof QUEUE_LEVELS)[number];
 
+/**
+ * Machine-only: the 清掃中 sign that goes up right after a refill. Counts as
+ * "can't use it now" in the aggregation, but reads as a hopeful pause — the
+ * machine comes back full — so every display treats it as its own state.
+ * Deliberately NOT an ActionKey: materials can't be 清掃中, and keeping it
+ * out of ACTION_KEYS keeps it out of every material-facing enumeration.
+ */
+export const CLEANING_ACTION = 'cleaning' as const;
+export type CleaningAction = typeof CLEANING_ACTION;
+
 /** What a report's `action` column can hold, depending on its subject. */
-export type ReportValue = ActionKey | QueueLevel;
+export type ReportValue = ActionKey | QueueLevel | CleaningAction;
 
 /** What an aggregated supply subject resolves to. `none` means "no usable reports". */
 export type StatusKey = 'available' | 'low' | 'unavailable';
@@ -150,10 +160,13 @@ export function isQueueLevel(v: unknown): v is QueueLevel {
 /**
  * The one place that decides whether a (subject, value) pair makes sense.
  * Both the API and the client go through here, so a queue report can never
- * carry 「補充された」 and cocoa can never be 「6人以上」.
+ * carry 「補充された」, cocoa can never be 「6人以上」, and only the machine
+ * can be 清掃中.
  */
 export function isValidReportValue(subject: SubjectKey, value: unknown): value is ReportValue {
-  return subject === QUEUE_SUBJECT ? isQueueLevel(value) : isActionKey(value);
+  if (subject === QUEUE_SUBJECT) return isQueueLevel(value);
+  if (subject === 'machine') return isActionKey(value) || value === CLEANING_ACTION;
+  return isActionKey(value);
 }
 
 /* ---------------------------------------------------------- drink reports -- */
@@ -235,6 +248,7 @@ const MACHINE_ACTION_LABELS: Record<ActionKey, string> = {
 
 export function actionLabelFor(subject: SubjectKey, value: ReportValue): string {
   if (subject === QUEUE_SUBJECT) return QUEUE_META[value as QueueLevel].label;
+  if (value === CLEANING_ACTION) return '清掃中';
   if (subject === 'machine') return MACHINE_ACTION_LABELS[value as ActionKey];
   return MATERIAL_ACTION_LABELS[value as ActionKey];
 }
@@ -247,6 +261,7 @@ export const DRINK_RESULT_QUOTES: Record<DrinkResult, string> = {
 /** The label shown for a report's value in the breakdown table. */
 export function reportValueQuote(subject: ReportSubject, value: ReportRowValue): string {
   if (isDrinkKey(subject)) return DRINK_RESULT_QUOTES[value as DrinkResult];
+  if (value === CLEANING_ACTION) return '清掃中';
   return subject === QUEUE_SUBJECT
     ? QUEUE_META[value as QueueLevel].quote
     : ACTION_META[value as ActionKey].quote;

@@ -42,6 +42,9 @@ function tagStyle(subject: ReportSubject, value: ReportRowValue): CSSProperties 
       ? { background: PALETTE.unavailable, color: ON_STATUS }
       : { border: `2px solid ${statusColor(tone)}`, color: statusColor(tone) };
   }
+  if (value === 'cleaning') {
+    return { border: `2px solid ${PALETTE.low}`, color: PALETTE.low };
+  }
   const action = value as ActionKey;
   if (action === 'refilled') return { border: '2px solid var(--muted)', color: 'var(--muted)' };
   const status = toStatus(action);

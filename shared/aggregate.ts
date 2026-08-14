@@ -20,6 +20,7 @@ import {
   QUEUE_SUBJECT,
   SUPPLY_SUBJECT_KEYS,
   type ActionKey,
+  type CleaningAction,
   type ConfidenceKey,
   type DrinkKey,
   type DrinkResult,
@@ -52,16 +53,20 @@ export function weight(createdAt: number, now: number): number {
   return 0;
 }
 
-/** 補充された is evidence the thing is available. */
-export function toStatus(action: ActionKey): StatusKey {
+/** 補充された is evidence of available; 清掃中 means you can't use it now. */
+export function toStatus(action: ActionKey | CleaningAction): StatusKey {
+  if (action === 'cleaning') return 'unavailable';
   return action === 'refilled' ? 'available' : action;
 }
 
 export interface Summary {
   subject: SupplySubjectKey;
   status: StatusOrNone;
-  /** `refilled` when the winning status was carried by a refill report. */
-  dominantAction: ActionKey | null;
+  /**
+   * `refilled` when the winning status was carried by a refill report;
+   * `cleaning` when a machine outage is really the 清掃中 sign.
+   */
+  dominantAction: ActionKey | CleaningAction | null;
   /** Number of distinct people whose votes counted. */
   total: number;
   /** How many of them agreed with the winning status. */
@@ -110,7 +115,7 @@ export function summarize(
     const recent = reports
       .filter((r) => r.subject === subject && r.createdAt >= retentionCutoff)
       .sort((a, b) => b.createdAt - a.createdAt)[0];
-    if (recent && toStatus(recent.action as ActionKey) === 'available') {
+    if (recent && toStatus(recent.action as ActionKey | CleaningAction) === 'available') {
       return {
         subject,
         status: 'available',
@@ -140,14 +145,16 @@ export function summarize(
   const weighted: Record<StatusKey, number> = { available: 0, low: 0, unavailable: 0 };
   const counts: Record<StatusKey, number> = { available: 0, low: 0, unavailable: 0 };
   for (const v of votes) {
-    const s = toStatus(v.action as ActionKey);
+    const s = toStatus(v.action as ActionKey | CleaningAction);
     weighted[s] += weight(v.createdAt, now);
     counts[s] += 1;
   }
 
   const urgent =
     votes.filter(
-      (v) => toStatus(v.action as ActionKey) === 'unavailable' && now - v.createdAt <= 10 * MINUTE,
+      (v) =>
+        toStatus(v.action as ActionKey | CleaningAction) === 'unavailable' &&
+        now - v.createdAt <= 10 * MINUTE,
     ).length >= 2;
 
   const status: StatusKey = urgent
@@ -164,8 +171,16 @@ export function summarize(
   if (total >= 3 && agreement >= 75 && age <= 10 * MINUTE) confidence = 'high';
   else if (total >= 2 && agreement >= 60 && age <= 20 * MINUTE) confidence = 'medium';
 
-  const dominantAction: ActionKey =
+  let dominantAction: ActionKey | CleaningAction =
     status === 'available' && votes.some((v) => v.action === 'refilled') ? 'refilled' : status;
+  if (status === 'unavailable') {
+    // A 清掃中 outage is a different message from a broken machine: the
+    // newest of the unavailable-side votes decides which sign the board shows.
+    const newestDown = votes
+      .filter((v) => toStatus(v.action as ActionKey | CleaningAction) === 'unavailable')
+      .sort((a, b) => b.createdAt - a.createdAt)[0];
+    if (newestDown?.action === 'cleaning') dominantAction = 'cleaning';
+  }
 
   return { subject, status, dominantAction, total, supporters, agreement, confidence, lastAt };
 }
@@ -231,8 +246,18 @@ export interface Overall {
 export function overallState(
   statuses: Record<SupplySubjectKey, StatusOrNone>,
   subjectLabels: Record<SubjectKey, string>,
+  machineCleaning = false,
 ): Overall {
   if (statuses.machine === 'unavailable') {
+    // 清掃中 is a hopeful pause, not an outage: it usually follows a refill,
+    // so the machine comes back better than it left. Amber, not red.
+    if (machineCleaning) {
+      return {
+        label: '清掃中です',
+        reason: '補充・清掃が終わりしだい使えるようになります。少し待ちましょう',
+        tone: 'low',
+      };
+    }
     return {
       label: 'マシンを利用できません',
       reason: 'マシン全体の利用不可報告があります',

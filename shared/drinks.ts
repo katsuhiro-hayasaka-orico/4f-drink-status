@@ -139,6 +139,7 @@ export function drinkAvailability(
   recipe: Recipe,
   statuses: Record<SupplySubjectKey, StatusOrNone>,
   direct: 'made' | 'failed' | null = null,
+  machineCleaning = false,
 ): DrinkAvailability {
   if (direct !== null) {
     const status = direct === 'made' ? 'available' : 'unavailable';
@@ -165,7 +166,9 @@ export function drinkAvailability(
     // Naming the missing ingredient saves a trip: you can tell at a glance
     // whether another drink on this list is still an option.
     reason = machineDown
-      ? 'マシンを利用できません'
+      ? machineCleaning
+        ? 'マシンは清掃中です。終わればまた作れます'
+        : 'マシンを利用できません'
       : `${missing.map((k) => SUBJECT_LABELS[k]).join('・')}がありません`;
   } else if (recipe.requires.some((k) => statuses[k] === 'none')) {
     status = 'none';

@@ -36,10 +36,12 @@ function postedToast(subject: SubjectKey, value: ReportValue): string {
   if (subject === QUEUE_SUBJECT) {
     return `行列を「${QUEUE_META[value as QueueLevel].label}」で投稿しました。いまの混雑を再集計しました`;
   }
-  const action = value as ActionKey;
   if (subject === 'machine') {
-    return `マシンを「${action === 'unavailable' ? '故障中' : '復旧した'}」で投稿しました。再集計しました`;
+    const word =
+      value === 'cleaning' ? '清掃中' : value === 'unavailable' ? '故障中' : '復旧した';
+    return `マシンを「${word}」で投稿しました。再集計しました`;
   }
+  const action = value as ActionKey;
   const levelNote = `（推定残量 ${ACTION_META[action].level}%）`;
   return `${SUBJECT_LABELS[subject]}を「${ACTION_META[action].label}」で投稿しました。みんなの観測を再集計しました${levelNote}`;
 }
