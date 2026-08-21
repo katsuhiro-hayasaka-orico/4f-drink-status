@@ -278,6 +278,101 @@ export async function countRecentFeedback(
 }
 
 
+/* ---------------------------------------------------- push subscriptions -- */
+
+export interface PushSubscriptionRow {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userId: string;
+}
+
+/**
+ * Subscriptions one anonymous identity may hold at once — enough for a phone,
+ * a PC and a spare, small enough that fabricated subscriptions can't grow the
+ * table. The prune keeps the newest and silently drops the rest, so a device
+ * whose cookie survived years of resubscribes never gets locked out.
+ */
+export const MAX_SUBSCRIPTIONS_PER_USER = 8;
+
+/** Register (or refresh) one browser's subscription, then prune to the cap. */
+export async function upsertPushSubscription(
+  db: D1Database,
+  sub: PushSubscriptionRow,
+  now: number,
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT OR REPLACE INTO push_subscriptions (endpoint, p256dh, auth, user_id, created_at)
+       VALUES (?1, ?2, ?3, ?4, ?5)`,
+    )
+    .bind(sub.endpoint, sub.p256dh, sub.auth, sub.userId, now)
+    .run();
+  await db
+    .prepare(
+      `DELETE FROM push_subscriptions
+        WHERE user_id = ?1 AND endpoint NOT IN (
+          SELECT endpoint FROM push_subscriptions
+           WHERE user_id = ?1 ORDER BY created_at DESC LIMIT ?2)`,
+    )
+    .bind(sub.userId, MAX_SUBSCRIPTIONS_PER_USER)
+    .run();
+}
+
+/**
+ * Unregister by endpoint alone: the endpoint is an unguessable capability
+ * URL, and tying the delete to user_id would strand rows whose cookie
+ * identity rotated between subscribe and unsubscribe.
+ */
+export async function deletePushSubscription(db: D1Database, endpoint: string): Promise<void> {
+  await db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?1').bind(endpoint).run();
+}
+
+/** Everyone except the poster's own devices, oldest loyalty first. */
+export async function listPushSubscriptionsExcept(
+  db: D1Database,
+  userId: string,
+  limit: number,
+): Promise<PushSubscriptionRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT endpoint, p256dh, auth, user_id
+         FROM push_subscriptions WHERE user_id != ?1
+        ORDER BY created_at ASC LIMIT ?2`,
+    )
+    .bind(userId, limit)
+    .all<{ endpoint: string; p256dh: string; auth: string; user_id: string }>();
+  return (results ?? []).map((r) => ({
+    endpoint: r.endpoint,
+    p256dh: r.p256dh,
+    auth: r.auth,
+    userId: r.user_id,
+  }));
+}
+
+/** Drop subscriptions the push service reported dead (404/410). */
+export async function deletePushEndpoints(
+  db: D1Database,
+  endpoints: readonly string[],
+): Promise<void> {
+  if (endpoints.length === 0) return;
+  const stmt = db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?1');
+  await db.batch(endpoints.map((e) => stmt.bind(e)));
+}
+
+/**
+ * Whether a posting still stands. Single-row reports store their own id as
+ * group_id, so this one check covers both posting shapes — and a false here
+ * means the poster undid it inside the grace window, i.e. never notify.
+ */
+export async function groupExists(db: D1Database, groupId: string): Promise<boolean> {
+  const row = await db
+    .prepare('SELECT 1 AS x FROM reports WHERE group_id = ?1 LIMIT 1')
+    .bind(groupId)
+    .first<{ x: number }>();
+  return row !== null;
+}
+
 /* ---------------------------------------------------------------- events -- */
 
 export async function insertEvent(

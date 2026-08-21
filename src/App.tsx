@@ -79,14 +79,13 @@ export function App() {
     toast,
     autoOn,
     toggleAuto,
-    ensureAutoOn,
     post,
     postDrink,
     undo,
   } = useDrinkStatus();
 
   const { preference: themePreference, choose: chooseTheme } = useTheme();
-  const { state: notifyState, toggle: toggleNotify, observe: observeReports } = useNotifications();
+  const { state: notifyState, toggle: toggleNotify } = useNotifications();
   const feedback = useFeedback();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -133,24 +132,10 @@ export function App() {
     );
   }, []);
 
-  // Every fresh copy of the reports goes past the notifier, whether it came
-  // from the poll, a post, or an undo.
-  useEffect(() => {
-    observeReports(reports, me);
-  }, [observeReports, reports, me]);
-
+  // Notifications are server-pushed now — no poll coupling, no report
+  // observation. The toggle is self-contained; just never crash the click.
   const onToggleNotify = () => {
-    void toggleNotify()
-      .then((enabled) => {
-        // Notifications ride the poll; enabling them with the poll off would
-        // be agreeing to news and then unplugging the radio. ensureAutoOn is
-        // idempotent, so neither a stale closure (the permission prompt kept
-        // this callback waiting) nor a double click can flip polling off.
-        if (enabled) ensureAutoOn();
-      })
-      .catch(() => {
-        /* toggle() contains its own failure handling; never crash the click */
-      });
+    void toggleNotify().catch(() => {});
   };
 
   const view = useMemo(() => {

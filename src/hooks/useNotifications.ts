@@ -1,200 +1,206 @@
-import { useCallback, useRef, useState } from 'react';
-import type { Report } from '../../shared/domain.js';
-import { advanceWatermark, buildNotificationBody } from '../lib/notifyLogic.js';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { fetchPushKey, registerPushSubscription, unregisterPushSubscription } from '../lib/api.js';
 
 /**
- * Browser notifications for other people's posts.
+ * Web Push notifications for other people's posts.
  *
- * These ride the existing 30-second poll rather than a push channel, which
- * sets their honest limit: they fire while a tab is open (front or
- * background), and stop when the last tab closes. True closed-browser push
- * needs a service worker, a subscription table, and the Web Push encryption
- * stack — recorded as future work in the README, not smuggled in here.
+ * The old notifier rode the 30-second poll and honestly said so: news only
+ * while a tab was open. This one subscribes the browser itself — the server
+ * pushes through the platform's service (APNs/FCM/Mozilla), so notifications
+ * arrive with every tab closed, including installed PWAs on iOS 16.4+.
  *
- * They fire regardless of whether the tab is being looked at. The first cut
- * suppressed notifications while the tab was visible and focused, reasoning
- * that a watched board is its own notification — and the field said
- * otherwise: the board is left up like a wall display, and the banner and
- * sound are exactly what people want from it. The banner is the feature,
- * not a duplicate of it.
+ * The subscription IS the state. Nothing is kept in localStorage: whether
+ * `pushManager.getSubscription()` returns one — and whether the permission
+ * still stands — decides on/off, so a permission revoked in browser settings
+ * can never disagree with what the button claims.
+ *
+ * On iOS Safari in a plain tab, `PushManager` simply doesn't exist (Apple
+ * exposes push to Home-Screen web apps only), so the button hides itself and
+ * the AboutDialog explains the 「ホーム画面に追加」 route instead.
  */
 
-const STORAGE_KEY = 'drink-status-notify';
-/**
- * One tag for report news, so a newer notification replaces a stale one
- * instead of stacking. Same-tag replacement is SILENT by default — no banner,
- * no sound, the notification just changes in the tray — so every news
- * notification also sets `renotify: true` to make the replacement announce
- * itself. Without that, one unread notification mutes every one after it.
- *
- * The enable-confirmation deliberately does NOT share this tag. It shipped
- * sharing it, and the result was exactly that trap: the confirmation sat in
- * the notification center, and every real report after it was swallowed as a
- * silent replacement — "notifications on, nothing ever arrives".
- */
-const TAG = 'drink-status-reports';
 const HELLO_TAG = 'drink-status-hello';
 const TITLE = '4Fドリンク速報';
-const ICON = '/apple-touch-icon.png';
 
 /**
  * `denied` is the browser's block, distinct from our own `off` — the button
  * can undo one and only point helplessly at the other. `unsupported` hides
- * the button entirely (iOS Safari outside an installed PWA, and Android
- * Chrome once the constructor has proven itself unusable).
+ * the button entirely (no service worker / no PushManager / the server has
+ * no VAPID key configured).
  */
 export type NotifyState = 'unsupported' | 'denied' | 'off' | 'on';
 
 function supported(): boolean {
-  return typeof window !== 'undefined' && 'Notification' in window;
+  return (
+    typeof window !== 'undefined' &&
+    'serviceWorker' in navigator &&
+    'PushManager' in window &&
+    'Notification' in window
+  );
 }
 
-function readInitialState(): NotifyState {
-  if (!supported()) return 'unsupported';
-  if (Notification.permission === 'denied') return 'denied';
-  try {
-    // The stored wish only holds while the browser still agrees: a permission
-    // revoked in settings must win over what we remembered.
-    if (localStorage.getItem(STORAGE_KEY) === 'on' && Notification.permission === 'granted') {
-      return 'on';
-    }
-  } catch {
-    /* storage unavailable — treat as off */
-  }
-  return 'off';
+/** applicationServerKey wants raw bytes; the server hands out base64url. */
+function keyBytes(b64url: string): Uint8Array {
+  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
-function save(value: 'on' | 'off') {
-  try {
-    localStorage.setItem(STORAGE_KEY, value);
-  } catch {
-    /* the choice just won't survive a reload */
-  }
-}
-
-/**
- * Returns whether the notification could actually be shown. Android Chrome
- * passes every capability check — the constructor exists, the permission
- * dance succeeds — and then throws from `new Notification()` itself, because
- * only service workers may post there. An uncaught throw here would surface
- * inside a React effect and unmount the whole tree, so the constructor is
- * the one place this feature touches that must never leak.
- */
-function show(body: string, tag: string, renotify: boolean): boolean {
-  try {
-    // `renotify` is missing from some lib.dom versions but understood by
-    // Chromium; browsers that don't know it (Safari) simply ignore it.
-    const options: NotificationOptions & { renotify?: boolean } = {
-      body,
-      tag,
-      icon: ICON,
-      lang: 'ja',
-    };
-    if (renotify) options.renotify = true;
-    const n = new Notification(TITLE, options);
-    n.onclick = () => {
-      window.focus();
-      n.close();
-    };
-    return true;
-  } catch {
-    return false;
-  }
+/** The three strings the server stores, or null if the browser held them back. */
+function serialize(sub: PushSubscription): { endpoint: string; p256dh: string; auth: string } | null {
+  const json = sub.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return null;
+  return { endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth };
 }
 
 export function useNotifications() {
-  const [state, setState] = useState<NotifyState>(readInitialState);
-  const watermark = useRef<number | null>(null);
+  const [state, setState] = useState<NotifyState>(() => (supported() ? 'off' : 'unsupported'));
+  const registration = useRef<ServiceWorkerRegistration | null>(null);
+  const serverKey = useRef<string | null>(null);
   /** Guards toggle() against re-entry while the permission prompt is open. */
   const busy = useRef(false);
-
-  // observe() runs from an effect while toggle() runs from a click; the ref
-  // spares observe from being rebuilt (and re-subscribed) on every toggle.
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  /**
-   * Feed every fresh copy of the report list through here. The watermark
-   * advances unconditionally — even while notifications are off — so turning
-   * them on later never dumps a backlog.
-   */
-  const observe = useCallback((reports: readonly Report[], me: string) => {
-    // Until the first fetch resolves, `me` is unknown and everything would
-    // look foreign. Real data always arrives with `me` set.
-    if (me === '') return;
-
-    const baselining = watermark.current === null;
-    const { watermark: next, fresh } = advanceWatermark(reports, me, watermark.current);
-    watermark.current = next;
-
-    if (baselining || fresh.length === 0) return;
-    if (stateRef.current !== 'on') return;
-    if (!supported() || Notification.permission !== 'granted') return;
-
-    if (!show(buildNotificationBody(fresh), TAG, true)) {
-      // The constructor is unusable on this browser. Stop pretending, so the
-      // button stops promising something that cannot be delivered.
-      setState('unsupported');
-      save('off');
-    }
+  // Register the service worker and reconcile the button with reality:
+  // existing subscription + standing permission = on. The re-register on an
+  // existing subscription is self-healing for a wiped or migrated D1 — one
+  // idempotent upsert per load keeps the server's copy alive.
+  useEffect(() => {
+    if (!supported()) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [reg, { key }] = await Promise.all([
+          navigator.serviceWorker.register('/sw.js'),
+          fetchPushKey(),
+        ]);
+        if (cancelled) return;
+        registration.current = reg;
+        serverKey.current = key;
+        if (!key) {
+          setState('unsupported');
+          return;
+        }
+        if (Notification.permission === 'denied') {
+          setState('denied');
+          return;
+        }
+        const sub = await reg.pushManager.getSubscription();
+        if (cancelled) return;
+        const stored = sub && Notification.permission === 'granted' ? serialize(sub) : null;
+        if (stored) {
+          registerPushSubscription(stored).catch(() => {
+            /* the next successful load repairs it */
+          });
+          setState('on');
+        } else {
+          setState('off');
+        }
+      } catch {
+        if (!cancelled) setState('unsupported');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   /** Returns whether notifications ended up on, so the caller can react. */
   const toggle = useCallback(async (): Promise<boolean> => {
-    if (!supported() || busy.current) return false;
-
-    if (stateRef.current === 'on') {
-      setState('off');
-      save('off');
-      return false;
-    }
-
+    const reg = registration.current;
+    if (!supported() || !reg || busy.current) return false;
     busy.current = true;
     try {
-      // Re-read rather than trusting state: the user may have unblocked (or
-      // blocked) the site in browser settings since the page loaded.
-      let permission: string = Notification.permission;
-      if (permission === 'default') {
-        // Must happen inside the click handler's call stack — browsers ignore
-        // permission requests that aren't user-initiated. Old Safari only has
-        // the callback form, whose no-argument call resolves to undefined;
-        // falling back to re-reading .permission keeps it from misreading
-        // "no answer yet" as an answer.
-        const result = await Promise.resolve(Notification.requestPermission()).catch(
-          () => undefined,
-        );
-        permission = typeof result === 'string' ? result : Notification.permission;
+      if (stateRef.current === 'on') {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          const endpoint = sub.endpoint;
+          await sub.unsubscribe().catch(() => false);
+          await unregisterPushSubscription(endpoint).catch(() => {
+            /* the next failed push marks it gone server-side anyway */
+          });
+        }
+        setState('off');
+        return false;
       }
 
+      // Must happen inside the click handler's call stack — browsers ignore
+      // permission requests that aren't user-initiated.
+      const permission = await Promise.resolve(Notification.requestPermission()).catch(
+        () => Notification.permission,
+      );
       if (permission === 'denied') {
-        // The browser has this site blocked; only its own settings can undo it.
         setState('denied');
-        save('off');
         return false;
       }
       if (permission !== 'granted') {
-        // Prompt dismissed without an answer ('default'). Not a block — the
-        // next click will simply ask again, so the UI must not claim one.
+        // Prompt dismissed without an answer. Not a block — the next click
+        // will simply ask again, so the UI must not claim one.
         setState('off');
-        save('off');
         return false;
       }
 
-      // Prove the constructor works before claiming to be on: the demo
-      // doubles as the capability check Android Chrome fails.
-      if (!show('通知をONにしました。新しい投稿があると、このタブを開いている間お知らせします', HELLO_TAG, false)) {
+      const key = serverKey.current ?? (await fetchPushKey()).key;
+      serverKey.current = key;
+      if (!key) {
         setState('unsupported');
-        save('off');
         return false;
       }
+
+      let sub: PushSubscription;
+      try {
+        sub =
+          (await reg.pushManager.getSubscription()) ??
+          (await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: keyBytes(key) as BufferSource,
+          }));
+      } catch {
+        // The platform refused a subscription (private mode, enterprise
+        // policy, no push service reachable). Permission stands, so leave
+        // the button at off and let another click retry.
+        setState('off');
+        return false;
+      }
+
+      const stored = serialize(sub);
+      if (!stored) {
+        await sub.unsubscribe().catch(() => false);
+        setState('off');
+        return false;
+      }
+      try {
+        await registerPushSubscription(stored);
+      } catch {
+        // The server never learned about it — an orphan subscription would
+        // be "on" that never notifies, so roll the browser side back too.
+        await sub.unsubscribe().catch(() => false);
+        setState('off');
+        return false;
+      }
+
+      // The confirmation doubles as proof the display path works, via the
+      // service worker so Android Chrome (no Notification constructor for
+      // pages) shows it too. Failure is not worth rolling back a working
+      // subscription.
+      reg
+        .showNotification(TITLE, {
+          body: '通知をONにしました。新しい投稿があると、タブを閉じていてもお知らせします',
+          tag: HELLO_TAG,
+          icon: '/apple-touch-icon.png',
+          lang: 'ja',
+        })
+        .catch(() => {});
 
       setState('on');
-      save('on');
       return true;
     } finally {
       busy.current = false;
     }
   }, []);
 
-  return { state, toggle, observe };
+  return { state, toggle };
 }

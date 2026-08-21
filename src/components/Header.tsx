@@ -24,7 +24,7 @@ const NOTIFY_LABEL: Record<Exclude<NotifyState, 'unsupported'>, string> = {
 
 const NOTIFY_TITLE: Record<Exclude<NotifyState, 'unsupported'>, string> = {
   on: '新しい投稿の通知をやめる',
-  off: '新しい投稿があったらブラウザ通知を受け取る（このタブを開いている間）',
+  off: '新しい投稿があったらプッシュ通知を受け取る（タブを閉じていても届きます）',
   denied: 'ブラウザの設定でこのサイトの通知がブロックされています。アドレスバーの鍵アイコンから許可に変更してください',
 };
 

@@ -15,6 +15,11 @@
  * Plus a write-only measurement drop box (allowlisted names, no GET):
  *   POST   /api/events            record one usage event ({ name, value? })
  *
+ * And Web Push (closed-tab notifications; no-ops until the VAPID secret is set):
+ *   GET    /api/push/key          the applicationServerKey, or null
+ *   POST   /api/push/subscribe    register this browser ({ endpoint, p256dh, auth })
+ *   POST   /api/push/unsubscribe  unregister ({ endpoint })
+ *
  * Mutations return the refreshed list too, so the client never needs a second
  * round trip to re-render. Everything else falls through to the static assets
  * built by Vite.
@@ -36,12 +41,15 @@ import {
 import { buildDrinkReportRows, parseDrinkReport } from '../shared/drinkReport.js';
 import type { Env } from './env.js';
 import { resolveIdentity, withIdentityCookie, type Identity } from './identity.js';
+import { notifyAfterUndoWindow, parseVapidJwk, postingNotificationBody } from './notify.js';
+import { b64urlEncode, parsePushSubscription, vapidPublicRaw } from './push.js';
 import {
   countRecentEvents,
   countRecentFeedback,
   countRecentPostings,
   deleteOwnRecentGroup,
   deleteOwnRecentReport,
+  deletePushSubscription,
   ensureUserLabel,
   insertEvent,
   insertFeedback,
@@ -50,6 +58,7 @@ import {
   listRecentReports,
   tallyDrinkReports,
   tallyFeedback,
+  upsertPushSubscription,
 } from './store.js';
 
 /** Ceiling on how many reports one device may post per minute. */
@@ -97,6 +106,7 @@ async function handlePost(
   env: Env,
   identity: Identity,
   now: number,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   let payload: unknown;
   try {
@@ -127,6 +137,11 @@ async function handlePost(
     createdAt: now,
   };
   await insertReport(env.DB, report);
+  // Single rows store their own id as group_id, so the same delayed-send
+  // pipeline serves both posting shapes.
+  ctx.waitUntil(
+    notifyAfterUndoWindow(env, report.id, identity.userId, postingNotificationBody([report])),
+  );
 
   return json({ report, ...(await snapshot(env, identity, now)) }, 201);
 }
@@ -142,6 +157,7 @@ async function handleDrinkPost(
   env: Env,
   identity: Identity,
   now: number,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   let payload: unknown;
   try {
@@ -168,6 +184,9 @@ async function handleDrinkPost(
     createdAt: now,
   }));
   await insertReportRows(env.DB, rows, groupId);
+  ctx.waitUntil(
+    notifyAfterUndoWindow(env, groupId, identity.userId, postingNotificationBody(rows)),
+  );
 
   return json({ groupId, ...(await snapshot(env, identity, now)) }, 201);
 }
@@ -288,25 +307,75 @@ async function handleEventPost(
   return json({ ok: true });
 }
 
+/* ------------------------------------------------------------- Web Push -- */
+
+/**
+ * The applicationServerKey the client subscribes with, derived from the
+ * secret on every call (cheap — two base64 decodes). `null` tells the client
+ * the operator hasn't configured push, and the toggle hides itself.
+ */
+function handlePushKey(env: Env): Response {
+  const jwk = parseVapidJwk(env);
+  return json({ key: jwk ? b64urlEncode(vapidPublicRaw(jwk)) : null });
+}
+
+async function handlePushSubscribe(
+  request: Request,
+  env: Env,
+  identity: Identity,
+  now: number,
+): Promise<Response> {
+  if (!parseVapidJwk(env)) return fail(503, '通知はこのサーバーでは設定されていません');
+
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return fail(400, 'リクエストの形式が正しくありません');
+  }
+  const sub = parsePushSubscription(payload);
+  if (!sub) return fail(400, '購読情報の形式が正しくありません');
+
+  await upsertPushSubscription(env.DB, { ...sub, userId: identity.userId }, now);
+  return json({ ok: true }, 201);
+}
+
+/** Idempotent: unsubscribing an unknown endpoint is already the goal state. */
+async function handlePushUnsubscribe(request: Request, env: Env): Promise<Response> {
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return fail(400, 'リクエストの形式が正しくありません');
+  }
+  const { endpoint } = (payload ?? {}) as { endpoint?: unknown };
+  if (typeof endpoint !== 'string' || endpoint.length === 0 || endpoint.length > 1024) {
+    return fail(400, '購読情報の形式が正しくありません');
+  }
+  await deletePushSubscription(env.DB, endpoint);
+  return json({ ok: true });
+}
+
 async function route(
   request: Request,
   env: Env,
   url: URL,
   identity: Identity,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   const now = Date.now();
   const path = url.pathname;
 
   if (path === '/api/reports') {
     if (request.method === 'GET') return handleGet(env, identity, now);
-    if (request.method === 'POST') return handlePost(request, env, identity, now);
+    if (request.method === 'POST') return handlePost(request, env, identity, now, ctx);
     return fail(405, 'サポートされていないメソッドです');
   }
 
   // Both fixed paths must be tested before the /api/reports/:id pattern,
   // which would otherwise swallow them as report ids.
   if (path === '/api/reports/drink') {
-    if (request.method === 'POST') return handleDrinkPost(request, env, identity, now);
+    if (request.method === 'POST') return handleDrinkPost(request, env, identity, now, ctx);
     return fail(405, 'サポートされていないメソッドです');
   }
 
@@ -337,11 +406,26 @@ async function route(
     return fail(405, 'サポートされていないメソッドです');
   }
 
+  if (path === '/api/push/key') {
+    if (request.method === 'GET') return handlePushKey(env);
+    return fail(405, 'サポートされていないメソッドです');
+  }
+
+  if (path === '/api/push/subscribe') {
+    if (request.method === 'POST') return handlePushSubscribe(request, env, identity, now);
+    return fail(405, 'サポートされていないメソッドです');
+  }
+
+  if (path === '/api/push/unsubscribe') {
+    if (request.method === 'POST') return handlePushUnsubscribe(request, env);
+    return fail(405, 'サポートされていないメソッドです');
+  }
+
   return fail(404, 'エンドポイントが見つかりません');
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
     if (!url.pathname.startsWith('/api/')) {
@@ -351,7 +435,7 @@ export default {
     const identity = await resolveIdentity(request, env);
     let response: Response;
     try {
-      response = await route(request, env, url, identity);
+      response = await route(request, env, url, identity, ctx);
     } catch (err) {
       console.error('[api]', err);
       response = fail(500, 'サーバーでエラーが発生しました');
