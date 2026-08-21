@@ -78,3 +78,20 @@ export function postFeedback(mood: MoodKey, body: string): Promise<FeedbackRespo
   });
 }
 
+/** `key: null` means the operator hasn't configured Web Push — hide the toggle. */
+export function fetchPushKey(): Promise<{ key: string | null }> {
+  return request('/api/push/key');
+}
+
+export function registerPushSubscription(sub: {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}): Promise<{ ok: true }> {
+  return request('/api/push/subscribe', { method: 'POST', body: JSON.stringify(sub) });
+}
+
+export function unregisterPushSubscription(endpoint: string): Promise<{ ok: true }> {
+  return request('/api/push/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint }) });
+}
+

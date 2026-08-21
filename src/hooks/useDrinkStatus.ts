@@ -342,13 +342,6 @@ export function useDrinkStatus() {
 
   const toggleAuto = useCallback(() => setAutoOn((v) => !v), []);
 
-  /**
-   * Idempotent "make sure polling is on", for callers that decide across an
-   * await (the notification toggle). A blind toggle there would flip the
-   * value the user set while the permission prompt was open.
-   */
-  const ensureAutoOn = useCallback(() => setAutoOn(true), []);
-
   /** Current time on the server's clock, refreshed whenever the board does. */
   const now = useMemo(() => Date.now() + skewMs, [skewMs, reports, tick]);
 
@@ -363,7 +356,6 @@ export function useDrinkStatus() {
     toast,
     autoOn,
     toggleAuto,
-    ensureAutoOn,
     post,
     postDrink,
     undo,

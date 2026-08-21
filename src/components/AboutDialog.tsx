@@ -38,6 +38,15 @@ export function AboutDialog({ onClose }: AboutDialogProps) {
           それ以前の投稿を除外します。
         </p>
         <p className="dialog__body">
+          ヘッダーの「通知」をONにすると、新しい投稿をプッシュ通知でお知らせします。
+          タブやブラウザを閉じていても届きます（自分の投稿は通知されません）。
+        </p>
+        <p className="dialog__body">
+          iPhone・iPadでは、Safariの共有メニューから「ホーム画面に追加」でこのサイトを
+          追加し、ホーム画面のアイコンから開くと通知をONにできます（iOS 16.4以降）。
+          ブラウザのタブから開いている間は、iOSの仕様により通知ボタンは表示されません。
+        </p>
+        <p className="dialog__body">
           Cloudflare Workers・D1・静的アセット配信で動作しています。ログインは不要で、
           端末ごとに発行される匿名IDを1票として数えます。個人を特定する情報は保存しません。
         </p>

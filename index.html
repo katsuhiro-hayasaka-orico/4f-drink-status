@@ -14,6 +14,13 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
+    <!-- 「ホーム画面に追加」でスタンドアロン起動するための宣言。iOS では
+         スタンドアロンで開いた場合のみ Web Push（通知）が使えます（16.4+）。
+         apple-mobile-web-app-capable は古い iOS 向けの後方互換です。 -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="4Fドリンク" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
