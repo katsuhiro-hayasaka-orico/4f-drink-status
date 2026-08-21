@@ -1,0 +1,18 @@
+{
+  "name": "4Fドリンク速報",
+  "short_name": "4Fドリンク",
+  "description": "弘済ビル4Fラウンジのドリンクマシンの状態を、みんなの投稿から集約してお知らせします。",
+  "lang": "ja",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6efe6",
+  "theme_color": "#2b1f18",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

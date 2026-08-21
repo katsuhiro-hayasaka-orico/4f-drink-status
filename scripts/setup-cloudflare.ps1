@@ -7,7 +7,8 @@
     2. その database_id を wrangler.toml に書き込む
     3. 本番データベースにスキーマを適用
     4. SESSION_SECRET を生成して登録（既にあれば触らない）
-    5. ビルドしてデプロイ
+    5. VAPID_PRIVATE_JWK（Web Push 用）を生成して登録（既にあれば触らない）
+    6. ビルドしてデプロイ
 
   何度実行しても同じ状態に収束します（冪等）。
 
@@ -103,6 +104,27 @@ if ($SecretList -match 'SESSION_SECRET') {
     if (-not $Secret) { Stop-WithError 'シークレットの生成に失敗しました。' }
     $Secret | npx wrangler secret put SESSION_SECRET
     if ($LASTEXITCODE -ne 0) { Stop-WithError 'SESSION_SECRET の登録に失敗しました。' }
+    Write-Host '  登録しました（値は表示しません）。'
+}
+
+# --------------------------------------------------- VAPID_PRIVATE_JWK --
+Write-Step 'VAPID_PRIVATE_JWK（Web Push の署名鍵）を確認しています'
+if ($SecretList -match 'VAPID_PRIVATE_JWK') {
+    Write-Host '  設定済みのため、そのままにします。'
+    Write-Host '  （鍵を作り直すと全員の通知購読が無効になるため、自動では更新しません）'
+} else {
+    Write-Host '  未設定なので、鍵ペアを生成して登録します...'
+    $VapidScript = @'
+const { webcrypto } = require('crypto');
+webcrypto.subtle
+  .generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify'])
+  .then((p) => webcrypto.subtle.exportKey('jwk', p.privateKey))
+  .then((j) => process.stdout.write(JSON.stringify({ kty: j.kty, crv: j.crv, x: j.x, y: j.y, d: j.d })));
+'@
+    $VapidJwk = (node -e $VapidScript | Out-String).Trim()
+    if (-not $VapidJwk) { Stop-WithError 'VAPID 鍵の生成に失敗しました。' }
+    $VapidJwk | npx wrangler secret put VAPID_PRIVATE_JWK
+    if ($LASTEXITCODE -ne 0) { Stop-WithError 'VAPID_PRIVATE_JWK の登録に失敗しました。' }
     Write-Host '  登録しました（値は表示しません）。'
 }
 

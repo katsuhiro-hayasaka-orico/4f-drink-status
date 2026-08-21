@@ -6,7 +6,8 @@
 #   2. その database_id を wrangler.toml に書き込む
 #   3. 本番データベースにスキーマを適用
 #   4. SESSION_SECRET を生成して登録（既にあれば触らない）
-#   5. ビルドしてデプロイ
+#   5. VAPID_PRIVATE_JWK（Web Push 用）を生成して登録（既にあれば触らない）
+#   6. ビルドしてデプロイ
 #
 # 何度実行しても同じ状態に収束します（冪等）。
 #
@@ -84,6 +85,25 @@ else
   echo "  未設定なので、ランダムな値を生成して登録します…"
   node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))" \
     | npx wrangler secret put SESSION_SECRET
+  echo "  登録しました（値は表示しません）。"
+fi
+
+# --------------------------------------------------- VAPID_PRIVATE_JWK --
+step "VAPID_PRIVATE_JWK（Web Push の署名鍵）を確認しています"
+if npx wrangler secret list 2>/dev/null | grep -q VAPID_PRIVATE_JWK; then
+  echo "  設定済みのため、そのままにします。"
+  echo "  （鍵を作り直すと全員の通知購読が無効になるため、自動では更新しません）"
+else
+  echo "  未設定なので、鍵ペアを生成して登録します…"
+  node -e "
+    const { webcrypto } = require('crypto');
+    webcrypto.subtle
+      .generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify'])
+      .then((p) => webcrypto.subtle.exportKey('jwk', p.privateKey))
+      .then((j) =>
+        console.log(JSON.stringify({ kty: j.kty, crv: j.crv, x: j.x, y: j.y, d: j.d })),
+      );
+  " | npx wrangler secret put VAPID_PRIVATE_JWK
   echo "  登録しました（値は表示しません）。"
 fi
 

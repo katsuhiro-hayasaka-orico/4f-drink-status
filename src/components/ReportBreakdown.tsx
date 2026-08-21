@@ -18,7 +18,7 @@ import {
   type SubjectKey,
 } from '../../shared/domain.js';
 import { relativeTime } from '../../shared/time.js';
-import { collapsePostings } from '../lib/notifyLogic.js';
+import { collapsePostings } from '../lib/postings.js';
 import { ON_STATUS, PALETTE, statusColor } from '../lib/palette.js';
 
 export type FilterKey = SubjectKey | 'all' | 'drinks';
