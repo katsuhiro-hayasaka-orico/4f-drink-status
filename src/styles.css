@@ -1191,7 +1191,11 @@ a:focus-visible {
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
-  padding: 26px 4px 0;
+  /* The bottom padding clears the fixed ＋投稿する FAB's lane (~68px worst
+     case: full-width on phones, bottom-right over the right-aligned link on
+     desktop). At the footer the report form is always off-screen, so the FAB
+     is effectively always there — reserve the space unconditionally. */
+  padding: 26px 4px 88px;
   font-size: 12px;
   color: var(--muted);
 }
