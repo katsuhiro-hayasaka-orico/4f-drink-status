@@ -1216,6 +1216,11 @@ a:focus-visible {
   color: var(--accent);
 }
 
+.footer__links {
+  display: flex;
+  gap: 18px;
+}
+
 /* ---------------------------------------------------------------- toast -- */
 
 .toast {
@@ -1338,6 +1343,53 @@ a:focus-visible {
 
 .dialog__close:hover {
   background: var(--accent);
+}
+
+/* -------------------------------------------------------------- QR dialog -- */
+
+/* Scanners want contrast, not theme: the card stays white in dark mode too,
+   and the image itself carries its own quiet zone (margin baked in). */
+.qr__card {
+  display: grid;
+  place-items: center;
+  margin: 4px auto 14px;
+  padding: 10px;
+  width: fit-content;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: var(--card-shadow);
+}
+
+.qr__image {
+  display: block;
+  width: 220px;
+  height: 220px;
+}
+
+.qr__url {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  word-break: break-all;
+  user-select: all; /* one tap selects the whole URL when copy is blocked */
+}
+
+.qr__copy {
+  margin-right: auto; /* opposite corner from 閉じる */
+  background: none;
+  border: 2px solid var(--accent);
+  border-radius: 99px;
+  color: var(--ink);
+  padding: 9px 20px;
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.qr__copy:hover {
+  background: var(--accent);
+  color: var(--selected-fg);
 }
 
 /* ---------------------------------------------------- feedback dialog ---- */
