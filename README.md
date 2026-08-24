@@ -539,6 +539,14 @@ Cloudflare Access に切り替える場合、識別は `worker/identity.ts` の 
 `action` は対象が `queue` のときだけ待ち人数（`empty`/`short`/`medium`/`long`）を受け付け、
 それ以外では在庫の状態（`available`/`low`/`unavailable`/`refilled`）のみを受け付けます。
 
+## QRコードで紹介
+
+フッターの「QRコードで紹介」から、このサイトのURLのQRコードを表示できます。隣の席の人に
+画面をそのまま見せて読み取ってもらう用途です。コードは `qrcode` ライブラリでブラウザ内
+生成（`location.origin` を符号化）なので、外部の画像サービスに URL を送ることはなく、
+デプロイ先のドメインが変わってもそのまま追従します。ダークモードでも読み取り性を保つため、
+QRの台紙だけは常に白です。「URLをコピー」ボタン付き。
+
 ## 元のデザインとの違い
 
 `project/4F Drink Status.dc.html` のプロトタイプを実装したものです。見た目は踏襲していますが、

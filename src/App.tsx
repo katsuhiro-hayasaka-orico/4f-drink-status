@@ -28,6 +28,7 @@ import { Header } from './components/Header.js';
 import { IngredientLevels } from './components/IngredientLevels.js';
 import { MachineIllustration } from './components/MachineIllustration.js';
 import { Observations } from './components/Observations.js';
+import { QrDialog } from './components/QrDialog.js';
 import { QueuePanel } from './components/QueuePanel.js';
 import { ReportBreakdown, type FilterKey } from './components/ReportBreakdown.js';
 import { ReportForm } from './components/ReportForm.js';
@@ -89,6 +90,7 @@ export function App() {
   const feedback = useFeedback();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState<'auto' | 'manual' | null>(null);
 
   // The thanks toast is the cue: if this device hasn't submitted or dismissed
@@ -313,9 +315,14 @@ export function App() {
 
         <footer className="footer">
           <span>集合知 — 利用者ごとの最新投稿を1票として集計しています</span>
-          <button type="button" className="footer__link" onClick={() => setAboutOpen(true)}>
-            このアプリについて
-          </button>
+          <span className="footer__links">
+            <button type="button" className="footer__link" onClick={() => setQrOpen(true)}>
+              QRコードで紹介
+            </button>
+            <button type="button" className="footer__link" onClick={() => setAboutOpen(true)}>
+              このアプリについて
+            </button>
+          </span>
         </footer>
       </main>
 
@@ -334,6 +341,7 @@ export function App() {
         />
       )}
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+      {qrOpen && <QrDialog onClose={() => setQrOpen(false)} />}
       {feedbackOpen && (
         <FeedbackDialog variant={feedbackOpen} onSubmit={feedback.submit} onClose={closeFeedback} />
       )}
