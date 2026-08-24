@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import {
   MATERIAL_KEYS,
+  QUEUE_LEVELS,
+  QUEUE_META,
   SUBJECT_LABELS,
   type DrinkKey,
   type MaterialKey,
+  type QueueLevel,
   type ReportValue,
   type SubjectKey,
 } from '../../shared/domain.js';
@@ -20,6 +23,8 @@ export interface ReportFormProps {
   onPostDrink: (input: DrinkReportInput) => void;
   /** Refill sightings and machine down/up — the non-drink reports. */
   onPostSimple: (subject: SubjectKey, action: ReportValue) => void;
+  /** The queue follow-up posts through here (a plain queue report). */
+  onPostQueue: (level: QueueLevel) => void;
 }
 
 /**
@@ -34,13 +39,24 @@ export interface ReportFormProps {
  *
  * Nothing starts selected (a pre-chosen drink plus a tapped result would
  * silently misreport), and step 2's buttons stay disabled until step 1 is
- * answered. The queue moved out entirely — it lives with the queue panel.
+ * answered. Queue reporting lives with the queue panel — but a drink posting
+ * flows straight into an optional queue follow-up below, because the person
+ * who just used the machine also just walked past the line, and the split
+ * form placement was costing us exactly those reports.
  */
-export function ReportForm({ hours, posting, onPostDrink, onPostSimple }: ReportFormProps) {
+export function ReportForm({
+  hours,
+  posting,
+  onPostDrink,
+  onPostSimple,
+  onPostQueue,
+}: ReportFormProps) {
   const [drink, setDrink] = useState<DrinkKey | null>(null);
   /** Which detail step is open: low-materials picker or failure causes. */
   const [detail, setDetail] = useState<'low' | 'failed' | null>(null);
   const [lowSel, setLowSel] = useState<MaterialKey[]>([]);
+  /** After a drink posting, the form becomes the queue follow-up once. */
+  const [followup, setFollowup] = useState(false);
 
   const recipe = drink ? RECIPE_BY_KEY[drink] : null;
 
@@ -60,12 +76,19 @@ export function ReportForm({ hours, posting, onPostDrink, onPostSimple }: Report
     if (!drink) return;
     onPostDrink({ drink, result: 'made', low, cause: null });
     reset();
+    setFollowup(true);
   };
 
   const postFailed = (cause: DrinkReportInput['cause']) => {
     if (!drink) return;
     onPostDrink({ drink, result: 'failed', low: [], cause });
     reset();
+    setFollowup(true);
+  };
+
+  const postQueue = (level: QueueLevel) => {
+    onPostQueue(level);
+    setFollowup(false);
   };
 
   const toggleLow = (m: MaterialKey) =>
@@ -87,6 +110,39 @@ export function ReportForm({ hours, posting, onPostDrink, onPostSimple }: Report
           </p>
         )}
 
+        {followup ? (
+          /* One drink posting just went out — ride the momentum and ask the
+             one question this person can answer better than anyone: they are
+             literally looking at the line. Optional, one tap, skippable. */
+          <div className="report__followup" role="group" aria-label="行列の追加報告">
+            <p className="report__followup-thanks" aria-live="polite">
+              投稿を受け付けました。<strong>あわせて、いまの行列も教えてください</strong>（任意）
+            </p>
+            <div className="report__step">
+              <span className="report__step-no" aria-hidden="true">
+                ＋
+              </span>
+              いま、何人くらい並んでいますか？
+            </div>
+            <div className="chips">
+              {QUEUE_LEVELS.map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  className="chip"
+                  disabled={posting}
+                  onClick={() => postQueue(level)}
+                >
+                  {QUEUE_META[level].label}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="report__followup-skip" onClick={() => setFollowup(false)}>
+              スキップ（行列は見ていない）
+            </button>
+          </div>
+        ) : (
+          <>
         <div className="report__step">
           <span className="report__step-no" aria-hidden="true">
             1
@@ -243,6 +299,8 @@ export function ReportForm({ hours, posting, onPostDrink, onPostSimple }: Report
           投稿後{CONFIG.undoWindowMs / 1000}
           秒だけ取り消し可能です。作れたドリンクが使った材料は「十分にある」として、残量の推定に即時反映されます。
         </p>
+          </>
+        )}
 
         {/* Refills and machine down/up can't be phrased as a drink — the
             small escape hatch below keeps them reportable. */}
