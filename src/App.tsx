@@ -248,6 +248,7 @@ export function App() {
             posting={posting}
             onPostDrink={(input) => void postDrink(input)}
             onPostSimple={(subject, action) => void post(subject, action)}
+            onPostQueue={(level) => void post(QUEUE_SUBJECT, level)}
           />
         </div>
 
