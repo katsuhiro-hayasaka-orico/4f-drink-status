@@ -1,5 +1,20 @@
 import { MOOD_KEYS, MOOD_META, type MoodKey } from '../../shared/domain.js';
 
+/**
+ * Shipped improvements that started as feedback-box submissions — the proof
+ * that writing in here does something. `voice` is a PARAPHRASE written by
+ * the admin, never the submitted text: bodies stay private (they may carry
+ * personal or confidential details), so only a generalized gist of the idea
+ * is republished, with no name, label, or date-of-submission.
+ */
+const FROM_FEEDBACK: { when: string; voice: string; change: string }[] = [
+  {
+    when: '2026年8月',
+    voice: '自分は作らなくても、見かけた残量を報告できるようにしてほしい',
+    change: '投稿フォームに「残りが少なそうだと気づいたら」の1タップ報告を追加しました',
+  },
+];
+
 export interface FeedbackBoxProps {
   tally: Record<MoodKey, number>;
   onWrite: () => void;
@@ -39,6 +54,20 @@ export function FeedbackBox({ tally, onWrite }: FeedbackBoxProps) {
       <button type="button" className="voices__write" onClick={onWrite}>
         ご意見を書く
       </button>
+
+      {FROM_FEEDBACK.length > 0 && (
+        <div className="feedback-box__shipped">
+          <span className="feedback-box__shipped-title">ご意見から改善した機能</span>
+          <ul className="feedback-box__shipped-list">
+            {FROM_FEEDBACK.map((item) => (
+              <li key={item.change}>
+                <span className="feedback-box__shipped-when">{item.when}</span>
+                「{item.voice}」という声から、{item.change}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
