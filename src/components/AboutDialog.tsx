@@ -42,9 +42,11 @@ export function AboutDialog({ onClose }: AboutDialogProps) {
           タブやブラウザを閉じていても届きます（自分の投稿は通知されません）。
         </p>
         <p className="dialog__body">
-          iPhone・iPadでは、Safariの共有メニューから「ホーム画面に追加」でこのサイトを
+          iPhone・iPadでは、Safariの共有メニュー（□↑）から「ホーム画面に追加」でこのサイトを
           追加し、ホーム画面のアイコンから開くと通知をONにできます（iOS 16.4以降）。
           ブラウザのタブから開いている間は、iOSの仕様により通知ボタンは表示されません。
+          Androidでは、ブラウザのメニュー（⋮）から「ホーム画面に追加」できます
+          （通知はタブのままでもONにできます）。
         </p>
         <p className="dialog__body">
           Cloudflare Workers・D1・静的アセット配信で動作しています。ログインは不要で、

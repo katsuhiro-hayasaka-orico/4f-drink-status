@@ -47,7 +47,8 @@ export function MobileInvite({ onShowQr }: MobileInviteProps) {
           <strong>📱 スマホでもこのまま見られます</strong>
           <p>
             カメラでQRコードを読み取るだけ。ホーム画面に追加すれば、新しい投稿の
-            プッシュ通知も受け取れます。
+            プッシュ通知も受け取れます（追加のしかたは、ページ右下の
+            「このアプリについて」に記載しています）。
           </p>
         </div>
         <button type="button" className="mobile-invite__more" onClick={onShowQr}>
