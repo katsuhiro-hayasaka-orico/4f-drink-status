@@ -275,6 +275,16 @@ export function App() {
           />
         </Section>
 
+        {rhythm && fetchedAt !== null && (
+          <Section
+            title="いつ切れやすい？"
+            ariaLabel="いつ切れやすい？"
+            note="直近4週間の投稿から"
+          >
+            <RhythmCard rhythm={rhythm} fetchedAt={fetchedAt} />
+          </Section>
+        )}
+
         <Section title="材料の推定残量" note="作れたドリンクの報告から推定した目安です">
           <IngredientLevels statuses={view.statuses} levels={view.levels} />
         </Section>
@@ -295,16 +305,6 @@ export function App() {
         >
           <DrinkPopularity totals={drinkTotals} />
         </Section>
-
-        {rhythm && fetchedAt !== null && (
-          <Section
-            title="いつ切れやすい？"
-            ariaLabel="いつ切れやすい？"
-            note="直近4週間の投稿から"
-          >
-            <RhythmCard rhythm={rhythm} fetchedAt={fetchedAt} />
-          </Section>
-        )}
 
         <Section
           title="みんなの観測"
