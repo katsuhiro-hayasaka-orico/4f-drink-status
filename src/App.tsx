@@ -20,6 +20,7 @@ import {
 import { loungeHours } from '../shared/hours.js';
 import { relativeTime } from '../shared/time.js';
 
+import { A2hsBanner } from './components/A2hsBanner.js';
 import { AboutDialog } from './components/AboutDialog.js';
 import { DrinkAvailability } from './components/DrinkAvailability.js';
 import { DrinkPopularity } from './components/DrinkPopularity.js';
@@ -27,6 +28,7 @@ import { FeedbackDialog } from './components/FeedbackDialog.js';
 import { Header } from './components/Header.js';
 import { IngredientLevels } from './components/IngredientLevels.js';
 import { MachineIllustration } from './components/MachineIllustration.js';
+import { MobileInvite } from './components/MobileInvite.js';
 import { Observations } from './components/Observations.js';
 import { QrDialog } from './components/QrDialog.js';
 import { QueuePanel } from './components/QueuePanel.js';
@@ -212,6 +214,10 @@ export function App() {
         onThemeChange={chooseTheme}
       />
 
+      {/* Phone visitors get a one-time install hint; desktop gets the QR
+          invite down by the footer instead. */}
+      <A2hsBanner />
+
       <main className="main">
         {loadError && (
           <p role="alert" className="section__footnote" style={{ marginTop: 0 }}>
@@ -313,6 +319,8 @@ export function App() {
         >
           <FeedbackBox tally={feedback.tally} onWrite={() => setFeedbackOpen('manual')} />
         </Section>
+
+        <MobileInvite onShowQr={() => setQrOpen(true)} />
 
         <footer className="footer">
           <span>集合知 — 利用者ごとの最新投稿を1票として集計しています</span>

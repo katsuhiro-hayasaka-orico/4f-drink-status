@@ -9,7 +9,7 @@ import { MOOD_KEYS, MOOD_META, type MoodKey } from '../../shared/domain.js';
  */
 const FROM_FEEDBACK: { when: string; voice: string; change: string }[] = [
   {
-    when: '2026年8月',
+    when: '2026年8月28日',
     voice: '自分は作らなくても、見かけた残量を報告できるようにしてほしい',
     change: '投稿フォームに「残りが少なそうだと気づいたら」の1タップ報告を追加しました',
   },
