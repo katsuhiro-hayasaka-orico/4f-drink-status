@@ -404,6 +404,32 @@ npx wrangler secret put VAPID_PRIVATE_JWK    # 表示された秘密鍵 JWK を�
 - 送信者の連絡先（VAPID `sub`）は既定でこのリポジトリのURLです。変更する場合は
   wrangler.toml の `[vars]` に `VAPID_SUBJECT = "mailto:you@example.com"` を追加します。
 
+### 管理者からのお知らせ配信
+
+アップデートの告知などを、通知ONの全端末へ手動でプッシュ配信できます。
+機械の状態通知とは別の通知スロット（tag）を使うので、互いに上書きしません。
+
+初回のみ、認証トークンを決めて登録します（**値は自分の手元にも控えてください** —
+secret は登録後に読み返せません。チャット等には貼らないこと）:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"  # 生成例
+npx wrangler secret put ANNOUNCE_TOKEN   # ↑の値を貼り付け
+```
+
+配信はいつでも1コマンド:
+
+```powershell
+$env:ANNOUNCE_TOKEN = "<控えた値>"
+$env:SITE_URL = "https://<デプロイURL>"
+npm run announce -- "アップデート: 「いつ切れやすい？」マップを追加しました"
+Remove-Item Env:ANNOUNCE_TOKEN
+```
+
+`--title "見出し"` で通知タイトルも変えられます（既定は「4Fドリンク速報」）。
+本文は200文字まで。エンドポイント（`POST /api/push/announce`）はトークン不一致・
+未設定時には 404 を返し、存在自体を明かしません。
+
 ### デプロイ後の実機確認
 
 暗号化と VAPID はユニットテストで固定しています（`worker/push.test.ts` — 独立実装の
