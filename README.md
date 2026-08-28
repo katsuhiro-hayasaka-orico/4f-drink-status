@@ -409,26 +409,27 @@ npx wrangler secret put VAPID_PRIVATE_JWK    # 表示された秘密鍵 JWK を�
 アップデートの告知などを、通知ONの全端末へ手動でプッシュ配信できます。
 機械の状態通知とは別の通知スロット（tag）を使うので、互いに上書きしません。
 
-初回のみ、認証トークンを決めて登録します（**値は自分の手元にも控えてください** —
-secret は登録後に読み返せません。チャット等には貼らないこと）:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"  # 生成例
-npx wrangler secret put ANNOUNCE_TOKEN   # ↑の値を貼り付け
-```
-
-配信はいつでも1コマンド:
+認証トークンは**配信のたびに使い捨てで発行**します。控えの管理が不要になり、
+画面への写り込み事故も起きません。プロンプトへの手貼りは不可視文字（改行など）が
+混入して「Success なのに認証が通らない」事故のもとになるため、**変数＋パイプで
+サーバーと手元に同じ値を渡す**のがポイントです:
 
 ```powershell
-$env:ANNOUNCE_TOKEN = "<控えた値>"
+# D1用トークンが残っていると secret put が失敗するため先に掃除
+Remove-Item Env:CLOUDFLARE_API_TOKEN -ErrorAction SilentlyContinue
+
+$tok = node -e "process.stdout.write(require('crypto').randomBytes(24).toString('base64url'))"
+$tok | npx wrangler secret put ANNOUNCE_TOKEN     # 「Success! Uploaded secret」を確認
+$env:ANNOUNCE_TOKEN = $tok
 $env:SITE_URL = "https://<デプロイURL>"
-npm run announce -- "アップデート: 「いつ切れやすい？」マップを追加しました"
-Remove-Item Env:ANNOUNCE_TOKEN
+npm run announce -- "アップデート: 「いつ切れやすい？」マップを追加しました" --title "見出し（任意）"
+Remove-Item Env:ANNOUNCE_TOKEN; Remove-Variable tok
 ```
 
-`--title "見出し"` で通知タイトルも変えられます（既定は「4Fドリンク速報」）。
-本文は200文字まで。エンドポイント（`POST /api/push/announce`）はトークン不一致・
-未設定時には 404 を返し、存在自体を明かしません。
+`--title` 省略時の通知タイトルは「4Fドリンク速報」。本文は200文字までです。
+エンドポイント（`POST /api/push/announce`）はトークン不一致・未設定時には 404 を
+返し、存在自体を明かしません。認証だけ確かめたいときは、本文を空にして叩くと
+トークンが正しい場合のみ 400（本文は1〜200文字…）に変わるので切り分けられます。
 
 ### デプロイ後の実機確認
 
