@@ -7,6 +7,7 @@ import type {
   SubjectKey,
 } from '../../shared/domain.js';
 import type { DrinkReportInput } from '../../shared/drinkReport.js';
+import type { RhythmResponse } from '../../shared/rhythm.js';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -76,6 +77,11 @@ export function postFeedback(mood: MoodKey, body: string): Promise<FeedbackRespo
     method: 'POST',
     body: JSON.stringify({ mood, body }),
   });
+}
+
+/** Four weeks of weekday×hour report counts, for the いつ切れやすい？ card. */
+export function fetchRhythm(): Promise<RhythmResponse> {
+  return request<RhythmResponse>('/api/reports/rhythm');
 }
 
 /** `key: null` means the operator hasn't configured Web Push — hide the toggle. */

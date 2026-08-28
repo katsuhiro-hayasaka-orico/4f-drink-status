@@ -20,6 +20,7 @@ import {
 import { loungeHours } from '../shared/hours.js';
 import { relativeTime } from '../shared/time.js';
 
+import { A2hsBanner } from './components/A2hsBanner.js';
 import { AboutDialog } from './components/AboutDialog.js';
 import { DrinkAvailability } from './components/DrinkAvailability.js';
 import { DrinkPopularity } from './components/DrinkPopularity.js';
@@ -27,11 +28,13 @@ import { FeedbackDialog } from './components/FeedbackDialog.js';
 import { Header } from './components/Header.js';
 import { IngredientLevels } from './components/IngredientLevels.js';
 import { MachineIllustration } from './components/MachineIllustration.js';
+import { MobileInvite } from './components/MobileInvite.js';
 import { Observations } from './components/Observations.js';
 import { QrDialog } from './components/QrDialog.js';
 import { QueuePanel } from './components/QueuePanel.js';
 import { ReportBreakdown, type FilterKey } from './components/ReportBreakdown.js';
 import { ReportForm } from './components/ReportForm.js';
+import { RhythmCard } from './components/RhythmCard.js';
 import { Section } from './components/Section.js';
 import { SummaryPanel, type Metric } from './components/SummaryPanel.js';
 import { ToastBar } from './components/ToastBar.js';
@@ -39,6 +42,7 @@ import { FeedbackBox } from './components/FeedbackBox.js';
 import { useDrinkStatus } from './hooks/useDrinkStatus.js';
 import { useFeedback } from './hooks/useFeedback.js';
 import { useInView } from './hooks/useInView.js';
+import { useRhythm } from './hooks/useRhythm.js';
 import { useNotifications } from './hooks/useNotifications.js';
 import { useTheme } from './hooks/useTheme.js';
 import { markPrompted, shouldAutoPrompt } from './lib/feedbackPrompt.js';
@@ -88,6 +92,7 @@ export function App() {
   const { preference: themePreference, choose: chooseTheme } = useTheme();
   const { state: notifyState, toggle: toggleNotify } = useNotifications();
   const feedback = useFeedback();
+  const { rhythm, fetchedAt } = useRhythm();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [aboutOpen, setAboutOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
@@ -212,6 +217,11 @@ export function App() {
         onThemeChange={chooseTheme}
       />
 
+      {/* Two mutually-exclusive invitations right under the header: phones
+          get the one-time install hint, desktops the standing QR band. */}
+      <A2hsBanner />
+      <MobileInvite onShowQr={() => setQrOpen(true)} />
+
       <main className="main">
         {loadError && (
           <p role="alert" className="section__footnote" style={{ marginTop: 0 }}>
@@ -264,6 +274,16 @@ export function App() {
             onPostQueue={(level) => void post(QUEUE_SUBJECT, level)}
           />
         </Section>
+
+        {rhythm && fetchedAt !== null && (
+          <Section
+            title="いつ切れやすい？"
+            ariaLabel="いつ切れやすい？"
+            note="直近4週間の投稿から"
+          >
+            <RhythmCard rhythm={rhythm} fetchedAt={fetchedAt} />
+          </Section>
+        )}
 
         <Section title="材料の推定残量" note="作れたドリンクの報告から推定した目安です">
           <IngredientLevels statuses={view.statuses} levels={view.levels} />
