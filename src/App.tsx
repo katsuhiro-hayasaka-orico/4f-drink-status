@@ -34,6 +34,7 @@ import { QrDialog } from './components/QrDialog.js';
 import { QueuePanel } from './components/QueuePanel.js';
 import { ReportBreakdown, type FilterKey } from './components/ReportBreakdown.js';
 import { ReportForm } from './components/ReportForm.js';
+import { RhythmCard } from './components/RhythmCard.js';
 import { Section } from './components/Section.js';
 import { SummaryPanel, type Metric } from './components/SummaryPanel.js';
 import { ToastBar } from './components/ToastBar.js';
@@ -41,6 +42,7 @@ import { FeedbackBox } from './components/FeedbackBox.js';
 import { useDrinkStatus } from './hooks/useDrinkStatus.js';
 import { useFeedback } from './hooks/useFeedback.js';
 import { useInView } from './hooks/useInView.js';
+import { useRhythm } from './hooks/useRhythm.js';
 import { useNotifications } from './hooks/useNotifications.js';
 import { useTheme } from './hooks/useTheme.js';
 import { markPrompted, shouldAutoPrompt } from './lib/feedbackPrompt.js';
@@ -90,6 +92,7 @@ export function App() {
   const { preference: themePreference, choose: chooseTheme } = useTheme();
   const { state: notifyState, toggle: toggleNotify } = useNotifications();
   const feedback = useFeedback();
+  const { rhythm, fetchedAt } = useRhythm();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [aboutOpen, setAboutOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
@@ -292,6 +295,16 @@ export function App() {
         >
           <DrinkPopularity totals={drinkTotals} />
         </Section>
+
+        {rhythm && fetchedAt !== null && (
+          <Section
+            title="いつ切れやすい？"
+            ariaLabel="いつ切れやすい？"
+            note="直近4週間の投稿から"
+          >
+            <RhythmCard rhythm={rhythm} fetchedAt={fetchedAt} />
+          </Section>
+        )}
 
         <Section
           title="みんなの観測"

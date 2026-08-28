@@ -39,6 +39,7 @@ import {
   type ReportsResponse,
 } from '../shared/domain.js';
 import { buildDrinkReportRows, parseDrinkReport } from '../shared/drinkReport.js';
+import { RHYTHM_WINDOW_MS, type RhythmResponse } from '../shared/rhythm.js';
 import type { Env } from './env.js';
 import { resolveIdentity, withIdentityCookie, type Identity } from './identity.js';
 import { notifyAfterUndoWindow, parseVapidJwk, postingNotificationBody } from './notify.js';
@@ -58,6 +59,7 @@ import {
   listRecentReports,
   tallyDrinkReports,
   tallyFeedback,
+  tallyRhythm,
   upsertPushSubscription,
 } from './store.js';
 
@@ -372,10 +374,20 @@ async function route(
     return fail(405, 'サポートされていないメソッドです');
   }
 
-  // Both fixed paths must be tested before the /api/reports/:id pattern,
+  // The fixed paths must be tested before the /api/reports/:id pattern,
   // which would otherwise swallow them as report ids.
   if (path === '/api/reports/drink') {
     if (request.method === 'POST') return handleDrinkPost(request, env, identity, now, ctx);
+    return fail(405, 'サポートされていないメソッドです');
+  }
+
+  if (path === '/api/reports/rhythm') {
+    if (request.method === 'GET') {
+      return json({
+        cells: await tallyRhythm(env.DB, now - RHYTHM_WINDOW_MS),
+        serverNow: now,
+      } satisfies RhythmResponse);
+    }
     return fail(405, 'サポートされていないメソッドです');
   }
 
