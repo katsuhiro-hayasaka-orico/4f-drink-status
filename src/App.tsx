@@ -214,9 +214,10 @@ export function App() {
         onThemeChange={chooseTheme}
       />
 
-      {/* Phone visitors get a one-time install hint; desktop gets the QR
-          invite down by the footer instead. */}
+      {/* Two mutually-exclusive invitations right under the header: phones
+          get the one-time install hint, desktops the standing QR band. */}
       <A2hsBanner />
+      <MobileInvite onShowQr={() => setQrOpen(true)} />
 
       <main className="main">
         {loadError && (
@@ -319,8 +320,6 @@ export function App() {
         >
           <FeedbackBox tally={feedback.tally} onWrite={() => setFeedbackOpen('manual')} />
         </Section>
-
-        <MobileInvite onShowQr={() => setQrOpen(true)} />
 
         <footer className="footer">
           <span>集合知 — 利用者ごとの最新投稿を1票として集計しています</span>
