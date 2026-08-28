@@ -12,6 +12,7 @@ import {
   type SubjectKey,
 } from '../shared/domain.js';
 import { CONFIG } from '../shared/config.js';
+import type { RhythmRawCell } from '../shared/rhythm.js';
 
 /** Reports older than this are never sent to the client. */
 export const HISTORY_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -224,6 +225,33 @@ export async function tallyDrinkReports(db: D1Database): Promise<DrinkTally> {
     else if (row.action === 'failed') bucket.failed = Number(row.n);
   }
   return tally;
+}
+
+/**
+ * Raw material for the いつ切れやすい？ card: per-(JST weekday, JST hour,
+ * subject, action) counts over the rhythm window. All interpretation — which
+ * actions count as good or bad, bucketing, headline slots — lives in
+ * shared/rhythm.ts so it stays unit-tested and shared with the client.
+ */
+export async function tallyRhythm(db: D1Database, since: number): Promise<RhythmRawCell[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT CAST(strftime('%w', datetime(created_at/1000,'unixepoch','+9 hours')) AS INTEGER) AS dow,
+              CAST(strftime('%H', datetime(created_at/1000,'unixepoch','+9 hours')) AS INTEGER) AS hour,
+              subject, action, COUNT(*) AS n
+         FROM reports
+        WHERE created_at >= ?1
+        GROUP BY dow, hour, subject, action`,
+    )
+    .bind(since)
+    .all<{ dow: number; hour: number; subject: string; action: string; n: number }>();
+  return (results ?? []).map((r) => ({
+    dow: Number(r.dow),
+    hour: Number(r.hour),
+    subject: r.subject,
+    action: r.action,
+    n: Number(r.n),
+  }));
 }
 
 /* -------------------------------------------------------------- feedback -- */

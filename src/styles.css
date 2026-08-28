@@ -47,6 +47,19 @@
   --low: #b4552d;
   --unavailable: #a63c28;
   --none: #8a6a50;
+
+  /* いつ切れやすい？ diverging ramp: green arm → neutral waist → red arm.
+     Light mode anchors dark-at-the-poles; the dark block re-anchors so the
+     trouble end glows bright instead (a diverging ramp is re-stepped per
+     mode, never auto-flipped). Green↔red is the axis CVD flattens, so the
+     two reddest steps additionally wear a hatch (see .rhythm__cell--hatch). */
+  --rhythm-0: #4f7a3c;
+  --rhythm-1: #7d9a62;
+  --rhythm-2: #c9b394;
+  --rhythm-3: #c08a64;
+  --rhythm-4: #a65134;
+  --rhythm-5: #c03d20;
+  --rhythm-queue: #a8842c;
   /* text placed on top of a filled status colour */
   --on-status: #fffaf0;
 
@@ -121,6 +134,14 @@
   --low: #d98a52;
   --unavailable: #e07a62;
   --none: #9d8b76;
+
+  --rhythm-0: #8fb069;
+  --rhythm-1: #6f8f52;
+  --rhythm-2: #55483a;
+  --rhythm-3: #74462f;
+  --rhythm-4: #a2542f;
+  --rhythm-5: #e0714d;
+  --rhythm-queue: #d1a53a;
   --on-status: #17120e;
 
   --vessel: #2a231c;
@@ -1381,6 +1402,197 @@ a:focus-visible {
 
 .dialog__close:hover {
   background: var(--accent);
+}
+
+/* ------------------------------------------------- いつ切れやすい？ card -- */
+
+.rhythm {
+  padding: 18px 20px;
+}
+
+.rhythm__head,
+.rhythm__queue-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.rhythm__queue-head {
+  margin-top: 18px;
+}
+
+.rhythm__lead,
+.rhythm__queue-title {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.rhythm__stamp {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.rhythm__grid {
+  display: grid;
+  grid-template-columns: 24px repeat(8, 1fr);
+  gap: 4px;
+  align-items: stretch;
+}
+
+.rhythm__axis {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+  align-self: center;
+}
+
+.rhythm__axis--day {
+  text-align: left;
+}
+
+.rhythm__cell {
+  display: block;
+  aspect-ratio: 4 / 3;
+  border-radius: 6px;
+  min-width: 0;
+}
+
+.rhythm__cell--empty {
+  border: 1.5px dashed var(--line);
+  opacity: 0.5;
+}
+
+.rhythm__cell--l0 { background: var(--rhythm-0); }
+.rhythm__cell--l1 { background: var(--rhythm-1); }
+.rhythm__cell--l2 { background: var(--rhythm-2); }
+.rhythm__cell--l3 { background: var(--rhythm-3); }
+.rhythm__cell--l4 { background: var(--rhythm-4); }
+.rhythm__cell--l5 { background: var(--rhythm-5); }
+
+/* Secondary encoding for the trouble end: the hatch survives grayscale,
+   print, and red-green CVD, where the hue distinction does not. */
+.rhythm__cell--hatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.28) 0 2px,
+    transparent 2px 6px
+  );
+}
+
+.rhythm__cell--faint {
+  opacity: 0.4;
+}
+
+.rhythm__legend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.rhythm__legend-word {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--body-text);
+}
+
+.rhythm__legend-word + .rhythm__swatch {
+  margin-left: 3px;
+}
+
+.rhythm__swatch {
+  width: 18px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.rhythm__bars {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  height: 64px;
+  align-items: end;
+  margin-left: 28px; /* line up with the heat columns past the day axis */
+}
+
+.rhythm__bar-slot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+}
+
+.rhythm__bar {
+  width: 70%;
+  border-radius: 4px 4px 0 0;
+  background: var(--rhythm-queue);
+}
+
+.rhythm__bar--none {
+  opacity: 0.25;
+}
+
+.rhythm__slots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+@media (max-width: 560px) {
+  .rhythm__slots {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rhythm__slot {
+  background: var(--page);
+  border-radius: 14px;
+  padding: 12px 16px;
+}
+
+.rhythm__slot-eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.rhythm__slot-value {
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.rhythm__slot-value--warn {
+  color: var(--unavailable);
+}
+
+.rhythm__slot-value--best {
+  color: var(--available);
+}
+
+.rhythm__slot-none {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.rhythm__note {
+  margin: 14px 0 0;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.rhythm--empty .rhythm__empty-lead {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--body-text);
 }
 
 /* ----------------------------------------------- mobile invite (desktop) -- */
