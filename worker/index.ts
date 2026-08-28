@@ -42,7 +42,13 @@ import { buildDrinkReportRows, parseDrinkReport } from '../shared/drinkReport.js
 import { RHYTHM_WINDOW_MS, type RhythmResponse } from '../shared/rhythm.js';
 import type { Env } from './env.js';
 import { resolveIdentity, withIdentityCookie, type Identity } from './identity.js';
-import { notifyAfterUndoWindow, parseVapidJwk, postingNotificationBody } from './notify.js';
+import {
+  MAX_PUSH_PER_POST,
+  deliverToAll,
+  notifyAfterUndoWindow,
+  parseVapidJwk,
+  postingNotificationBody,
+} from './notify.js';
 import { b64urlEncode, parsePushSubscription, vapidPublicRaw } from './push.js';
 import {
   countRecentEvents,
@@ -51,6 +57,7 @@ import {
   deleteOwnRecentGroup,
   deleteOwnRecentReport,
   deletePushSubscription,
+  listPushSubscriptions,
   ensureUserLabel,
   insertEvent,
   insertFeedback,
@@ -342,6 +349,64 @@ async function handlePushSubscribe(
   return json({ ok: true }, 201);
 }
 
+/** Constant-time-ish string compare, so token guessing can't time itself in. */
+function tokenMatches(given: string, expected: string): boolean {
+  const enc = new TextEncoder();
+  const a = enc.encode(given);
+  const b = enc.encode(expected);
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+/**
+ * Admin broadcast: one payload to every subscription, right now — update
+ * announcements, not machine state. Gated behind ANNOUNCE_TOKEN; while the
+ * secret is unset, or the bearer token is wrong, the endpoint answers 404
+ * so it doesn't advertise itself. Sends synchronously (no undo grace to
+ * wait out) and reports the delivery tally back to the caller.
+ */
+async function handleAnnounce(request: Request, env: Env): Promise<Response> {
+  const expected = env.ANNOUNCE_TOKEN;
+  const given = /^Bearer (.+)$/.exec(request.headers.get('Authorization') ?? '')?.[1];
+  if (!expected || !given || !tokenMatches(given, expected)) {
+    return fail(404, 'エンドポイントが見つかりません');
+  }
+
+  const jwk = parseVapidJwk(env);
+  if (!jwk) return fail(503, '通知はこのサーバーでは設定されていません');
+
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return fail(400, 'リクエストの形式が正しくありません');
+  }
+  const { body, title } = (payload ?? {}) as { body?: unknown; title?: unknown };
+  const text = typeof body === 'string' ? body.trim() : '';
+  if (text.length === 0 || text.length > 200) {
+    return fail(400, '本文は1〜200文字でお願いします');
+  }
+  let heading = '4Fドリンク速報';
+  if (title !== undefined) {
+    if (typeof title !== 'string' || title.trim().length === 0 || title.trim().length > 40) {
+      return fail(400, '見出しは40文字以内でお願いします');
+    }
+    heading = title.trim();
+  }
+
+  const subs = await listPushSubscriptions(env.DB, MAX_PUSH_PER_POST);
+  const result = await deliverToAll(env, jwk, subs, {
+    title: heading,
+    body: text,
+    // Its own tag slot: an announcement must not swallow (or be swallowed
+    // by) a report notification via same-tag replacement.
+    tag: 'drink-status-announce',
+  });
+  return json({ ok: true, ...result });
+}
+
 /** Idempotent: unsubscribing an unknown endpoint is already the goal state. */
 async function handlePushUnsubscribe(request: Request, env: Env): Promise<Response> {
   let payload: unknown;
@@ -431,6 +496,12 @@ async function route(
   if (path === '/api/push/unsubscribe') {
     if (request.method === 'POST') return handlePushUnsubscribe(request, env);
     return fail(405, 'サポートされていないメソッドです');
+  }
+
+  if (path === '/api/push/announce') {
+    if (request.method === 'POST') return handleAnnounce(request, env);
+    // A wrong method leaks nothing the 404 wouldn't — keep the same answer.
+    return fail(404, 'エンドポイントが見つかりません');
   }
 
   return fail(404, 'エンドポイントが見つかりません');

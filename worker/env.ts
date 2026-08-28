@@ -11,5 +11,11 @@ export interface Env {
   VAPID_PRIVATE_JWK?: string;
   /** Contact URI (mailto: or https:) push services may use to reach the operator. */
   VAPID_SUBJECT?: string;
+  /**
+   * Bearer token for POST /api/push/announce (admin update broadcasts). Set
+   * via `wrangler secret put ANNOUNCE_TOKEN` with a value the admin keeps —
+   * while unset the endpoint answers 404 as if it didn't exist.
+   */
+  ANNOUNCE_TOKEN?: string;
   ENVIRONMENT?: string;
 }

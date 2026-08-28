@@ -378,6 +378,26 @@ export async function listPushSubscriptionsExcept(
   }));
 }
 
+/** Every subscription, oldest first — admin broadcasts exclude nobody. */
+export async function listPushSubscriptions(
+  db: D1Database,
+  limit: number,
+): Promise<PushSubscriptionRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT endpoint, p256dh, auth, user_id
+         FROM push_subscriptions ORDER BY created_at ASC LIMIT ?1`,
+    )
+    .bind(limit)
+    .all<{ endpoint: string; p256dh: string; auth: string; user_id: string }>();
+  return (results ?? []).map((r) => ({
+    endpoint: r.endpoint,
+    p256dh: r.p256dh,
+    auth: r.auth,
+    userId: r.user_id,
+  }));
+}
+
 /** Drop subscriptions the push service reported dead (404/410). */
 export async function deletePushEndpoints(
   db: D1Database,
