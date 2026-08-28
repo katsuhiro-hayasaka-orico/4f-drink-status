@@ -815,8 +815,11 @@ a:focus-visible {
   color: var(--body-text);
 }
 
-.report__others-label--machine {
-  margin-left: 10px;
+/* Forces the next observation group onto its own line, so 補充・残り少な
+   そう・マシン read as three rows instead of one long chip stream. */
+.report__others-break {
+  flex-basis: 100%;
+  height: 0;
 }
 
 /* ------------------------------------------------- drink summary/toggle -- */
