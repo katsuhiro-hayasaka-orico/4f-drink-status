@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import QRCode from 'qrcode';
+import { qrDataUrl } from '../lib/qr.js';
 
 /**
  * 「このサイト、QRで読んで」— the site's own URL as a QR code, for showing a
@@ -31,12 +31,7 @@ export function QrDialog({ onClose }: QrDialogProps) {
     let cancelled = false;
     // 512px render shown at 232 CSS px — crisp on high-DPI phone screens,
     // which is exactly where a QR gets scanned from.
-    QRCode.toDataURL(url, {
-      errorCorrectionLevel: 'M',
-      margin: 2,
-      width: 512,
-      color: { dark: '#2b1f18', light: '#ffffff' },
-    })
+    qrDataUrl(url, 512)
       .then((u) => {
         if (!cancelled) setDataUrl(u);
       })
