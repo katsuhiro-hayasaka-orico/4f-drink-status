@@ -302,8 +302,10 @@ export function ReportForm({
           </>
         )}
 
-        {/* Refills and machine down/up can't be phrased as a drink — the
-            small escape hatch below keeps them reportable. */}
+        {/* Sightings that can't be phrased as a drink — refills, shortages
+            seen over someone else's shoulder, machine down/up. These are
+            OBSERVED states, not guesses, which is why they get direct chips
+            while general material voting stays drink-derived. */}
         <div className="report__others">
           <span className="report__others-label">補充を見かけたら：</span>
           {MATERIAL_KEYS.map((m) => (
@@ -318,7 +320,24 @@ export function ReportForm({
               {SUBJECT_LABELS[m]}
             </button>
           ))}
-          <span className="report__others-label report__others-label--machine">マシン自体：</span>
+          {/* The feedback box asked for this one: 「直前の人の氷がほとんど
+              出ていなかった」— a bystander's shortage sighting, one tap. */}
+          <span className="report__others-break" aria-hidden="true" />
+          <span className="report__others-label">残りが少なそうだと気づいたら：</span>
+          {MATERIAL_KEYS.map((m) => (
+            <button
+              key={`low-${m}`}
+              type="button"
+              className="chip chip--small"
+              disabled={posting}
+              onClick={() => onPostSimple(m, 'low')}
+            >
+              <SubjectIcon subject={m} />
+              {SUBJECT_LABELS[m]}
+            </button>
+          ))}
+          <span className="report__others-break" aria-hidden="true" />
+          <span className="report__others-label">マシン自体：</span>
           <button
             type="button"
             className="chip chip--small"
