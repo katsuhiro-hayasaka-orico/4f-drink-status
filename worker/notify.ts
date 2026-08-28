@@ -14,7 +14,12 @@ import { CONFIG } from '../shared/config.js';
 import { isDrinkKey, reportValueQuote, subjectLabel, type Report } from '../shared/domain.js';
 import type { Env } from './env.js';
 import { sendPush, type VapidJwk } from './push.js';
-import { deletePushEndpoints, groupExists, listPushSubscriptionsExcept } from './store.js';
+import {
+  deletePushEndpoints,
+  groupExists,
+  listPushSubscriptionsExcept,
+  type PushSubscriptionRow,
+} from './store.js';
 
 /** One second past the undo DELETE's own cutoff, so the race has a loser. */
 const SEND_DELAY_MS = CONFIG.undoWindowMs + 16_000;
@@ -24,10 +29,44 @@ const SEND_DELAY_MS = CONFIG.undoWindowMs + 16_000;
  * one fetch on top of the handler's own D1 traffic. A 4F lounge is nowhere
  * near this; if it ever is, the overflow is logged instead of silently cut.
  */
-const MAX_PUSH_PER_POST = 30;
+export const MAX_PUSH_PER_POST = 30;
 
 /** VAPID `sub` when the operator hasn't set one — the project page, a valid operator URI. */
 const DEFAULT_VAPID_SUBJECT = 'https://github.com/katsuhiro-hayasaka-orico/4f-drink-status';
+
+export interface DeliveryResult {
+  attempted: number;
+  delivered: number;
+  /** Subscriptions the push service declared dead — already deleted here. */
+  gone: number;
+}
+
+/**
+ * Deliver one payload to a list of subscriptions and forget the ones the
+ * push service says are gone. Shared by the posting pipeline and the admin
+ * announce endpoint.
+ */
+export async function deliverToAll(
+  env: Env,
+  jwk: VapidJwk,
+  subs: readonly PushSubscriptionRow[],
+  payload: Record<string, unknown>,
+): Promise<DeliveryResult> {
+  if (subs.length === 0) return { attempted: 0, delivered: 0, gone: 0 };
+  const subject = env.VAPID_SUBJECT || DEFAULT_VAPID_SUBJECT;
+  const results = await Promise.all(
+    subs.map((s) =>
+      sendPush({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, payload, jwk, subject),
+    ),
+  );
+  const goneEndpoints = subs.filter((_, i) => results[i] === 'gone').map((s) => s.endpoint);
+  await deletePushEndpoints(env.DB, goneEndpoints);
+  return {
+    attempted: subs.length,
+    delivered: results.filter((r) => r === 'ok').length,
+    gone: goneEndpoints.length,
+  };
+}
 
 /** The secret parsed and sanity-checked; null means push is not configured. */
 export function parseVapidJwk(env: Env): VapidJwk | null {
@@ -74,16 +113,9 @@ export async function notifyAfterUndoWindow(
     console.warn(`[push] ${subs.length - MAX_PUSH_PER_POST}+ subscriptions beyond the per-post cap were skipped`);
     subs.length = MAX_PUSH_PER_POST;
   }
-  if (subs.length === 0) return;
-
-  const subject = env.VAPID_SUBJECT || DEFAULT_VAPID_SUBJECT;
-  const payload = { title: '4Fドリンク速報', body, tag: 'drink-status-reports' };
-  const results = await Promise.all(
-    subs.map((s) =>
-      sendPush({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, payload, jwk, subject),
-    ),
-  );
-
-  const gone = subs.filter((_, i) => results[i] === 'gone').map((s) => s.endpoint);
-  await deletePushEndpoints(env.DB, gone);
+  await deliverToAll(env, jwk, subs, {
+    title: '4Fドリンク速報',
+    body,
+    tag: 'drink-status-reports',
+  });
 }
