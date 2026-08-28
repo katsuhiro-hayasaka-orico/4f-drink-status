@@ -1561,6 +1561,41 @@ a:focus-visible {
   color: var(--body-text);
 }
 
+/* ご意見から改善した機能 — full-width shelf under the tally/write row. */
+.feedback-box__shipped {
+  flex-basis: 100%;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 2px dashed var(--line);
+}
+
+.feedback-box__shipped-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.feedback-box__shipped-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.feedback-box__shipped-list li {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--body-text);
+}
+
+.feedback-box__shipped-when {
+  font-weight: 900;
+  color: var(--ink);
+  margin-right: 6px;
+}
+
 .voices__tally {
   display: flex;
   gap: 14px;
