@@ -27,7 +27,7 @@ describe('drinkAvailability', () => {
   it('refuses to vouch for an unreported requirement', () => {
     const d = drinkAvailability(iceCoffee, statuses({ ice: 'none' }));
     expect(d.status).toBe('none');
-    expect(d.stateText).toBe('情報がありません');
+    expect(d.stateText).toBe('まだわかりません');
     expect(d.mark).toBe('?');
   });
 
@@ -42,7 +42,7 @@ describe('drinkAvailability', () => {
   it('a broken machine outranks everything, including ignorance', () => {
     const d = drinkAvailability(mocha, statuses({ machine: 'unavailable', cocoaPowder: 'none' }));
     expect(d.status).toBe('unavailable');
-    expect(d.reason).toBe('マシンを利用できません');
+    expect(d.reason).toBe('マシンが止まっています');
   });
 
   it('stays at 情報なし while any requirement is unreported, even next to a low', () => {

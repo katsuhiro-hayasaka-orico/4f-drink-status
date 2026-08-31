@@ -253,25 +253,31 @@ export function overallState(
     // so the machine comes back better than it left. Amber, not red.
     if (machineCleaning) {
       return {
-        label: '清掃中です',
-        reason: '補充・清掃が終わりしだい使えるようになります。少し待ちましょう',
+        label: 'お掃除中です',
+        reason: '終わればまた使えます。少し待ってみてください',
         tone: 'low',
       };
     }
     return {
-      label: 'マシンを利用できません',
-      reason: 'マシン全体の利用不可報告があります',
+      label: 'いまは使えません',
+      reason: 'マシンが止まっているという報告があります',
       tone: 'unavailable',
     };
   }
-  if (MATERIAL_KEYS.some((k) => statuses[k] === 'unavailable')) {
-    return { label: '一部利用できません', reason: '一部材料が不足しています', tone: 'unavailable' };
+
+  const out = MATERIAL_KEYS.filter((k) => statuses[k] === 'unavailable');
+  if (out.length > 0) {
+    return {
+      label: '作れないものがあります',
+      reason: `${out.map((k) => subjectLabels[k]).join('・')}が切れています`,
+      tone: 'unavailable',
+    };
   }
   const low = MATERIAL_KEYS.find((k) => statuses[k] === 'low');
   if (low) {
     return {
-      label: '一部残り少なめ',
-      reason: `${subjectLabels[low]}がそろそろなくなりそうです。お早めにどうぞ。`,
+      label: 'そろそろ切れそう',
+      reason: `${subjectLabels[low]}が残りわずかです。お早めにどうぞ`,
       tone: 'low',
     };
   }
@@ -279,24 +285,26 @@ export function overallState(
   const unknown = MATERIAL_KEYS.filter((k) => statuses[k] === 'none');
   if (unknown.length === MATERIAL_KEYS.length && statuses.machine === 'none') {
     return {
-      label: '情報がありません',
-      reason: `過去${CONFIG.observationWindowMin}分に有効な投稿がありません`,
+      label: 'まだ情報がありません',
+      reason: `過去${CONFIG.observationWindowMin}分の投稿がありません。使ったらぜひ教えてください`,
       tone: 'none',
     };
   }
   if (unknown.length > 0) {
-    // The headline's precision must match the data's: a green 利用できます
-    // over a board with unreported materials reads as vouching for them.
-    // Name what is known, name what isn't.
+    // The headline commits — 「行けば飲める?」 is the question, so answer it —
+    // but it commits only as far as the data goes. One blind spot still leaves
+    // a confident yes; several means most of the board is guesswork, and a
+    // flat 「いま飲めます」 there would be vouching for materials nobody has
+    // looked at. Either way the sub-line names exactly what is unknown.
     return {
-      label: '確認済みの材料は利用できます',
-      reason: `${unknown.map((k) => subjectLabels[k]).join('・')}は情報がありません`,
+      label: unknown.length === 1 ? 'いま飲めます' : 'たぶん飲めます',
+      reason: `${unknown.map((k) => subjectLabels[k]).join('・')}はまだわかりません`,
       tone: 'available',
     };
   }
   return {
-    label: '利用できます',
-    reason: '各材料は十分にあります',
+    label: 'いま飲めます',
+    reason: '材料はぜんぶそろっています',
     tone: 'available',
   };
 }

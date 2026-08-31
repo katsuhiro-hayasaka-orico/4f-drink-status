@@ -110,7 +110,7 @@ const STATE_TEXT: Record<StatusOrNone, string> = {
   available: '作れます',
   low: '残り少なめ',
   unavailable: '作れません',
-  none: '情報がありません',
+  none: 'まだわかりません',
 };
 
 const STATE_MARK: Record<StatusOrNone, string> = {
@@ -150,8 +150,8 @@ export function drinkAvailability(
       mark: STATE_MARK[status],
       reason:
         direct === 'made'
-          ? '実際に作れたという報告があります'
-          : '作れなかったという報告があります',
+          ? 'さっき作れた人がいます'
+          : '作れなかった人がいます',
       requiredLabel: recipe.requires.map((k) => SUBJECT_LABELS[k]).join('、'),
     };
   }
@@ -159,7 +159,7 @@ export function drinkAvailability(
   const machineDown = statuses.machine === 'unavailable';
   const missing = recipe.requires.filter((k) => statuses[k] === 'unavailable');
   let status: StatusOrNone = 'available';
-  let reason = '材料が十分にあります';
+  let reason = '材料はそろっています';
 
   if (machineDown || missing.length > 0) {
     status = 'unavailable';
@@ -167,18 +167,18 @@ export function drinkAvailability(
     // whether another drink on this list is still an option.
     reason = machineDown
       ? machineCleaning
-        ? 'マシンは清掃中です。終わればまた作れます'
-        : 'マシンを利用できません'
-      : `${missing.map((k) => SUBJECT_LABELS[k]).join('・')}がありません`;
+        ? 'お掃除中です。終わればまた作れます'
+        : 'マシンが止まっています'
+      : `${missing.map((k) => SUBJECT_LABELS[k]).join('・')}が切れています`;
   } else if (recipe.requires.some((k) => statuses[k] === 'none')) {
     status = 'none';
-    reason = '必要な材料の投稿が過去30分にありません';
+    reason = '必要な材料の情報がまだありません';
   } else if (recipe.requires.some((k) => statuses[k] === 'low')) {
     status = 'low';
     reason = `${recipe.requires
       .filter((k) => statuses[k] === 'low')
       .map((k) => SUBJECT_LABELS[k])
-      .join('・')}の残量が少なめです`;
+      .join('・')}が残りわずかです`;
   }
 
   return {
