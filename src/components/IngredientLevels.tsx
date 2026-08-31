@@ -11,7 +11,7 @@ import { statusColor } from '../lib/palette.js';
 const DESCRIPTION: Record<StatusKey, string> = {
   available: '十分にあります',
   low: '残り少なめです',
-  unavailable: '補充が必要です',
+  unavailable: '切れています',
 };
 
 export interface IngredientLevelsProps {
@@ -41,7 +41,7 @@ export function IngredientLevels({ statuses, levels }: IngredientLevelsProps) {
               <div className="meter" aria-hidden="true">
                 <div className="meter__fill" style={{ width: 0 }} />
               </div>
-              <div className="ingredient__desc">情報がありません</div>
+              <div className="ingredient__desc">まだわかりません</div>
             </div>
           );
         }

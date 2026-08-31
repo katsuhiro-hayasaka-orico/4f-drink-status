@@ -6,10 +6,10 @@ import { CONFIDENCE_LABEL, confidenceStyle } from '../lib/confidence.js';
 import { NEUTRAL_LINE, PALETTE, statusColor } from '../lib/palette.js';
 
 const STATUS_TEXT: Record<StatusOrNone, string> = {
-  available: '利用できます',
+  available: '使えます',
   low: '残り少なめ',
-  unavailable: '利用できません',
-  none: '情報がありません',
+  unavailable: '使えません',
+  none: 'まだわかりません',
 };
 
 /** How people phrased it, for the 「N人中M人が…」 line. */

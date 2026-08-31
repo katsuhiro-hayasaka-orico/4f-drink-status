@@ -331,54 +331,57 @@ describe('overallState', () => {
 
   it('puts a broken machine above everything else', () => {
     const o = overallState({ ...base, machine: 'unavailable' }, SUBJECT_LABELS);
-    expect(o.label).toBe('マシンを利用できません');
+    expect(o.label).toBe('いまは使えません');
     expect(o.tone).toBe('unavailable');
   });
 
   it('words a cleaning outage as a hopeful pause, in amber', () => {
     const o = overallState({ ...base, machine: 'unavailable' }, SUBJECT_LABELS, true);
-    expect(o.label).toBe('清掃中です');
+    expect(o.label).toBe('お掃除中です');
     expect(o.tone).toBe('low');
   });
 
-  it('flags a missing ingredient', () => {
+  it('flags a missing ingredient, and names it', () => {
     const o = overallState({ ...base, cocoaPowder: 'unavailable' }, SUBJECT_LABELS);
-    expect(o.label).toBe('一部利用できません');
+    expect(o.label).toBe('作れないものがあります');
+    expect(o.reason).toBe('ココアが切れています');
   });
 
   it('names the ingredient that is running low', () => {
     const o = overallState({ ...base, milkPowder: 'low' }, SUBJECT_LABELS);
-    expect(o.label).toBe('一部残り少なめ');
+    expect(o.label).toBe('そろそろ切れそう');
     expect(o.reason).toContain('ミルク');
   });
 
   it('says so when everything is fine', () => {
     const o = overallState(base, SUBJECT_LABELS);
-    expect(o.label).toBe('利用できます');
-    expect(o.reason).toBe('各材料は十分にあります');
+    expect(o.label).toBe('いま飲めます');
+    expect(o.reason).toBe('材料はぜんぶそろっています');
   });
 
   it('admits knowing nothing when no subject has been reported', () => {
     const o = overallState(UNKNOWN_STATUSES, SUBJECT_LABELS);
-    expect(o.label).toBe('情報がありません');
+    expect(o.label).toBe('まだ情報がありません');
     expect(o.tone).toBe('none');
   });
 
-  it('scopes the verdict and names the unchecked materials', () => {
-    // The audit's P0: a green blanket 利用できます next to ココア：情報なし
-    // read as a contradiction. The headline now claims only what was seen.
+  it('still commits with one blind spot, and hedges with several', () => {
+    // The headline answers 「行けば飲める?」 either way; how far it commits
+    // tracks how much of the board was actually seen, and the sub-line names
+    // the gaps in both cases.
     const o = overallState({ ...base, ice: 'none' }, SUBJECT_LABELS);
-    expect(o.label).toBe('確認済みの材料は利用できます');
-    expect(o.reason).toBe('氷は情報がありません');
+    expect(o.label).toBe('いま飲めます');
+    expect(o.reason).toBe('氷はまだわかりません');
 
     const two = overallState({ ...base, ice: 'none', cocoaPowder: 'none' }, SUBJECT_LABELS);
-    expect(two.reason).toBe('ココア・氷は情報がありません');
+    expect(two.label).toBe('たぶん飲めます');
+    expect(two.reason).toBe('ココア・氷はまだわかりません');
   });
 
   it('reports a confirmed problem even with unreported materials around', () => {
     // 「情報がありません」 must never hide a shortage someone has seen.
     const o = overallState({ ...UNKNOWN_STATUSES, cocoaPowder: 'unavailable' }, SUBJECT_LABELS);
-    expect(o.label).toBe('一部利用できません');
+    expect(o.label).toBe('作れないものがあります');
   });
 });
 
