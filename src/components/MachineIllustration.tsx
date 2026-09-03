@@ -1,69 +1,72 @@
 import { useId } from 'react';
 import { DRINK_LABELS, type DrinkKey, type MaterialKey } from '../../shared/domain.js';
 import { RECIPE_BY_KEY } from '../../shared/drinks.js';
+import bodyLight from '../assets/machine/wmf1100s-light.webp';
+import bodyDark from '../assets/machine/wmf1100s-dark.webp';
+import contentsUrl from '../assets/machine/wmf1100s-contents.webp';
+import {
+  CLIP_BLEED,
+  LAYOUT,
+  MATERIAL_ORDER,
+  SCREEN,
+  TILE_COLS,
+  TILE_H,
+  TILE_ROWS,
+  TILE_W,
+  VB_H,
+  VB_W,
+  clampPct,
+  drop,
+  labelAnchor,
+  screenX as sx,
+  screenY as sy,
+} from '../lib/machineLayout.js';
+import type { Rect } from '../lib/machineLayout.js';
 
 /**
  * The lounge's drink machine — a WMF 1100 S — with the ice maker standing to
- * its left as it does in the room. Drawn from a photo of the real unit: white
- * side panels flanking a black centre column, the tall touch display, the
- * twin-nozzle spout over a recessed cup station, the plinth underneath.
+ * its left as it does in the room.
  *
- * Two deliberate departures from the real thing:
+ * The machine itself is a render, built and photographed by
+ * `tools/blender/wmf1100s.py`; everything that reports something is still SVG
+ * drawn on top of it. The render is a *frame*: the three hopper windows and the
+ * ice bin are punched clean through it, so this component paints a dark
+ * interior, slides the contents image up behind the hole to the reported level,
+ * and lets the render's own glass edge close over it. Nothing can spill past
+ * the glass, because the glass is in front.
+ *
+ * Two deliberate departures from the real thing, both inherited from the
+ * drawing this replaced:
  *
  * 1. The hoppers are exaggerated. On the real machine they sit inside the
  *    cabinet and show nothing; here they are lifted onto the top deck as
- *    smoked windows you can see through, because the whole point of the
- *    picture is to answer 「まだある?」 before anyone reads a number.
+ *    windows you can see through, because the whole point of the picture is to
+ *    answer 「まだある?」 before anyone reads a number.
  * 2. No WMF wordmark — the shape and colours are the machine, the logo is
  *    theirs.
  *
- * Everything inside a window keeps its real colour in both colour schemes;
- * the shell follows the theme (see `--wmf-*` in styles.css).
+ * The touch panel stays SVG for a different reason: its names come from
+ * DRINK_LABELS, so it can never drift from the availability cards beside it.
+ * Baked into the render, it would.
  */
 
-/* ---- hopper interiors, in viewBox units ---- */
-const HOPPER_TOP = 56;
-const HOPPER_BOTTOM = 152;
-const HOPPER_HEIGHT = HOPPER_BOTTOM - HOPPER_TOP; // 96
 
-const ICE_TOP = 86;
-const ICE_BOTTOM = 204;
-const ICE_HEIGHT = ICE_BOTTOM - ICE_TOP; // 118
-
-/** Left edge of each hopper window; the three are evenly spaced 155 apart. */
-const COFFEE_X = 308;
-const COCOA_X = 463;
-const MILK_X = 618;
-const HOPPER_W = 124;
-
-const ICE_X = 48;
-const ICE_W = 144;
-
-const clamp = (pct: number) => Math.max(0, Math.min(100, pct));
+const clamp = clampPct;
 
 /**
- * Top edge and height of a fill at the given level, for a window of `height`.
- *
- * `null` — nobody has reported this material — draws an empty vessel, the same
- * as a confirmed 0%. The two are told apart by the readout alone (「—」 versus
- * 「0%」), which is the deliberate trade-off: an empty hopper is the honest
- * picture of "we don't know", and inventing a half-full one to mean "unknown"
- * would be a worse lie than under-promising.
+ * The level slides rather than the clip growing: `x`/`y`/`width`/`height` on a
+ * clipPath child only animate on Chromium, while a CSS transform on the clipped
+ * image animates everywhere. It also looks better — the heap's surface travels
+ * instead of a straight edge wiping across it.
  */
-function fill(pct: number | null, bottom: number, height: number) {
-  const h = Math.round((height * clamp(pct ?? 0)) / 100);
-  return { y: bottom - h, height: h };
-}
+const SLIDE = { transition: 'transform .35s ease' } as const;
 
-/** Smooth the meters when a report lands, the way the old drawing did. */
-const FILL_TRANSITION = { transition: 'y .35s ease, height .35s ease' } as const;
-
-/** The level readout, knocked out of the smoked glass behind it. */
-function LevelLabel({ x, y, pct }: { x: number; y: number; pct: number | null }) {
+/** The level readout, sitting on the smoked glass near the top of its window. */
+function LevelLabel({ window, pct }: { window: Rect; pct: number | null }) {
   return (
     <text
-      x={x}
-      y={y}
+      x={labelAnchor(window).x}
+      y={labelAnchor(window).y}
       textAnchor="middle"
       fontSize={19}
       fontWeight={800}
@@ -111,11 +114,6 @@ const PANEL_ORDER: DrinkKey[] = [
   'iceCocoa',
 ];
 
-const TILE_W = 67;
-const TILE_H = 27;
-const TILE_COLS = [440, 513];
-const TILE_ROWS = [206, 236, 266, 296];
-
 function DrinkTile({ drink, index }: { drink: DrinkKey; index: number }) {
   const { cup, foam } = TILE_COLOURS[drink];
   const iced = RECIPE_BY_KEY[drink].iced;
@@ -156,11 +154,6 @@ export function MachineIllustration({ levels }: MachineIllustrationProps) {
   const id = (name: string) => `${uid}-${name}`;
   const url = (name: string) => `url(#${id(name)})`;
 
-  const coffee = fill(levels.coffeeBeans, HOPPER_BOTTOM, HOPPER_HEIGHT);
-  const cocoa = fill(levels.cocoaPowder, HOPPER_BOTTOM, HOPPER_HEIGHT);
-  const milk = fill(levels.milkPowder, HOPPER_BOTTOM, HOPPER_HEIGHT);
-  const ice = fill(levels.ice, ICE_BOTTOM, ICE_HEIGHT);
-
   const pct = (k: MaterialKey) => {
     const v = levels[k];
     return v === null ? '情報なし' : `約${Math.round(clamp(v))}%`;
@@ -168,196 +161,132 @@ export function MachineIllustration({ levels }: MachineIllustrationProps) {
 
   return (
     <svg
-      viewBox="0 0 800 560"
+      viewBox={`0 0 ${VB_W} ${VB_H}`}
       role="img"
       aria-label={`製氷機とドリンクマシンの推定残量。氷 ${pct('ice')}、コーヒー豆 ${pct('coffeeBeans')}、ココア ${pct('cocoaPowder')}、ミルク ${pct('milkPowder')}`}
       className="machine-card__svg"
     >
       <defs>
-        {/* Shell gradients take their stops from CSS variables so the machine
-            can be re-lit for dark mode without a second set of shapes. */}
-        <linearGradient id={id('body')} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" style={{ stopColor: 'var(--wmf-body-1)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--wmf-body-2)' }} />
-        </linearGradient>
-        <linearGradient id={id('iceBody')} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" style={{ stopColor: 'var(--wmf-ice-1)' }} />
-          <stop offset="0.15" style={{ stopColor: 'var(--wmf-ice-2)' }} />
-          <stop offset="0.85" style={{ stopColor: 'var(--wmf-ice-3)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--wmf-ice-4)' }} />
-        </linearGradient>
-        <linearGradient id={id('white')} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#ffffff" />
-          <stop offset="0.55" stopColor="#eceef1" />
-          <stop offset="1" stopColor="#d3d6db" />
-        </linearGradient>
-        <linearGradient id={id('chrome')} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#f3f5f7" />
-          <stop offset="0.4" stopColor="#a7adb4" />
-          <stop offset="0.6" stopColor="#8b9198" />
-          <stop offset="1" stopColor="#e9ecef" />
-        </linearGradient>
-        <linearGradient id={id('steel')} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#d6dade" />
-          <stop offset="1" stopColor="#8f959c" />
-        </linearGradient>
-        <linearGradient id={id('screen')} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#131a26" />
-          <stop offset="1" stopColor="#0a0d14" />
-        </linearGradient>
-        <linearGradient id={id('cocoaFill')} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#8a5330" />
-          <stop offset="1" stopColor="#5a2f16" />
-        </linearGradient>
-        <linearGradient id={id('milkFill')} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#f4ead6" />
-          <stop offset="1" stopColor="#d9c7a4" />
-        </linearGradient>
-
-        {/* Beans and cubes tile rather than being placed one by one: the
-            hoppers are small here, and a pattern keeps the grain even at any
-            fill level. */}
-        <pattern id={id('beans')} width={34} height={26} patternUnits="userSpaceOnUse">
-          <rect width={34} height={26} fill="#3a1e0e" />
-          <ellipse cx={9} cy={7} rx={9} ry={5.5} fill="#5f3118" stroke="#2c1608" strokeWidth={1.4} transform="rotate(-20 9 7)" />
-          <path d="M4 9 Q9 6 14 5" stroke="#2c1608" strokeWidth={1.2} fill="none" />
-          <ellipse cx={26} cy={19} rx={9} ry={5.5} fill="#6b3a1e" stroke="#2c1608" strokeWidth={1.4} transform="rotate(22 26 19)" />
-          <path d="M21 22 Q26 19 31 17" stroke="#2c1608" strokeWidth={1.2} fill="none" />
-        </pattern>
-        <pattern id={id('cubes')} width={30} height={26} patternUnits="userSpaceOnUse">
-          <rect width={30} height={26} fill="#b9d3e2" />
-          <rect x={2} y={3} width={15} height={15} rx={4} fill="#e4f0f7" stroke="#93b7cc" strokeWidth={1.6} transform="rotate(-12 9 10)" />
-          <rect x={16} y={12} width={14} height={14} rx={4} fill="#d5e7f2" stroke="#93b7cc" strokeWidth={1.6} transform="rotate(14 23 19)" />
-        </pattern>
-
-        <clipPath id={id('clipCoffee')}>
-          <rect x={COFFEE_X} y={HOPPER_TOP} width={HOPPER_W} height={HOPPER_HEIGHT} rx={8} />
-        </clipPath>
-        <clipPath id={id('clipCocoa')}>
-          <rect x={COCOA_X} y={HOPPER_TOP} width={HOPPER_W} height={HOPPER_HEIGHT} rx={8} />
-        </clipPath>
-        <clipPath id={id('clipMilk')}>
-          <rect x={MILK_X} y={HOPPER_TOP} width={HOPPER_W} height={HOPPER_HEIGHT} rx={8} />
-        </clipPath>
-        <clipPath id={id('clipIce')}>
-          <rect x={ICE_X} y={ICE_TOP} width={ICE_W} height={ICE_HEIGHT} rx={8} />
-        </clipPath>
+        {MATERIAL_ORDER.map((key) => {
+          const w = LAYOUT.windows[key];
+          return (
+            <clipPath key={key} id={id(`clip-${key}`)}>
+              <rect
+                x={w.x - CLIP_BLEED}
+                y={w.y - CLIP_BLEED}
+                width={w.width + CLIP_BLEED * 2}
+                height={w.height + CLIP_BLEED * 2}
+              />
+            </clipPath>
+          );
+        })}
       </defs>
 
-      <ellipse cx={400} cy={537} rx={360} ry={16} className="wmf-floor" />
+      {/* One contact shadow per unit rather than one wide pool: the two stand
+          on the floor separately, and a single ellipse joined them into a
+          plinth neither of them has. */}
+      <ellipse cx={120} cy={528} rx={104} ry={10} className="wmf-floor" />
+      <ellipse cx={510} cy={530} rx={278} ry={11} className="wmf-floor" />
 
-      {/* ------------------------------------------------------ ice maker -- */}
-      <g>
-        <rect x={30} y={216} width={180} height={306} rx={14} fill={url('iceBody')} className="wmf-shell" strokeWidth={2.5} />
-        <rect x={42} y={228} width={156} height={282} rx={10} className="wmf-ice-front" />
-        <rect x={40} y={72} width={160} height={140} rx={10} fill="#1a2126" className="wmf-shell" strokeWidth={2.5} />
-        <g clipPath={url('clipIce')}>
-          <rect x={ICE_X} y={ice.y} width={ICE_W} height={ice.height} fill={url('cubes')} style={FILL_TRANSITION} />
-        </g>
-        <rect x={ICE_X} y={ICE_TOP} width={ICE_W} height={ICE_HEIGHT} rx={8} fill="#0e1418" opacity={0.28} />
-        <rect x={34} y={58} width={172} height={18} rx={7} fill={url('steel')} />
-        <rect x={76} y={262} width={88} height={62} rx={9} fill="#2a2d31" />
-        <rect x={90} y={274} width={60} height={38} rx={6} fill="#43606f" />
-        {/* White, not near-white: the dark scheme lightens the cabinet behind
-            this glyph, and #e8eaee on it came to 4.25:1 — under AA. */}
-        <text x={120} y={376} textAnchor="middle" fill="#ffffff" fontSize={19} fontWeight={700}>
-          氷
-        </text>
-        <rect x={64} y={446} width={112} height={20} rx={6} fill={url('steel')} />
-        <rect x={70} y={451} width={100} height={3} rx={1.5} fill="#5c6167" />
-        <rect x={70} y={458} width={100} height={3} rx={1.5} fill="#5c6167" />
+      {/* Behind the render: an unlit interior, the contents sliding in it, and
+          the smoked glass over them. The window's edge belongs to the render,
+          which paints last. */}
+      {MATERIAL_ORDER.map((key) => {
+        const w = LAYOUT.windows[key];
+        return (
+          <g key={key}>
+            <rect x={w.x} y={w.y} width={w.width} height={w.height} className="wmf-window" />
+            <g clipPath={url(`clip-${key}`)}>
+              <image
+                href={contentsUrl}
+                x={0}
+                y={0}
+                width={VB_W}
+                height={VB_H}
+                preserveAspectRatio="none"
+                style={{ ...SLIDE, transform: `translateY(${drop(levels[key], w)}px)` }}
+              />
+            </g>
+            <rect x={w.x} y={w.y} width={w.width} height={w.height} className="wmf-glass" />
+          </g>
+        );
+      })}
+
+      {/* Both shells stay mounted and CSS picks one. Swapping the href instead
+          would drop the frame for as long as the new file takes to arrive, and
+          the contents would hang there in mid-air. */}
+      <image
+        href={bodyLight}
+        x={0}
+        y={0}
+        width={VB_W}
+        height={VB_H}
+        preserveAspectRatio="none"
+        className="wmf-body wmf-body--light"
+      />
+      <image
+        href={bodyDark}
+        x={0}
+        y={0}
+        width={VB_W}
+        height={VB_H}
+        preserveAspectRatio="none"
+        className="wmf-body wmf-body--dark"
+      />
+
+      {/* The screen is rendered as bare glass; the menu on it is ours. */}
+      <g className="wmf-screen-ui">
+        <rect x={sx(0.04)} y={sy(0.025)} width={9} height={1.6} rx={0.8} />
+        <rect x={sx(0.04)} y={sy(0.046)} width={9} height={1.6} rx={0.8} />
+        <rect x={sx(0.04)} y={sy(0.067)} width={9} height={1.6} rx={0.8} />
+        <circle cx={sx(0.878)} cy={sy(0.049)} r={2} />
+        <circle cx={sx(0.925)} cy={sy(0.049)} r={2} opacity={0.5} />
+        <rect x={SCREEN.x} y={sy(0.093)} width={SCREEN.width} height={1} opacity={0.6} />
+        <rect x={SCREEN.x} y={sy(0.877)} width={SCREEN.width} height={1} opacity={0.6} />
       </g>
 
-      {/* ----------------------------------------------------- the machine -- */}
-      <g>
-        {/* hoppers on the top deck */}
-        <rect x={300} y={44} width={140} height={116} rx={10} className="wmf-hopper" strokeWidth={2.5} />
-        <g clipPath={url('clipCoffee')}>
-          <rect x={COFFEE_X} y={coffee.y} width={HOPPER_W} height={coffee.height} fill={url('beans')} style={FILL_TRANSITION} />
-        </g>
-        <rect x={COFFEE_X} y={HOPPER_TOP} width={HOPPER_W} height={HOPPER_HEIGHT} rx={8} fill="#0c0e11" opacity={0.34} />
-        <rect x={294} y={30} width={152} height={18} rx={7} fill={url('steel')} />
+      {PANEL_ORDER.map((drink, i) => (
+        <DrinkTile key={drink} drink={drink} index={i} />
+      ))}
 
-        <rect x={455} y={44} width={140} height={116} rx={10} className="wmf-hopper" strokeWidth={2.5} />
-        <g clipPath={url('clipCocoa')}>
-          <rect x={COCOA_X} y={cocoa.y} width={HOPPER_W} height={cocoa.height} fill={url('cocoaFill')} style={FILL_TRANSITION} />
-        </g>
-        <rect x={COCOA_X} y={HOPPER_TOP} width={HOPPER_W} height={HOPPER_HEIGHT} rx={8} fill="#0c0e11" opacity={0.34} />
-        <rect x={449} y={30} width={152} height={18} rx={7} fill={url('steel')} />
-
-        <rect x={610} y={44} width={140} height={116} rx={10} className="wmf-hopper" strokeWidth={2.5} />
-        <g clipPath={url('clipMilk')}>
-          <rect x={MILK_X} y={milk.y} width={HOPPER_W} height={milk.height} fill={url('milkFill')} style={FILL_TRANSITION} />
-        </g>
-        <rect x={MILK_X} y={HOPPER_TOP} width={HOPPER_W} height={HOPPER_HEIGHT} rx={8} fill="#0c0e11" opacity={0.3} />
-        <rect x={604} y={30} width={152} height={18} rx={7} fill={url('steel')} />
-
-        {/* cabinet with its white side panels */}
-        <rect x={250} y={166} width={520} height={322} rx={14} fill={url('body')} className="wmf-shell" strokeWidth={2.5} />
-        <rect x={258} y={172} width={94} height={266} rx={8} fill={url('white')} stroke="#b9bcc2" strokeWidth={1.5} />
-        <rect x={668} y={172} width={94} height={266} rx={8} fill={url('white')} stroke="#b9bcc2" strokeWidth={1.5} />
-        <rect x={262} y={176} width={8} height={258} rx={4} fill="#ffffff" opacity={0.65} />
-        <rect x={668} y={176} width={8} height={258} rx={4} fill="#ffffff" opacity={0.65} />
-
-        {/* milk / steam wands */}
-        <rect x={284} y={220} width={8} height={140} rx={4} fill="#17181b" />
-        <rect x={304} y={220} width={8} height={140} rx={4} fill="#17181b" />
-        <rect x={278} y={212} width={40} height={14} rx={6} fill="#26282c" />
-
-        {/* touch display */}
-        <rect x={428} y={178} width={164} height={178} rx={10} className="wmf-screen" strokeWidth={2.5} />
-        <rect x={436} y={186} width={148} height={162} rx={6} fill={url('screen')} />
-        <rect x={442} y={190} width={9} height={1.6} rx={0.8} fill="#7d93b4" />
-        <rect x={442} y={193.4} width={9} height={1.6} rx={0.8} fill="#7d93b4" />
-        <rect x={442} y={196.8} width={9} height={1.6} rx={0.8} fill="#7d93b4" />
-        <circle cx={566} cy={194} r={2} fill="#5f7396" />
-        <circle cx={573} cy={194} r={2} fill="#3f4f68" />
-        <rect x={436} y={201} width={148} height={1} fill="#1d2839" />
-
-        {PANEL_ORDER.map((drink, i) => (
-          <DrinkTile key={drink} drink={drink} index={i} />
-        ))}
-
-        <rect x={436} y={328} width={148} height={1} fill="#1d2839" />
-        <path d="M470 336h11v6c0 3-1.8 4.4-5.5 4.4s-5.5-1.4-5.5-4.4z" fill="none" stroke="#7d93b4" strokeWidth={1.3} />
-        <ellipse cx={510} cy={339} rx={5} ry={3.4} fill="none" stroke="#7d93b4" strokeWidth={1.3} transform="rotate(-24 510 339)" />
-        <circle cx={550} cy={339} r={4.2} fill="none" stroke="#7d93b4" strokeWidth={1.3} />
-        <circle cx={550} cy={339} r={1.4} fill="#7d93b4" />
-
-        {/* cup station: one recess, one grate, and the cup standing on it */}
-        <rect x={412} y={360} width={196} height={110} rx={8} className="wmf-alcove" />
-        <rect x={412} y={360} width={196} height={12} rx={6} fill="#000000" opacity={0.38} />
-        <rect x={412} y={360} width={9} height={110} rx={4} fill="#000000" opacity={0.22} />
-        <rect x={599} y={360} width={9} height={110} rx={4} fill="#ffffff" opacity={0.06} />
-
-        <rect x={496} y={358} width={28} height={20} rx={6} fill={url('chrome')} />
-        <rect x={478} y={374} width={64} height={22} rx={7} fill="#1a1c1f" className="wmf-shell" strokeWidth={2} />
-        <rect x={486} y={394} width={12} height={11} rx={2.5} fill={url('chrome')} />
-        <rect x={522} y={394} width={12} height={11} rx={2.5} fill={url('chrome')} />
-
-        <rect x={420} y={454} width={180} height={14} rx={4} fill={url('steel')} stroke="#6c727c" strokeWidth={1} />
-        <g fill="#767c84">
-          <rect x={436} y={458} width={3} height={7} rx={1.5} />
-          <rect x={456} y={458} width={3} height={7} rx={1.5} />
-          <rect x={476} y={458} width={3} height={7} rx={1.5} />
-          <rect x={544} y={458} width={3} height={7} rx={1.5} />
-          <rect x={564} y={458} width={3} height={7} rx={1.5} />
-          <rect x={584} y={458} width={3} height={7} rx={1.5} />
-        </g>
-        <ellipse cx={510} cy={454} rx={35} ry={4.5} fill="#000000" opacity={0.45} />
-        <path d="M478 408h64v20c0 22-12 26-32 26s-32-4-32-26z" className="wmf-cup" strokeWidth={2.5} />
-        <path d="M542 416c16 0 22 8 19 17-3 9-10 13-19 10" className="wmf-cup-line" strokeWidth={6} strokeLinecap="round" />
-
-        {/* plinth — the machine's only other steel is the cup grate above */}
-        <rect x={250} y={470} width={520} height={52} rx={12} className="wmf-base" strokeWidth={2.5} />
-        <rect x={266} y={478} width={488} height={2} rx={1} fill="#ffffff" opacity={0.07} />
+      <g className="wmf-screen-glyphs">
+        <path
+          d={`M${sx(0.23)} ${sy(0.926)}h11v6c0 3-1.8 4.4-5.5 4.4s-5.5-1.4-5.5-4.4z`}
+          fill="none"
+          strokeWidth={1.3}
+        />
+        <ellipse
+          cx={sx(0.5)}
+          cy={sy(0.944)}
+          rx={5}
+          ry={3.4}
+          fill="none"
+          strokeWidth={1.3}
+          transform={`rotate(-24 ${sx(0.5)} ${sy(0.944)})`}
+        />
+        <circle cx={sx(0.77)} cy={sy(0.944)} r={4.2} fill="none" strokeWidth={1.3} />
       </g>
+
+      {/* Kept as text rather than baked into the render: it is the one label on
+          the ice maker, and text stays crisp at any card width. */}
+      <text
+        x={LAYOUT.iceGlyph.x}
+        y={LAYOUT.iceGlyph.y}
+        textAnchor="middle"
+        className="wmf-glyph"
+        fontSize={19}
+        fontWeight={700}
+        strokeWidth={4}
+        paintOrder="stroke"
+        strokeLinejoin="round"
+      >
+        氷
+      </text>
 
       {/* Readouts last, so nothing paints over them. */}
-      <LevelLabel x={120} y={122} pct={levels.ice} />
-      <LevelLabel x={370} y={92} pct={levels.coffeeBeans} />
-      <LevelLabel x={525} y={92} pct={levels.cocoaPowder} />
-      <LevelLabel x={680} y={92} pct={levels.milkPowder} />
+      {MATERIAL_ORDER.map((key) => (
+        <LevelLabel key={key} window={LAYOUT.windows[key]} pct={levels[key]} />
+      ))}
     </svg>
   );
 }
