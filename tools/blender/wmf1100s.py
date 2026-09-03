@@ -460,14 +460,20 @@ def build_machine(mats, col):
     box("screen_glass", sx, sy, sx + sw, sy + sh, -9.0, 2.0,
         mat=mats["screen"], bevel=1.0, col=col)
 
-    # Steam / milk wands, standing off the left panel.
-    box("wand_head", 274, 200, 322, 220, -24.0, 34.0, mat=mats["shell_dark"],
-        bevel=4, col=col)
-    for cx in (287.0, 309.0):
-        cylinder("wand", cx, 288, 4.4, -20.0, -8.0, mat=mats["chrome"], col=col,
-                 axis="Z", length=142)
-        box("wand_tip", cx - 5, 356, cx + 5, 368, -22.0, -6.0,
-            mat=mats["shell_dark"], bevel=2, col=col)
+    # The pair on the left flank: each is a black sleeve with a slim steel pipe
+    # hanging out of it, and the two are not the same length — the shorter one
+    # is the hot-water outlet. They stand well clear of the panel behind them,
+    # which is what gives them their own shadow instead of reading as decals.
+    for cx, tube_bottom, tip in ((290.0, 352.0, True), (322.0, 322.0, False)):
+        cylinder("wand_collar", cx, 195, 12.2, -32.0, -8.0, mat=mats["shell_dark"],
+                 col=col, axis="Z", length=10)
+        cylinder("wand_sleeve", cx, 231, 11.0, -31.0, -9.0, mat=mats["shell_dark"],
+                 col=col, axis="Z", length=64)
+        cylinder("wand_pipe", cx, (263.0 + tube_bottom) / 2, 3.6, -23.6, -16.4,
+                 mat=mats["chrome"], col=col, axis="Z", length=tube_bottom - 263.0)
+        if tip:
+            cylinder("wand_tip", cx, tube_bottom - 5, 4.8, -24.8, -15.2,
+                     mat=mats["chrome"], col=col, axis="Z", length=12)
 
     # The dispense head hangs from the top of the alcove and the nozzles stop
     # clear of the cup's rim — the whole point of the taller alcove. Anything
