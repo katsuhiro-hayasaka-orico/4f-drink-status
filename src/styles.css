@@ -2139,72 +2139,51 @@ a:focus-visible {
 /* ------------------------------------------------------- illustrations -- */
 
 /*
- * The WMF 1100 S drawn to match the real machine in the lounge. Its shell is
- * genuinely dark grey-black, so it cannot simply follow the page's ink the way
- * the old schematic did: on a dark page it sank into the background. Dark mode
- * therefore gets its own, lighter set of shell values — the machine stays
- * recognisably black, but lifted far enough off the card to keep its shape.
- * What is inside the hoppers keeps its real colour in both schemes, as before.
+ * The machine picture is a render (tools/blender/wmf1100s.py) with the level
+ * windows punched clean out of it; the SVG paints the levels through those
+ * holes and the render's own glass edge closes over them.
+ *
+ * Two shells come out of Blender rather than one. The real machine is a
+ * near-black graphite: on a cream card that reads beautifully, on a dark card
+ * it turns into a hole. So the dark shell is re-lit in the render — lighter
+ * body, hotter rim light — which a CSS filter cannot imitate, and the only
+ * tokens left here are for the few surfaces that stayed SVG.
  */
 :root {
-  --wmf-body-1: #232529;
-  --wmf-body-2: #101114;
-  --wmf-edge: #0b0c0e;
-  --wmf-base: #121316;
-  --wmf-alcove: #0a0b0d;
-  --wmf-hopper: #15181c;
-  --wmf-hopper-rim: #34373d;
-  --wmf-screen-rim: #2a2d33;
-  --wmf-ice-1: #83878e;
-  --wmf-ice-2: #5d6167;
-  --wmf-ice-3: #4c4f55;
-  --wmf-ice-4: #74787f;
-  --wmf-ice-front: #54575d;
+  --wmf-window: #15181c;
   --wmf-shadow: 0.16;
 }
 
 :root[data-theme='dark'] {
-  --wmf-body-1: #42464e;
-  --wmf-body-2: #25282d;
-  --wmf-edge: #6c727c;
-  --wmf-base: #2a2e34;
-  --wmf-alcove: #1b1e23;
-  --wmf-hopper: #22262c;
-  --wmf-hopper-rim: #5d636c;
-  --wmf-screen-rim: #4a5261;
-  --wmf-ice-1: #9ba0a8;
-  --wmf-ice-2: #767b83;
-  --wmf-ice-3: #63676e;
-  --wmf-ice-4: #8d929a;
-  --wmf-ice-front: #6a6e75;
-  --wmf-shadow: 0.4;
+  --wmf-window: #22262c;
+  --wmf-shadow: 0.34;
 }
 
-.wmf-shell {
-  stroke: var(--wmf-edge);
+/* The other scheme's shell stays mounted and hidden. Swapping the image source
+   on a theme change would blank the frame until the new file arrived, leaving
+   the contents hanging in mid-air. */
+.wmf-body--dark {
+  visibility: hidden;
 }
 
-.wmf-base {
-  fill: var(--wmf-base);
-  stroke: var(--wmf-edge);
+:root[data-theme='dark'] .wmf-body--light {
+  visibility: hidden;
 }
 
-.wmf-alcove {
-  fill: var(--wmf-alcove);
+:root[data-theme='dark'] .wmf-body--dark {
+  visibility: visible;
 }
 
-.wmf-hopper {
-  fill: var(--wmf-hopper);
-  stroke: var(--wmf-hopper-rim);
+/* The unlit interior the contents slide against. */
+.wmf-window {
+  fill: var(--wmf-window);
 }
 
-.wmf-screen {
-  fill: #0a0b0d;
-  stroke: var(--wmf-screen-rim);
-}
-
-.wmf-ice-front {
-  fill: var(--wmf-ice-front);
+/* Smoked glass over the contents. Dark in both schemes: it is what the white
+   readout sits on. */
+.wmf-glass {
+  fill: #0b0e12;
+  opacity: 0.24;
 }
 
 .wmf-floor {
@@ -2212,22 +2191,26 @@ a:focus-visible {
   opacity: var(--wmf-shadow);
 }
 
-/* Always sits on smoked hopper glass, which is dark in both schemes. */
 .wmf-label {
   fill: #ffffff;
   stroke: #15181c;
 }
 
-/* White china, both schemes: the cup stands in an unlit recess, so tinting it
-   for dark mode only made it look dirty. */
-.wmf-cup {
-  fill: #f6f2ea;
-  stroke: #c9bfae;
+/* The 氷 on the ice maker's door. Dark with a light halo, the opposite of the
+   readouts: the door renders as bright steel in both schemes, so the ink has to
+   go the other way to keep its contrast. */
+.wmf-glyph {
+  fill: #14171a;
+  stroke: #eef1f4;
 }
 
-.wmf-cup-line {
-  fill: none;
-  stroke: #c9bfae;
+/* The menu drawn on the rendered glass. */
+.wmf-screen-ui {
+  fill: #7d93b4;
+}
+
+.wmf-screen-glyphs {
+  stroke: #7d93b4;
 }
 
 /* -------------------------------------------------------- opening hours -- */

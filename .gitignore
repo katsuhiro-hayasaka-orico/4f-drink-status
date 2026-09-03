@@ -6,3 +6,9 @@ dist/
 .env
 .dev.vars
 .DS_Store
+
+# Blender: the PNG masters are regenerable from tools/blender/wmf1100s.py and
+# would bloat the history; the WebP the site ships is committed instead.
+tools/blender/out/
+*.blend1
+__pycache__/

@@ -11,6 +11,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.worker.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "render:machine": "blender -b --python tools/blender/wmf1100s.py -- --theme all",
     "db:migrate:local": "wrangler d1 migrations apply drink-status --local",
     "db:migrate:remote": "wrangler d1 migrations apply drink-status --remote",
     "db:seed:local": "node scripts/seed.mjs > .seed.sql && wrangler d1 execute drink-status --local --file .seed.sql && node -e \"require('fs').rmSync('.seed.sql', { force: true })\"",
