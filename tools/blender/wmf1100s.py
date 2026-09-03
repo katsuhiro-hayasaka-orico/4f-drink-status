@@ -104,7 +104,7 @@ D_RECESS = 96.0            # back wall of the cup station
 D_HOLDOUT = -60.0          # holdout planes, comfortably in front of the glass
 
 # The two alcoves, cut clean through the fronts they sit in.
-CUP_ALCOVE = (414.0, 358.0, 606.0, 466.0)
+CUP_ALCOVE = (414.0, 354.0, 606.0, 480.0)
 ICE_ALCOVE = (76.0, 258.0, 164.0, 330.0)
 
 
@@ -268,6 +268,47 @@ def cylinder(name, cx, cy_vb, radius, y0, y1, mat=None, col=None, axis="Y",
     return ob
 
 
+def torus(name, cx, cy_vb, depth, major, minor, mat=None, col=None,
+          major_segments=28, minor_segments=10):
+    """A ring standing in the image plane — the cup's handle.
+
+    bmesh has no torus primitive, so the tube is swept by hand. A straight bar
+    read as a stick rather than a handle at this size, and the handle is one of
+    the few cues that says "cup" and not "beaker".
+    """
+    me = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    cz = z_of(cy_vb)
+    rings = []
+    for i in range(major_segments):
+        t = math.tau * i / major_segments
+        ct, st = math.cos(t), math.sin(t)
+        px, pz = cx + major * ct, cz + major * st
+        ring = []
+        for j in range(minor_segments):
+            u = math.tau * j / minor_segments
+            cu, su = math.cos(u), math.sin(u)
+            ring.append(bm.verts.new((px + ct * minor * cu,
+                                      depth + minor * su,
+                                      pz + st * minor * cu)))
+        rings.append(ring)
+    bm.verts.ensure_lookup_table()
+    for i in range(major_segments):
+        a, b = rings[i], rings[(i + 1) % major_segments]
+        for j in range(minor_segments):
+            k = (j + 1) % minor_segments
+            bm.faces.new((a[j], a[k], b[k], b[j]))
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(me)
+    bm.free()
+    ob = bpy.data.objects.new(name, me)
+    (col or bpy.context.scene.collection).objects.link(ob)
+    if mat:
+        ob.data.materials.append(mat)
+    shade(ob, True)
+    return ob
+
+
 def frame_box(name, outer, inner, y0, y1, mat=None, col=None, bevel=1.8):
     """A rectangular picture frame, front face in viewBox coordinates.
 
@@ -383,16 +424,18 @@ def build_materials(theme):
 
 def build_machine(mats, col):
     """The drink machine: plinth, cabinet, white flanks, screen, spout, hoppers."""
-    # Plinth. The foot is a plain dark block, set back so the cabinet overhangs.
-    box("plinth", MACHINE_X0 + 8, 470, MACHINE_X1 - 8, 522, 22, D_BODY_BACK,
+    # Plinth. A short foot on purpose: the machine's overall height is fixed by
+    # the frame, so every unit the base gives up is a unit the cup station gets,
+    # and the cup needs the headroom more than the plinth does.
+    box("plinth", MACHINE_X0 + 8, 486, MACHINE_X1 - 8, 522, 22, D_BODY_BACK,
         mat=mats["plinth"], bevel=4, col=col)
 
     # Cabinet. The front is a frame, not a slab: the cup station is a hole
     # through it, and the body behind supplies the alcove's back wall. Cutting
     # it this way is the only reason the cup is visible at all.
-    frame_box("cabinet_front", (MACHINE_X0, 172, MACHINE_X1, 474),
+    frame_box("cabinet_front", (MACHINE_X0, 172, MACHINE_X1, 490),
               CUP_ALCOVE, D_FRONT, D_RECESS, mat=mats["shell"], col=col, bevel=7.0)
-    box("cabinet_body", MACHINE_X0, 172, MACHINE_X1, 474, D_RECESS, D_BODY_BACK,
+    box("cabinet_body", MACHINE_X0, 172, MACHINE_X1, 490, D_RECESS, D_BODY_BACK,
         mat=mats["recess"], bevel=2, col=col)
     box("deck", MACHINE_X0 - 6, 156, MACHINE_X1 + 6, 176, -6.0, D_BODY_BACK - 6,
         mat=mats["shell_dark"], bevel=4, col=col)
@@ -416,8 +459,6 @@ def build_machine(mats, col):
               mat=mats["chrome"], col=col, bevel=1.4)
     box("screen_glass", sx, sy, sx + sw, sy + sh, -9.0, 2.0,
         mat=mats["screen"], bevel=1.0, col=col)
-    box("screen_groove", sx - 10, sy + sh + 4, sx + sw + 10, sy + sh + 10,
-        6.0, 30.0, mat=mats["plinth"], bevel=1.0, col=col)
 
     # Steam / milk wands, standing off the left panel.
     box("wand_head", 274, 200, 322, 220, -24.0, 34.0, mat=mats["shell_dark"],
@@ -428,20 +469,21 @@ def build_machine(mats, col):
         box("wand_tip", cx - 5, 356, cx + 5, 368, -22.0, -6.0,
             mat=mats["shell_dark"], bevel=2, col=col)
 
-    box("spout_head", 468, 362, 552, 396, -34.0, 24.0, mat=mats["shell_dark"],
+    # The dispense head hangs from the top of the alcove and the nozzles stop
+    # clear of the cup's rim — the whole point of the taller alcove. Anything
+    # lower and the cup reads as standing behind the spout rather than under it.
+    box("spout_head", 468, 354, 552, 388, -34.0, 26.0, mat=mats["shell_dark"],
         bevel=5, col=col)
-    box("spout_collar", 486, 350, 534, 366, -28.0, 20.0, mat=mats["chrome"],
-        bevel=3, col=col)
-    for cx in (492.0, 528.0):
-        cylinder("nozzle", cx, 408, 5.2, -30.0, -18.0, mat=mats["chrome"],
-                 col=col, axis="Z", length=26)
+    for cx in (496.0, 524.0):
+        cylinder("nozzle", cx, 396, 5.2, -30.0, -18.0, mat=mats["chrome"],
+                 col=col, axis="Z", length=16)
 
     # Drip tray: a steel lid with slots, the machine's other bright metal.
-    box("tray", 416, 446, 604, 470, -24.0, 80.0, mat=mats["steel"], bevel=2.5,
+    box("tray", 416, 458, 604, 480, -24.0, 80.0, mat=mats["steel"], bevel=2.5,
         col=col)
     for i in range(11):
         gx = 428.0 + i * 15.5
-        box("slot", gx, 450, gx + 5, 466, -26.0, -18.0, mat=mats["shell_dark"],
+        box("slot", gx, 462, gx + 5, 476, -26.0, -18.0, mat=mats["shell_dark"],
             bevel=0.8, col=col)
 
     build_cup(mats, col)
@@ -470,17 +512,18 @@ def build_cup(mats, col):
     me = bpy.data.meshes.new("cup")
     bm = bmesh.new()
     bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=56,
-                          radius1=22.0, radius2=26.0, depth=40.0)
-    bmesh.ops.translate(bm, vec=Vector((504.0, 28.0, z_of(426.0))), verts=bm.verts)
+                          radius1=25.0, radius2=30.0, depth=50.0)
+    bmesh.ops.translate(bm, vec=Vector((510.0, 28.0, z_of(437.0))), verts=bm.verts)
     bm.to_mesh(me)
     bm.free()
     ob = bpy.data.objects.new("cup", me)
     col.objects.link(ob)
     ob.data.materials.append(mats["china"])
     shade(ob, True)
-    # Handle: a short bar on the right. At 500px wide a real loop turns to mush.
-    handle = cylinder("cup_handle", 536.0, 418.0, 3.8, 22.0, 34.0,
-                      mat=mats["china"], col=col, axis="X", length=24)
+    # The handle's inner half disappears into the cup wall, which is what makes
+    # it read as attached rather than parked alongside.
+    handle = torus("cup_handle", 544.0, 432.0, 28.0, 15.0, 3.6,
+                   mat=mats["china"], col=col)
     return ob, handle
 
 
