@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { actionLabelFor, isEventName, isValidReportValue, reportValueQuote } from './domain.js';
+import {
+  MATERIAL_KEYS,
+  SIGHTING_ACTIONS,
+  actionLabelFor,
+  isEventName,
+  isValidReportValue,
+  reportValueQuote,
+} from './domain.js';
 
 describe('清掃中 (machine-only cleaning)', () => {
   it('is valid only for the machine', () => {
@@ -48,5 +55,30 @@ describe('isEventName', () => {
     expect(isEventName('')).toBe(false);
     expect(isEventName(undefined)).toBe(false);
     expect(isEventName(42)).toBe(false);
+  });
+});
+
+describe('SIGHTING_ACTIONS', () => {
+  it('lets a bystander report every material in every offered state', () => {
+    for (const material of MATERIAL_KEYS) {
+      for (const action of SIGHTING_ACTIONS) {
+        expect(isValidReportValue(material, action), `${material}/${action}`).toBe(true);
+        expect(actionLabelFor(material, action), `${material}/${action}`).not.toBe('');
+      }
+    }
+  });
+
+  it('offers 十分にある — leaving it out is what pushed people to fake drinks', () => {
+    // Someone who could see three full hoppers had no way to say so, so they
+    // posted cocoa and lattes they had not made just to record the levels.
+    expect(SIGHTING_ACTIONS).toContain('available');
+    expect(SIGHTING_ACTIONS).toContain('low');
+    expect(SIGHTING_ACTIONS).toContain('refilled');
+  });
+
+  it('withholds なくなっている from witnesses on purpose', () => {
+    // Calling a hopper empty is a claim only the person who actually tried can
+    // make; that stays with the failure report, where a cause must be named.
+    expect(SIGHTING_ACTIONS).not.toContain('unavailable');
   });
 });

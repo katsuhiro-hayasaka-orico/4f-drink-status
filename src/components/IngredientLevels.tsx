@@ -17,9 +17,31 @@ const DESCRIPTION: Record<StatusKey, string> = {
 export interface IngredientLevelsProps {
   statuses: Record<SupplySubjectKey, StatusOrNone>;
   levels: Record<MaterialKey, number | null>;
+  /** Jump to the report form with this material already chosen. */
+  onReport: (material: MaterialKey) => void;
 }
 
-export function IngredientLevels({ statuses, levels }: IngredientLevelsProps) {
+/**
+ * The four hoppers as numbers.
+ *
+ * Each card carries its own way in. Looking at 「ココア 約30%」 and thinking
+ * 「いや、さっき見たらまだ結構あった」 is the moment someone most wants to
+ * correct the board, and until now this card was read-only — the nearest way
+ * to act on that thought was to scroll back up and claim a drink they had not
+ * made. The button hands the material straight to the sighting picker.
+ */
+export function IngredientLevels({ statuses, levels, onReport }: IngredientLevelsProps) {
+  const reportButton = (key: MaterialKey, label: string) => (
+    <button
+      type="button"
+      className="ingredient__report"
+      onClick={() => onReport(key)}
+      aria-label={`${label}の見かけた残量を報告`}
+    >
+      見かけた残量を報告
+    </button>
+  );
+
   return (
     <div className="grid-240">
       {MATERIAL_KEYS.map((key) => {
@@ -42,6 +64,7 @@ export function IngredientLevels({ statuses, levels }: IngredientLevelsProps) {
                 <div className="meter__fill" style={{ width: 0 }} />
               </div>
               <div className="ingredient__desc">まだわかりません</div>
+              {reportButton(key, label)}
             </div>
           );
         }
@@ -60,6 +83,7 @@ export function IngredientLevels({ statuses, levels }: IngredientLevelsProps) {
               <div className="meter__fill" style={{ width: `${level}%`, background: color }} />
             </div>
             <div className="ingredient__desc">{DESCRIPTION[status]}</div>
+            {reportButton(key, label)}
           </div>
         );
       })}
