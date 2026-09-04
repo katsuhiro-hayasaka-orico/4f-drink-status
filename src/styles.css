@@ -809,14 +809,62 @@ a:focus-visible {
   color: var(--ink);
 }
 
+/* The form's second half, not its footer. It used to be a strip of small chips
+   below the fine print, and people reported drinks they had not made rather
+   than find it — so it gets a heading and the same two-step rhythm as the
+   drink flow above it. The dashed rule stays: they are siblings, not one
+   continuous form. */
 .report__others {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line);
+}
+
+/* The shortcut in the form's header. Quiet, but a real button: on a phone the
+   sighting half is a screen and a half below the fold. */
+.report__jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  padding: 8px 12px;
+  min-height: 36px;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--body-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.report__jump:hover {
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.report__others-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.report__others-lead {
+  margin: 5px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.report__others-machine {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--line);
+  margin-top: 18px;
 }
 
 .report__others-label {
@@ -825,11 +873,28 @@ a:focus-visible {
   color: var(--body-text);
 }
 
-/* Forces the next observation group onto its own line, so 補充・残り少な
-   そう・マシン read as three rows instead of one long chip stream. */
-.report__others-break {
-  flex-basis: 100%;
-  height: 0;
+/* Sits at the bottom of each hopper card. Quiet by default — the number is the
+   point of the card — but a full-width target, because it is tapped on a phone
+   while standing in front of the machine. */
+.ingredient__report {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px 10px;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--body-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ingredient__report:hover {
+  border-color: var(--accent);
+  color: var(--ink);
 }
 
 /* ------------------------------------------------- drink summary/toggle -- */

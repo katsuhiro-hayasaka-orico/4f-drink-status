@@ -246,6 +246,20 @@ const MACHINE_ACTION_LABELS: Record<ActionKey, string> = {
   refilled: '復旧した',
 };
 
+/**
+ * What a bystander may report about a hopper they only looked at.
+ *
+ * Deliberately not every ActionKey: `unavailable` is missing, because calling
+ * a material empty is a claim only the person who actually tried can make.
+ * That stays with the failure report, where a cause has to be named. A witness
+ * gets as far as 「残り少なめ」 — see the 投稿の種類 table in README.md.
+ *
+ * `available` is here because leaving it out was the bug: someone who could
+ * see three full hoppers had no way to say so, and posted drinks they had not
+ * made just to get the levels recorded.
+ */
+export const SIGHTING_ACTIONS: ActionKey[] = ['available', 'low', 'refilled'];
+
 export function actionLabelFor(subject: SubjectKey, value: ReportValue): string {
   if (subject === QUEUE_SUBJECT) return QUEUE_META[value as QueueLevel].label;
   if (value === CLEANING_ACTION) return '清掃中';
