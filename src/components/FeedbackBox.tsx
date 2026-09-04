@@ -1,4 +1,6 @@
 import { MOOD_KEYS, MOOD_META, type MoodKey } from '../../shared/domain.js';
+import { byNewestFirst, formatShippedDate } from '../lib/shipped.js';
+import type { ShippedItem } from '../lib/shipped.js';
 
 /**
  * Shipped improvements that started as feedback-box submissions — the proof
@@ -6,21 +8,24 @@ import { MOOD_KEYS, MOOD_META, type MoodKey } from '../../shared/domain.js';
  * the admin, never the submitted text: bodies stay private (they may carry
  * personal or confidential details), so only a generalized gist of the idea
  * is republished, with no name, label, or date-of-submission.
+ *
+ * `when` is the ship date, not the submission date. Append new entries at the
+ * end and do not bother reordering — the display sorts newest first.
  */
-const FROM_FEEDBACK: { when: string; voice: string; change: string }[] = [
+const FROM_FEEDBACK: ShippedItem[] = [
   {
-    when: '2026年8月28日',
+    when: '2026-08-28',
     voice: 'いつ切れるかを事前に予測できるようにしてほしい',
     change:
       '曜日×時間帯の傾向マップ「いつ切れやすい？」（切れやすい時間帯・混み具合・ねらい目）を追加しました',
   },
   {
-    when: '2026年8月28日',
+    when: '2026-08-28',
     voice: '自分は作らなくても、見かけた残量を報告できるようにしてほしい',
     change: '作っていない人でも、見かけた残量を材料ごとに投稿できるようにしました',
   },
   {
-    when: '2026年9月4日',
+    when: '2026-09-04',
     voice: '自分が使っていない材料も、見た目でわかる残量を報告したい',
     change:
       '「見かけた残量」を材料と状態の2タップで報告できるようにし（十分にある／残り少なめ／補充された）、「材料の推定残量」の各カードからも直接投稿できるようにしました',
@@ -71,9 +76,11 @@ export function FeedbackBox({ tally, onWrite }: FeedbackBoxProps) {
         <div className="feedback-box__shipped">
           <span className="feedback-box__shipped-title">ご意見から改善した機能</span>
           <ul className="feedback-box__shipped-list">
-            {FROM_FEEDBACK.map((item) => (
+            {byNewestFirst(FROM_FEEDBACK).map((item) => (
               <li key={item.change}>
-                <span className="feedback-box__shipped-when">{item.when}</span>
+                <span className="feedback-box__shipped-when">
+                  {formatShippedDate(item.when)}
+                </span>
                 「{item.voice}」という声から、{item.change}
               </li>
             ))}
