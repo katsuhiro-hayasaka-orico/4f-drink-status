@@ -16,6 +16,7 @@ import {
   type ConfidenceKey,
   type DrinkKey,
   type DrinkResult,
+  type MaterialKey,
 } from '../shared/domain.js';
 import { loungeHours } from '../shared/hours.js';
 import { relativeTime } from '../shared/time.js';
@@ -126,18 +127,35 @@ export function App() {
     }
   }, [reportInView]);
 
-  const goToReport = useCallback(() => {
+  const goToReport = useCallback((focusStepOne = true) => {
     track('cta_click');
     const el = document.getElementById('report');
     if (!el) return;
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
     // Land keyboard/AT focus on step 1 once the scroll has had its moment.
+    // Arriving from a levels card skips this: that material is already chosen,
+    // and ReportForm moves focus to the question still open instead.
+    if (!focusStepOne) return;
     window.setTimeout(
       () => el.querySelector<HTMLButtonElement>('.chip')?.focus({ preventScroll: true }),
       reduce ? 0 : 400,
     );
   }, []);
+
+  /**
+   * A material handed over from the levels card. Held here rather than inside
+   * the form because the button that sets it lives two sections further down.
+   */
+  const [sightingTarget, setSightingTarget] = useState<MaterialKey | null>(null);
+  const reportSighting = useCallback(
+    (material: MaterialKey) => {
+      goToReport(false);
+      setSightingTarget(material);
+    },
+    [goToReport],
+  );
+  const clearSightingTarget = useCallback(() => setSightingTarget(null), []);
 
   // Notifications are server-pushed now — no poll coupling, no report
   // observation. The toggle is self-contained; just never crash the click.
@@ -246,7 +264,7 @@ export function App() {
             confidence={view.confidence}
             metrics={view.metrics}
             hours={view.hours}
-            onReport={goToReport}
+            onReport={() => goToReport()}
           />
         </section>
 
@@ -259,6 +277,8 @@ export function App() {
             onPostDrink={(input) => void postDrink(input)}
             onPostSimple={(subject, action) => void post(subject, action)}
             onPostQueue={(level) => void post(QUEUE_SUBJECT, level)}
+            sightingTarget={sightingTarget}
+            onSightingTargetUsed={clearSightingTarget}
           />
         </div>
 
@@ -285,8 +305,15 @@ export function App() {
           </Section>
         )}
 
-        <Section title="材料の推定残量" note="作れたドリンクの報告から推定した目安です">
-          <IngredientLevels statuses={view.statuses} levels={view.levels} />
+        <Section
+          title="材料の推定残量"
+          note="ドリンクの報告と、見かけた残量の報告から推定した目安です"
+        >
+          <IngredientLevels
+            statuses={view.statuses}
+            levels={view.levels}
+            onReport={reportSighting}
+          />
         </Section>
 
         <Section title="ドリンクの作成可否" note="要約のみ・詳細は開いて確認">
@@ -349,7 +376,7 @@ export function App() {
 
       {/* Floating fallback CTA: only once we know the form is off-screen. */}
       {reportInView === false && (
-        <button type="button" className="report-fab" onClick={goToReport}>
+        <button type="button" className="report-fab" onClick={() => goToReport()}>
           ＋ 投稿する
         </button>
       )}
