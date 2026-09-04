@@ -34,18 +34,23 @@ jobs:
       - name: 型チェックとビルド
         run: npm run build
 
+      # 以下2ステップは cloudflare/wrangler-action ではなく npx で直接呼びます。
+      # アクションはデプロイ時に自分で wrangler を取りに行くため、上の npm ci が
+      # 入れた固定版（package.json の wrangler）ではなく別の版で本番に出る可能性が
+      # あります。テストを通したのと同じ版でデプロイするほうが大事です。副次的に、
+      # デプロイ経路から分単位で揺れる npm インストールが2回消えます。
+      # 認証は wrangler が CLOUDFLARE_API_TOKEN を直接読むので、扱いは同じです。
+
       # マイグレーションは CREATE TABLE IF NOT EXISTS で冪等、かつ wrangler が
       # 適用済みのものを飛ばすため、毎回実行しても安全です。スキーマ変更を
       # 手で流し忘れてデプロイが壊れるほうが起きやすい事故です。
       - name: D1 マイグレーション適用
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: d1 migrations apply drink-status --remote
+        run: npx wrangler d1 migrations apply drink-status --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
+      # ビルド済みの dist/client をそのまま使うので、ここでは deploy だけ。
       - name: デプロイ
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          # ビルド済みの dist/client をそのまま使うので、ここでは deploy だけ。
-          command: deploy
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
