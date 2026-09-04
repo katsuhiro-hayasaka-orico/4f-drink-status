@@ -17,14 +17,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      # setup-node の cache: npm が持つのは ~/.npm（tarball 置き場）だけで、
+      # node_modules ではありません。それが当たっていても npm ci は毎回
+      # node_modules を消して 346MB を展開し直すので、下で node_modules 自体を
+      # キャッシュし、当たったら npm ci を飛ばします。cache: npm はミス時の
+      # 保険として残しています。
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      # restore-keys は使いません。部分一致で古い node_modules を拾うと、
+      # 依存を足した回だけ静かに壊れます。キャッシュを疑ったら key の先頭の
+      # v1- を v2- に上げれば全部作り直せます。
+      # cache だけ v4 なのは、確実に存在する版を使うためです。もし Annotations の
+      # Node 20 警告がこのアクションを名指ししていたら v5 へ上げてください。
+      - uses: actions/cache@v4
+        id: node-modules
+        with:
+          path: node_modules
+          key: v1-node-modules-${{ runner.os }}-${{ runner.arch }}-node22-${{ hashFiles('package-lock.json') }}
+
+      - run: npm ci --prefer-offline --no-audit --fund=false
+        if: steps.node-modules.outputs.cache-hit != 'true'
 
       - name: テスト
         run: npm test
