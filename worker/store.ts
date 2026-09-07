@@ -20,6 +20,24 @@ export const HISTORY_WINDOW_MS = 24 * 60 * 60 * 1000;
 /** Hard cap on a single response, so one busy day can't balloon the payload. */
 export const HISTORY_LIMIT = 200;
 
+/**
+ * Machine rows fetched on top of that budget, so an outage the latch depends on
+ * cannot be pushed out of the feed by unrelated traffic.
+ *
+ * The 200-row cap is shared by every subject and ordered by time alone, so the
+ * oldest row in the window is always the first to go — and for a machine that
+ * broke hours ago, that row *is* the outage. Two hundred queue and drink posts
+ * later it left the response, `summarize` stopped seeing any outage to latch,
+ * and a board that had been saying 「いまは使えません」 flipped to
+ * 「たぶん飲めます」 with nobody having reported anything about the machine.
+ * Rate limits allow 20 posts a minute from one device, so ten minutes of queue
+ * posting was enough to clear a broken machine off the board.
+ *
+ * Twenty is far more than the latch reads (it needs the newest outage and any
+ * positive report after it) and is served by idx_reports_subject_created_at.
+ */
+export const MACHINE_HISTORY_LIMIT = 20;
+
 interface ReportRow {
   id: string;
   subject: string;
@@ -46,15 +64,34 @@ function toReport(row: ReportRow): Report {
  * 投稿の内訳 table.
  */
 export async function listRecentReports(db: D1Database, now: number): Promise<Report[]> {
+  // Two windows unioned: the shared newest-200, plus a small machine-only
+  // reserve so the row the latch hangs on survives a busy day. UNION dedupes on
+  // the whole row and `id` is the primary key, so overlap collapses exactly.
+  // `id` also breaks ties in every ORDER BY — a drink posting writes several
+  // rows with one created_at, and without a tiebreak SQLite could cut that
+  // group anywhere, dropping its machine row while keeping the drink row.
   const { results } = await db
     .prepare(
-      `SELECT id, subject, action, user_id, user_label, created_at
-         FROM reports
-        WHERE created_at >= ?1
-        ORDER BY created_at DESC
-        LIMIT ?2`,
+      `SELECT id, subject, action, user_id, user_label, created_at FROM (
+         SELECT * FROM (
+           SELECT id, subject, action, user_id, user_label, created_at
+             FROM reports
+            WHERE created_at >= ?1
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?2
+         )
+         UNION
+         SELECT * FROM (
+           SELECT id, subject, action, user_id, user_label, created_at
+             FROM reports
+            WHERE created_at >= ?1 AND subject = 'machine'
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?3
+         )
+       )
+       ORDER BY created_at DESC, id DESC`,
     )
-    .bind(now - HISTORY_WINDOW_MS, HISTORY_LIMIT)
+    .bind(now - HISTORY_WINDOW_MS, HISTORY_LIMIT, MACHINE_HISTORY_LIMIT)
     .all<ReportRow>();
   return (results ?? []).map(toReport);
 }

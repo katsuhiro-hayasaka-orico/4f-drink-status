@@ -513,6 +513,16 @@ describe('a machine outage latches until something clears it', () => {
     expect(s.lastAt).toBe(NOW - 53 * MIN);
   });
 
+  it('reports the newest machine sighting as 最終観測, not the outage', () => {
+    // A 清掃中 posted after the outage is still somebody looking at the machine.
+    // Pinning lastAt to the outage made the observation card's clock run
+    // backwards the moment that later report aged out of the window, while the
+    // header and the breakdown table went on showing the newer one.
+    const s = summarize([broke(90), report('machine', 'cleaning', 'P', 45)], 'machine', NOW);
+    expect(s.status).toBe('unavailable');
+    expect(s.lastAt).toBe(NOW - 45 * MIN);
+  });
+
   it('breaks a same-timestamp tie toward the outage, whatever the input order', () => {
     const down = report('machine', 'unavailable', 'A', 60);
     const up = report('machine', 'available', 'B', 60);

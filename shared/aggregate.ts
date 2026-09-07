@@ -163,7 +163,13 @@ export function summarize(
           supporters: 0,
           agreement: 0,
           confidence: 'low',
-          lastAt: outage.createdAt,
+          // The newest machine report, not the outage — 「最終観測」 answers
+          // "when did anyone last look at this?", and a 清掃中 posted after the
+          // outage is still someone looking. Pinning it to the outage made the
+          // card's time jump *backwards* the moment that later report aged out
+          // of the window, while the header's 最終更新 and the breakdown table
+          // went on showing the newer one.
+          lastAt: newest.createdAt,
           carried: true,
         };
       }

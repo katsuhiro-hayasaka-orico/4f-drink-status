@@ -113,7 +113,7 @@
 - **1人1票・各人の最新のみ。** `summarize` / `summarizeDrinkReports` / `summarizeQueue` の3箇所で同型に実装（aggregate.ts:107-109, 429-431, 477-479）。フッタの「利用者ごとの最新投稿を1票として集計」（`src/App.tsx:370`）はこの規則の表示面。
 - **マシンが未報告なら盲点リストの先頭に入れ、飲めると断定しない**（`overallState()`、aggregate.ts:359-373。テスト `never promises a drink while the machine itself is unreported` / `names the machine ahead of the other blind spots`。コミット bff903b）。
 - **`drinkAvailability` は無知を楽観に変えない。** 1つでも未報告の材料があれば「残り少なめ」ではなく「情報なし」、マシン故障は無知にも勝つ（`shared/drinks.test.ts` 6件が全方向を固定）。
-- **マシンの「作れない」はラッチする**（2026-09-07 の新仕様）。観測窓も残照上限も超えて、**厳密に新しい positive 報告（取れた・補充された・成功ドリンクが展開する machine 行）が出るまで**消えない。清掃中と残り少なめは「新しい知らせだが良い知らせではない」ので**ラッチを解除できない**（39b64ac / 5abb7e4）。ただし**遡れるのは `listRecentReports` が返す直近24時間・最大200行まで**（`worker/store.ts:18,21`）で、`shared/` はこの窓の外を見られない。
+- **マシンの「作れない」はラッチする**（2026-09-07 の新仕様）。観測窓も残照上限も超えて、**厳密に新しい positive 報告（取れた・補充された・成功ドリンクが展開する machine 行）が出るまで**消えない。清掃中と残り少なめは「新しい知らせだが良い知らせではない」ので**ラッチを解除できない**（39b64ac / 5abb7e4）。ただし**遡れるのは `listRecentReports` が返す範囲まで**で、`shared/` はこの窓の外を見られない。窓は直近24時間・全対象で最大200行（`worker/store.ts` の `HISTORY_WINDOW_MS` / `HISTORY_LIMIT`）だが、**マシンの最新20行はその枠外で必ず含まれる**（`MACHINE_HISTORY_LIMIT`）。共通枠は古い行から溢れるので、この予約が無いとアウテージ行が無関係な投稿200件に押し出されてラッチが黙って解除される。
 - **材料の悪い知らせには残照を与えない。** 良い知らせ（取れた・補充された）だけが最大120分持ち越され、必ず `confidence:'low'` / `total:0` / `carried:true` に落ちる（票数に数えない）。
 - **投稿ゼロなら全対象 'none'。** デモ由来の既定値（75/35/80）を復活させてはいけない（`UNKNOWN_STATUSES` 前コメント、aggregate.ts:249-256）。現行の残量%は `ACTION_META`（`shared/domain.ts:78-81`）。
 - 集計の重みと閾値は固定値。在庫は10分1.0/20分0.7/30分0.4（`weight()`）、高=3票以上かつ75%以上かつ10分以内、中=2票/60%/20分以内（`summarize()` の confidence）。行列は2分1.0/5分0.6/10分0.3（`queueWeight()`）、高=2票/67%/3分以内、中=50%/5分以内（`summarizeQueue()` の confidence）。
@@ -189,24 +189,23 @@
 - **ブランチ名**は `<type>/<内容>`。実例 `feat/machine-render`、`fix/shipped-order`、`chore/deploy-pinned-wrangler`、`perf/cache-node-modules`。2026-08-31 までは `feat/4f-drink-status` を全機能で使い回していたが、9月以降は内容を表す名前に変わっている（後者に倣う）。
 - **コミット件名**は Conventional Commits 形式で英語。実例 `fix(aggregate): only good news clears a latched outage`。
 - **コミット本文**は英語の長文で「なぜそうしたか・何を却下したか・どう検証したか」を書く。5abb7e4 は症状を3行の表で示してから修正方針を述べている。**コード中に TODO/FIXME/HACK は一切置かない**（grep で0件）— 未完了を印で残さず、決着済みの判断をドックコメントに書くのが方針。
-- **非マージコミットは末尾に trailer 2行を置く**（116コミット中、マージ以外は例外なく持っている）。`Co-Authored-By: <モデル名> <noreply@anthropic.com>` と `Claude-Session: https://claude.ai/code/session_...`（実例は 359e30c の本文末尾）。
+- **コミット末尾に trailer 2行を置く**: `Co-Authored-By: <モデル名> <noreply@anthropic.com>` と `Claude-Session: https://claude.ai/code/session_...`（実例は 359e30c の本文末尾）。非マージコミットは例外なく持つ。マージは61件中23件で、`Merge <ブランチ名>: <要約>` 形式には付ける（直近の実例 978f2b3）。持たない38件は、人手のバンドル同期 `Merge branch 'main' of C:\Users\innov\...`（28件）と、初期の `Merge feat/4f-drink-status: ...`（10件）。**新しいマージには付ける。**
 - **マージ件名**は `Merge <ブランチ名>: <要約>`。実例 `Merge feat/machine-render: WMF 1100 S as a Blender render`。
 - 仕様を変えたら **README.md の該当節も同時に直す**（機能追加コミットのほぼ全てが README を同時に更新している）。
 - 人間（katsuhiro-hayasaka-orico）の29コミットは、28件が `Merge branch 'main' of C:\Users\innov\4f-drink-status.bundle`（Windows ローカルからのバンドル同期、内容変更なし）＋ `cbee93b Set D1 database id`（wrangler.toml 1行のみ）。**実装コミットは全て Claude 名義**なので、**推測:** 実装の設計意図はコミット本文と README 以外に人証が存在しない可能性が高い。
 
 ## 現況（2026-09-07 時点）
 
-- `origin/main` = **724af9c**。現在のブランチ `claude/new-cloud-session-edsa9o` = **5abb7e4** で origin/main より3コミット先。**`origin/claude/new-cloud-session-edsa9o` にプッシュ済み**なので、push 不要・PR を作るだけで main に載せられる。
-- 未マージの3件はいずれも集計バグ修正。`bff903b`（未報告のマシンを正常扱いしない）、`39b64ac`（壊れたマシンはラッチする）、`5abb7e4`（良い知らせだけがラッチを解除する）。`deploy.yml` は main への push でのみデプロイするため、**この3件は本番に出ていない**。対応する PR も Issue も GitHub 上に存在しない。
+- `origin/main` = **978f2b3**（`claude/new-cloud-session-edsa9o` をマージ済み。ブランチと同一内容）。
+- **集計バグ修正3件は本番反映済み**（2026-09-07 08:04 UTC、Deploy run #30、全ステップ success、所要26秒）。`bff903b`（未報告のマシンを正常扱いしない）、`39b64ac`（壊れたマシンはラッチする）、`5abb7e4`（良い知らせだけがラッチを解除する）。マイグレーションの追加は無いので D1 のスキーマは不変。**ただし本番URLが不明なため実機での目視確認はできていない**（「文脈が失われた範囲」参照）。CI の結果のみが根拠。
 - テストは **13ファイル150件が全通過**（aggregate 61 / drinkReport 14 / hours 11 / rhythm 10 / labels 9 / drinks 6 / feedback 5、push 9 / notify 5、machineLayout 6 / shipped 6 / a2hs 5 / postings 3）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
 - 直近の作業の流れは、9/3 Blender レンダー化 → 9/4 目撃導線の作り直し・CI/デプロイの足回り整備 → 9/7 集計ロジックのバグ修正3連。UI の作り込みからロジックの正しさへ軸足が移っている。
 - コミット trailer から、**失われたセッションは `https://claude.ai/code/session_01Pq73qark1HNzZuwCmf9PXq`**（72コミットが持つ）。現行セッションは `session_01Au31ns5hDxA7y21maRPVci`（直近3件）。`git log --format='%h %(trailers:key=Claude-Session,valueonly)'` でどのコミットがどちらの産物か機械的に判別できる。
 
 ## 次に着手すべきもの
 
-1. **未マージ3件を main に入れる**（影響:本番）。`deploy.yml` が走り本番へ反映される。実運用のボードは今もこのバグを抱えている。ただし「意図的に止めていたのか作業途中だったのか」はコミット本文から読み取れないので、出す前に人に確認するのが安全。
-2. **`scripts/announce.mjs` の引数パースのバグ**（影響:運用）。`--title` を省略すると本文が落ちる。README の該当節とスクリプトのヘッダも同時に直す。
-3. **Worker にテストが1本も無い**（影響:開発）。`index.ts`（528行）`store.ts`（450行）`identity.ts`（103行）。ルーティング順序・3種のレート制限・undo の所有者チェック・HMAC 署名検証が回帰検知されない。`worker/push.test.ts` が WebCrypto でテストを書けているので技術的障壁はない。
+1. **`scripts/announce.mjs` の引数パースのバグ**（影響:運用）。`--title` を省略すると本文が落ちる。README の該当節とスクリプトのヘッダも同時に直す。
+2. **Worker にテストが1本も無い**（影響:開発）。`index.ts`（528行）`store.ts`（450行）`identity.ts`（103行）。ルーティング順序・3種のレート制限・undo の所有者チェック・HMAC 署名検証が回帰検知されない。`worker/push.test.ts` が WebCrypto でテストを書けているので技術的障壁はない。
 
 ## 既知の負債（把握のみ）
 
