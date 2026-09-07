@@ -242,6 +242,10 @@ export interface Overall {
  * other materials are unreported, because 「情報がありません」 must never
  * hide a problem someone has actually seen. Only a board with no usable
  * reports at all says it knows nothing.
+ *
+ * Missing news, in turn, wins over good news about something else: the machine
+ * gates every drink, so while its state is unknown the board hedges and names
+ * it, no matter how full the hoppers were when someone last looked.
  */
 export function overallState(
   statuses: Record<SupplySubjectKey, StatusOrNone>,
@@ -282,22 +286,33 @@ export function overallState(
     };
   }
 
-  const unknown = MATERIAL_KEYS.filter((k) => statuses[k] === 'none');
-  if (unknown.length === MATERIAL_KEYS.length && statuses.machine === 'none') {
+  const unknownMaterials = MATERIAL_KEYS.filter((k) => statuses[k] === 'none');
+  const machineUnknown = statuses.machine === 'none';
+  if (unknownMaterials.length === MATERIAL_KEYS.length && machineUnknown) {
     return {
       label: 'まだ情報がありません',
       reason: `過去${CONFIG.observationWindowMin}分の投稿がありません。使ったらぜひ教えてください`,
       tone: 'none',
     };
   }
+
+  // The machine leads the blind spots because it gates the answer: an unchecked
+  // hopper leaves one drink uncertain, an unchecked machine leaves it unknown
+  // whether anything pours at all. Counting only the materials here is what let
+  // a 「作れない」 that had aged out of the observation window come back as
+  // 「いま飲めます — 材料はぜんぶそろっています」: every hopper was still
+  // carrying its 残照, and nothing at all spoke for the machine.
+  const unknown: SupplySubjectKey[] = machineUnknown
+    ? ['machine', ...unknownMaterials]
+    : unknownMaterials;
   if (unknown.length > 0) {
     // The headline commits — 「行けば飲める?」 is the question, so answer it —
-    // but it commits only as far as the data goes. One blind spot still leaves
-    // a confident yes; several means most of the board is guesswork, and a
-    // flat 「いま飲めます」 there would be vouching for materials nobody has
-    // looked at. Either way the sub-line names exactly what is unknown.
+    // but it commits only as far as the data goes. A single unseen hopper still
+    // leaves a confident yes; several mean most of the board is guesswork, and
+    // an unseen machine never leaves one, however full the hoppers look. Either
+    // way the sub-line names exactly what is unknown.
     return {
-      label: unknown.length === 1 ? 'いま飲めます' : 'たぶん飲めます',
+      label: unknown.length === 1 && !machineUnknown ? 'いま飲めます' : 'たぶん飲めます',
       reason: `${unknown.map((k) => subjectLabels[k]).join('・')}はまだわかりません`,
       tone: 'available',
     };

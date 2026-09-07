@@ -383,6 +383,51 @@ describe('overallState', () => {
     const o = overallState({ ...UNKNOWN_STATUSES, cocoaPowder: 'unavailable' }, SUBJECT_LABELS);
     expect(o.label).toBe('作れないものがあります');
   });
+
+  it('never promises a drink while the machine itself is unreported', () => {
+    // 「行けば飲める?」 asks about the machine first and the hoppers second:
+    // full hoppers say nothing if nobody knows whether the machine runs.
+    const o = overallState({ ...base, machine: 'none' }, SUBJECT_LABELS);
+    expect(o.label).toBe('たぶん飲めます');
+    expect(o.reason).toBe('マシン全体はまだわかりません');
+  });
+
+  it('names the machine ahead of the other blind spots', () => {
+    const o = overallState({ ...base, machine: 'none', ice: 'none' }, SUBJECT_LABELS);
+    expect(o.label).toBe('たぶん飲めます');
+    expect(o.reason).toBe('マシン全体・氷はまだわかりません');
+  });
+});
+
+describe('an outage that has aged out of the window', () => {
+  // From the board itself: the newest posts said マシン全体・作れない just under
+  // an hour ago, every hopper was last seen full, and the headline answered
+  // 「いま飲めます — 材料はぜんぶそろっています」. The 作れない had correctly
+  // aged out of the 30-minute window (bad news gets no 残照), but overallState
+  // looked for blind spots among the materials only, so an unknown machine
+  // was indistinguishable from a working one.
+  const reports = [
+    report('machine', 'unavailable', 'O', 53),
+    report('machine', 'unavailable', 'M', 55),
+    report('coffeeBeans', 'available', 'A', 52),
+    report('cocoaPowder', 'available', 'B', 60),
+    report('milkPowder', 'available', 'C', 60),
+    report('ice', 'available', 'D', 60),
+  ];
+
+  it('drops the stale outage to 情報なし while the hoppers still carry', () => {
+    const { statuses, summaries } = aggregate(reports, NOW);
+    expect(statuses.machine).toBe('none');
+    expect(summaries.find((s) => s.subject === 'machine')?.carried).toBeUndefined();
+    expect(statuses.coffeeBeans).toBe('available');
+  });
+
+  it('does not answer 「いま飲めます」, and says the machine is the gap', () => {
+    const { statuses } = aggregate(reports, NOW);
+    const o = overallState(statuses, SUBJECT_LABELS);
+    expect(o.label).not.toBe('いま飲めます');
+    expect(o.reason).toContain('マシン全体');
+  });
 });
 
 describe('focusSummary', () => {
