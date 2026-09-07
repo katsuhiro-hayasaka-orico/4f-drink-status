@@ -10,6 +10,7 @@ import {
   summarizeQueue,
   weight,
 } from './aggregate.js';
+import { buildDrinkReportRows } from './drinkReport.js';
 import {
   SUBJECT_LABELS,
   isValidReportValue,
@@ -399,14 +400,12 @@ describe('overallState', () => {
   });
 });
 
-describe('an outage that has aged out of the window', () => {
+describe('an outage the window has aged out', () => {
   // From the board itself: the newest posts said マシン全体・作れない just under
   // an hour ago, every hopper was last seen full, and the headline answered
-  // 「いま飲めます — 材料はぜんぶそろっています」. The 作れない had correctly
-  // aged out of the 30-minute window (bad news gets no 残照), but overallState
-  // looked for blind spots among the materials only, so an unknown machine
-  // was indistinguishable from a working one.
-  const reports = [
+  // 「いま飲めます — 材料はぜんぶそろっています」. A machine does not fix itself
+  // between polls, so the outage outlives the window until somebody clears it.
+  const outage = [
     report('machine', 'unavailable', 'O', 53),
     report('machine', 'unavailable', 'M', 55),
     report('coffeeBeans', 'available', 'A', 52),
@@ -415,18 +414,94 @@ describe('an outage that has aged out of the window', () => {
     report('ice', 'available', 'D', 60),
   ];
 
-  it('drops the stale outage to 情報なし while the hoppers still carry', () => {
-    const { statuses, summaries } = aggregate(reports, NOW);
-    expect(statuses.machine).toBe('none');
-    expect(summaries.find((s) => s.subject === 'machine')?.carried).toBeUndefined();
+  it('keeps the machine unavailable, carried, and honest about its age', () => {
+    const { statuses, summaries } = aggregate(outage, NOW);
+    const machine = summaries.find((s) => s.subject === 'machine');
+    expect(statuses.machine).toBe('unavailable');
+    expect(machine?.carried).toBe(true);
+    expect(machine?.confidence).toBe('low');
+    // Carried, so it must not inflate 「過去30分の有効観測」.
+    expect(machine?.total).toBe(0);
+    expect(machine?.lastAt).toBe(NOW - 53 * MIN);
+    // The hoppers carry on their own terms — that half was never wrong.
     expect(statuses.coffeeBeans).toBe('available');
   });
 
-  it('does not answer 「いま飲めます」, and says the machine is the gap', () => {
-    const { statuses } = aggregate(reports, NOW);
+  it('answers 「いまは使えません」, not 「いま飲めます」', () => {
+    const { statuses } = aggregate(outage, NOW);
     const o = overallState(statuses, SUBJECT_LABELS);
-    expect(o.label).not.toBe('いま飲めます');
-    expect(o.reason).toContain('マシン全体');
+    expect(o.label).toBe('いまは使えません');
+    expect(o.tone).toBe('unavailable');
+  });
+
+  it('still hedges when the machine is unknown rather than broken', () => {
+    // Nobody has ever reported the machine here, so there is nothing to latch.
+    const { statuses } = aggregate(outage.slice(2), NOW);
+    expect(statuses.machine).toBe('none');
+    const o = overallState(statuses, SUBJECT_LABELS);
+    expect(o.label).toBe('たぶん飲めます');
+    expect(o.reason).toBe('マシン全体はまだわかりません');
+  });
+});
+
+describe('a machine outage latches until something clears it', () => {
+  const broke = (minutesAgo: number) => report('machine', 'unavailable', 'O', minutesAgo);
+
+  it('outlives the retention that bounds good news', () => {
+    const s = summarize([broke(8 * 60)], 'machine', NOW);
+    expect(s.status).toBe('unavailable');
+    expect(s.carried).toBe(true);
+    expect(s.lastAt).toBe(NOW - 8 * 60 * MIN);
+  });
+
+  it('is cleared by a later 「取れた」', () => {
+    const s = summarize([broke(90), report('machine', 'available', 'P', 40)], 'machine', NOW);
+    expect(s.status).toBe('available');
+    expect(s.carried).toBe(true);
+  });
+
+  it('is cleared by a later 「補充された」', () => {
+    const s = summarize([broke(90), report('machine', 'refilled', 'P', 40)], 'machine', NOW);
+    expect(s.status).toBe('available');
+    expect(s.dominantAction).toBe('refilled');
+  });
+
+  it('is cleared by the machine row a poured drink expands into', () => {
+    // A drink that poured is proof the machine ran, and buildDrinkReportRows
+    // already records exactly that — this is the 「飲めるようになった」 path.
+    const rows = buildDrinkReportRows({
+      drink: 'hotCoffee',
+      result: 'made',
+      low: [],
+      cause: null,
+    });
+    expect(rows).toContainEqual({ subject: 'machine', action: 'available' });
+    const s = summarize([broke(90), report('machine', 'available', 'P', 40)], 'machine', NOW);
+    expect(s.status).toBe('available');
+  });
+
+  it('is not cleared by a positive report that predates it', () => {
+    const s = summarize([report('machine', 'available', 'P', 90), broke(40)], 'machine', NOW);
+    expect(s.status).toBe('unavailable');
+    expect(s.carried).toBe(true);
+  });
+
+  it('does not latch 清掃中 — cleaning ends by itself', () => {
+    expect(summarize([report('machine', 'cleaning', 'a', 45)], 'machine', NOW).status).toBe('none');
+  });
+
+  it('does not latch a material shortage', () => {
+    // Only the machine latches; a stale hopper reading still needs re-checking.
+    expect(summarize([report('ice', 'unavailable', 'a', 45)], 'ice', NOW).status).toBe('none');
+    expect(summarize([report('coffeeBeans', 'unavailable', 'a', 300)], 'coffeeBeans', NOW).status).toBe(
+      'none',
+    );
+  });
+
+  it('never outranks in-window votes', () => {
+    const s = summarize([broke(90), report('machine', 'available', 'P', 5)], 'machine', NOW);
+    expect(s.status).toBe('available');
+    expect(s.carried).toBeUndefined();
   });
 });
 
