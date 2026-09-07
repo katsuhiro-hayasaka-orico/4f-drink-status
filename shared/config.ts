@@ -36,9 +36,14 @@ export const CONFIG = {
   /**
    * How long a *good* report (取れた・補充された) keeps showing after the
    * observation window has emptied. Supplies don't vanish on their own, so
-   * good news ages gracefully; bad news gets no such afterglow — a shortage
-   * older than the 30-minute window is exactly the reading that needs
+   * good news ages gracefully; a shortage on a material gets no such afterglow
+   * — one older than the 30-minute window is exactly the reading that needs
    * re-checking, so it degrades to 情報なし instead.
+   *
+   * The machine is the exception, and it runs the other way: 「作れない」 there
+   * does not heal on its own, so it latches past this retention and past the
+   * observation window until a positive report clears it. See `summarize` in
+   * shared/aggregate.ts.
    */
   availableRetentionMin: 120,
 

@@ -54,7 +54,7 @@ export function Observations({ summaries, now }: ObservationsProps) {
               {s.total
                 ? `${s.total}人中${s.supporters}人が「${quote}」と報告`
                 : s.carried
-                  ? `過去${CONFIG.observationWindowMin}分の投稿はなく、最後の「${STATUS_QUOTE.available}」報告を保持中`
+                  ? `過去${CONFIG.observationWindowMin}分の投稿はなく、最後の「${quote}」報告を保持中`
                   : `過去${CONFIG.observationWindowMin}分に有効な投稿がありません`}
             </p>
             <div className="observation__agreement">

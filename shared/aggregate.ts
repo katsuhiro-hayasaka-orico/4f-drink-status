@@ -10,6 +10,8 @@
  *      two fresh ones.
  *   5. Two or more recent "can't make it" reports win outright — being told
  *      the machine is empty is worth more than being told it isn't.
+ *   6. When the window empties, the last report carries: good news for a
+ *      couple of hours, a machine outage until something positive clears it.
  */
 
 import {
@@ -78,8 +80,10 @@ export interface Summary {
   lastAt: number | null;
   /**
    * True when this reading is an afterglow: the observation window is empty
-   * and the status shown is the last good report, carried forward. Carried
-   * readings have no in-window votes (total 0) and are always 低 confidence.
+   * and the status shown is carried from the last report about this subject —
+   * a good one inside availableRetentionMin, or a machine outage of any age
+   * that nothing has cleared since. Carried readings have no in-window votes
+   * (total 0) and are always 低 confidence.
    */
   carried?: boolean;
 }
@@ -105,16 +109,73 @@ export function summarize(
   const votes = [...byUser.values()];
 
   if (votes.length === 0) {
-    // 残照: how long the last report outlives the empty window depends on
-    // what it said. 取れた／補充された keeps showing — supplies don't vanish
-    // on their own — at 低 confidence with its honest timestamp, until
-    // availableRetentionMin. 残り少なめ／作れない gets no afterglow: a stale
+    // 残照: how long the last report outlives the empty window depends on what
+    // it said, and — for the machine — on whether anything has said otherwise
+    // since. The newest report always decides; these rules only say how long
+    // its word is still worth something.
+    const newest = reports
+      .filter((r) => r.subject === subject)
+      .sort((a, b) => b.createdAt - a.createdAt)[0];
+
+    // A broken machine does not fix itself. An empty hopper is a thing someone
+    // will refill and a stale shortage is worth re-checking, but 「作れない」 on
+    // the machine stays true until a person says otherwise, so it latches: it
+    // outlives both the observation window and availableRetentionMin, for as
+    // far back as the board can see.
+    //
+    // What clears it is *good news specifically* — 取れた, 補充された, or the
+    // machine row a successful drink report expands into (buildDrinkReportRows
+    // in shared/drinkReport.ts): a drink that poured is proof the machine ran.
+    // Nothing else does, and the distinction matters: 清掃中 and 残り少なめ are
+    // both postable on the machine (isValidReportValue in domain.ts), and both
+    // are newer news that is not better news. Keying the latch on the newest
+    // report rather than the newest *positive* one let a 清掃中 posted after an
+    // outage drop the board back to 情報なし — so telling the board the machine
+    // was being cleaned read better than saying nothing at all.
+    //
+    // 清掃中 still never latches on its own. Cleaning ends by itself, so with no
+    // outage behind it the reading degrades to 情報なし as before; it just can't
+    // erase one either.
+    if (subject === 'machine') {
+      const mine = reports.filter((r) => r.subject === subject);
+      const outage = mine
+        .filter((r) => r.action === 'unavailable')
+        .sort((a, b) => b.createdAt - a.createdAt)[0];
+      // Strictly newer: a positive report sharing an outage's timestamp does
+      // not clear it. Ties break toward the more cautious answer, as they do
+      // for drinks and for the queue — and it keeps the result independent of
+      // the order `reports` happens to arrive in.
+      const cleared =
+        outage !== undefined &&
+        mine.some(
+          (r) =>
+            r.createdAt > outage.createdAt &&
+            toStatus(r.action as ActionKey | CleaningAction) === 'available',
+        );
+      if (outage !== undefined && !cleared) {
+        return {
+          subject,
+          status: 'unavailable',
+          dominantAction: 'unavailable',
+          // Same as any carried reading: not in-window evidence, so it must not
+          // inflate 「過去30分の有効観測」, and never better than 低 confidence.
+          total: 0,
+          supporters: 0,
+          agreement: 0,
+          confidence: 'low',
+          lastAt: outage.createdAt,
+          carried: true,
+        };
+      }
+    }
+
+    // 取れた／補充された keeps showing — supplies don't vanish on their own —
+    // at 低 confidence with its honest timestamp, until availableRetentionMin.
+    // 残り少なめ／作れない on a *material* still gets no afterglow: a stale
     // shortage is exactly the reading that needs re-checking, so it becomes
     // 情報なし rather than scaring people away for hours.
     const retentionCutoff = now - AVAILABLE_RETENTION_MS;
-    const recent = reports
-      .filter((r) => r.subject === subject && r.createdAt >= retentionCutoff)
-      .sort((a, b) => b.createdAt - a.createdAt)[0];
+    const recent = newest && newest.createdAt >= retentionCutoff ? newest : undefined;
     if (recent && toStatus(recent.action as ActionKey | CleaningAction) === 'available') {
       return {
         subject,
@@ -242,6 +303,10 @@ export interface Overall {
  * other materials are unreported, because 「情報がありません」 must never
  * hide a problem someone has actually seen. Only a board with no usable
  * reports at all says it knows nothing.
+ *
+ * Missing news, in turn, wins over good news about something else: the machine
+ * gates every drink, so while its state is unknown the board hedges and names
+ * it, no matter how full the hoppers were when someone last looked.
  */
 export function overallState(
   statuses: Record<SupplySubjectKey, StatusOrNone>,
@@ -282,22 +347,33 @@ export function overallState(
     };
   }
 
-  const unknown = MATERIAL_KEYS.filter((k) => statuses[k] === 'none');
-  if (unknown.length === MATERIAL_KEYS.length && statuses.machine === 'none') {
+  const unknownMaterials = MATERIAL_KEYS.filter((k) => statuses[k] === 'none');
+  const machineUnknown = statuses.machine === 'none';
+  if (unknownMaterials.length === MATERIAL_KEYS.length && machineUnknown) {
     return {
       label: 'まだ情報がありません',
       reason: `過去${CONFIG.observationWindowMin}分の投稿がありません。使ったらぜひ教えてください`,
       tone: 'none',
     };
   }
+
+  // The machine leads the blind spots because it gates the answer: an unchecked
+  // hopper leaves one drink uncertain, an unchecked machine leaves it unknown
+  // whether anything pours at all. Counting only the materials here is what let
+  // a 「作れない」 that had aged out of the observation window come back as
+  // 「いま飲めます — 材料はぜんぶそろっています」: every hopper was still
+  // carrying its 残照, and nothing at all spoke for the machine.
+  const unknown: SupplySubjectKey[] = machineUnknown
+    ? ['machine', ...unknownMaterials]
+    : unknownMaterials;
   if (unknown.length > 0) {
     // The headline commits — 「行けば飲める?」 is the question, so answer it —
-    // but it commits only as far as the data goes. One blind spot still leaves
-    // a confident yes; several means most of the board is guesswork, and a
-    // flat 「いま飲めます」 there would be vouching for materials nobody has
-    // looked at. Either way the sub-line names exactly what is unknown.
+    // but it commits only as far as the data goes. A single unseen hopper still
+    // leaves a confident yes; several mean most of the board is guesswork, and
+    // an unseen machine never leaves one, however full the hoppers look. Either
+    // way the sub-line names exactly what is unknown.
     return {
-      label: unknown.length === 1 ? 'いま飲めます' : 'たぶん飲めます',
+      label: unknown.length === 1 && !machineUnknown ? 'いま飲めます' : 'たぶん飲めます',
       reason: `${unknown.map((k) => subjectLabels[k]).join('・')}はまだわかりません`,
       tone: 'available',
     };
