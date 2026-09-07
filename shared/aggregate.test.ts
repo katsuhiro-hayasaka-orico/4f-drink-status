@@ -486,8 +486,38 @@ describe('a machine outage latches until something clears it', () => {
     expect(s.carried).toBe(true);
   });
 
-  it('does not latch 清掃中 — cleaning ends by itself', () => {
+  it('does not latch 清掃中 on its own — cleaning ends by itself', () => {
     expect(summarize([report('machine', 'cleaning', 'a', 45)], 'machine', NOW).status).toBe('none');
+  });
+
+  it('is not cleared by a 清掃中 posted after the outage', () => {
+    // Newer news, not better news. Keying the latch on the newest report let
+    // this drop the board to 情報なし, so saying 「清掃中」 read better than
+    // saying nothing — the machine was still broken either way.
+    const s = summarize([broke(90), report('machine', 'cleaning', 'P', 45)], 'machine', NOW);
+    expect(s.status).toBe('unavailable');
+    expect(s.carried).toBe(true);
+    // The 「お掃除中です」 sign needs dominantAction 'cleaning'; a latched
+    // outage must keep showing 「いまは使えません」 instead.
+    expect(s.dominantAction).toBe('unavailable');
+  });
+
+  it('is not cleared by a 残り少なめ posted after the outage', () => {
+    // isValidReportValue lets 'low' through for the machine too.
+    const s = summarize([broke(90), report('machine', 'low', 'P', 45)], 'machine', NOW);
+    expect(s.status).toBe('unavailable');
+  });
+
+  it('reports the newest outage when several stack up', () => {
+    const s = summarize([broke(90), broke(53)], 'machine', NOW);
+    expect(s.lastAt).toBe(NOW - 53 * MIN);
+  });
+
+  it('breaks a same-timestamp tie toward the outage, whatever the input order', () => {
+    const down = report('machine', 'unavailable', 'A', 60);
+    const up = report('machine', 'available', 'B', 60);
+    expect(summarize([down, up], 'machine', NOW).status).toBe('unavailable');
+    expect(summarize([up, down], 'machine', NOW).status).toBe('unavailable');
   });
 
   it('does not latch a material shortage', () => {

@@ -121,29 +121,52 @@ export function summarize(
     // will refill and a stale shortage is worth re-checking, but 「作れない」 on
     // the machine stays true until a person says otherwise, so it latches: it
     // outlives both the observation window and availableRetentionMin, for as
-    // far back as the board can see. Only a positive report clears it — 取れた,
-    // 補充された, or the machine row a successful drink report expands into
-    // (buildDrinkReportRows in shared/drinkReport.ts): a drink that poured is
-    // proof the machine ran. Because the newest report decides, that report is
-    // the entire clearing mechanism; no timer stands in for it.
+    // far back as the board can see.
     //
-    // 清掃中 is deliberately excluded. Cleaning ends on its own, so latching it
-    // would strand the board on a sign that stopped being true minutes later —
-    // it keeps degrading to 情報なし as before.
-    if (subject === 'machine' && newest?.action === 'unavailable') {
-      return {
-        subject,
-        status: 'unavailable',
-        dominantAction: 'unavailable',
-        // Same as any carried reading: not in-window evidence, so it must not
-        // inflate 「過去30分の有効観測」, and never better than 低 confidence.
-        total: 0,
-        supporters: 0,
-        agreement: 0,
-        confidence: 'low',
-        lastAt: newest.createdAt,
-        carried: true,
-      };
+    // What clears it is *good news specifically* — 取れた, 補充された, or the
+    // machine row a successful drink report expands into (buildDrinkReportRows
+    // in shared/drinkReport.ts): a drink that poured is proof the machine ran.
+    // Nothing else does, and the distinction matters: 清掃中 and 残り少なめ are
+    // both postable on the machine (isValidReportValue in domain.ts), and both
+    // are newer news that is not better news. Keying the latch on the newest
+    // report rather than the newest *positive* one let a 清掃中 posted after an
+    // outage drop the board back to 情報なし — so telling the board the machine
+    // was being cleaned read better than saying nothing at all.
+    //
+    // 清掃中 still never latches on its own. Cleaning ends by itself, so with no
+    // outage behind it the reading degrades to 情報なし as before; it just can't
+    // erase one either.
+    if (subject === 'machine') {
+      const mine = reports.filter((r) => r.subject === subject);
+      const outage = mine
+        .filter((r) => r.action === 'unavailable')
+        .sort((a, b) => b.createdAt - a.createdAt)[0];
+      // Strictly newer: a positive report sharing an outage's timestamp does
+      // not clear it. Ties break toward the more cautious answer, as they do
+      // for drinks and for the queue — and it keeps the result independent of
+      // the order `reports` happens to arrive in.
+      const cleared =
+        outage !== undefined &&
+        mine.some(
+          (r) =>
+            r.createdAt > outage.createdAt &&
+            toStatus(r.action as ActionKey | CleaningAction) === 'available',
+        );
+      if (outage !== undefined && !cleared) {
+        return {
+          subject,
+          status: 'unavailable',
+          dominantAction: 'unavailable',
+          // Same as any carried reading: not in-window evidence, so it must not
+          // inflate 「過去30分の有効観測」, and never better than 低 confidence.
+          total: 0,
+          supporters: 0,
+          agreement: 0,
+          confidence: 'low',
+          lastAt: outage.createdAt,
+          carried: true,
+        };
+      }
     }
 
     // 取れた／補充された keeps showing — supplies don't vanish on their own —
