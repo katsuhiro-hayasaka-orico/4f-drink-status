@@ -174,13 +174,21 @@ export function App() {
     const summaries = agg.summaries;
     const statuses = closed ? UNKNOWN_STATUSES : agg.statuses;
     const levels = closed ? UNKNOWN_LEVELS : agg.levels;
+    const machineSummary = summaries.find((s) => s.subject === 'machine');
     // The 清掃中 sign only counts while the board is open and the machine
     // reading is actually an outage.
     const machineCleaning =
-      statuses.machine === 'unavailable' &&
-      summaries.find((s) => s.subject === 'machine')?.dominantAction === 'cleaning';
+      statuses.machine === 'unavailable' && machineSummary?.dominantAction === 'cleaning';
     const overall = overallState(statuses, SUBJECT_LABELS, machineCleaning);
-    const focus = focusSummary(summaries, agg.statuses);
+    // The pill has to speak for whatever the headline is speaking about.
+    // overallState returns on a machine outage before it ever looks at a
+    // material, so on those readings focusSummary's answer is about something
+    // the headline is not claiming — a latched outage from this morning would
+    // sit next to a 確からしさ：高 earned by material votes from two minutes ago.
+    const focus =
+      statuses.machine === 'unavailable'
+        ? (machineSummary ?? focusSummary(summaries, agg.statuses))
+        : focusSummary(summaries, agg.statuses);
     const confidence = closed ? ('none' as const) : (focus?.confidence ?? 'none');
     const queue = summarizeQueue(reports, now);
     // Direct made/failed verdicts per drink; masked while closed like the rest.

@@ -113,7 +113,7 @@
 - **1人1票・各人の最新のみ。** `summarize` / `summarizeDrinkReports` / `summarizeQueue` の3箇所で同型に実装（aggregate.ts:107-109, 429-431, 477-479）。フッタの「利用者ごとの最新投稿を1票として集計」（`src/App.tsx:370`）はこの規則の表示面。
 - **マシンが未報告なら盲点リストの先頭に入れ、飲めると断定しない**（`overallState()`、aggregate.ts:359-373。テスト `never promises a drink while the machine itself is unreported` / `names the machine ahead of the other blind spots`。コミット bff903b）。
 - **`drinkAvailability` は無知を楽観に変えない。** 1つでも未報告の材料があれば「残り少なめ」ではなく「情報なし」、マシン故障は無知にも勝つ（`shared/drinks.test.ts` 6件が全方向を固定）。
-- **マシンの「作れない」はラッチする**（2026-09-07 の新仕様）。観測窓も残照上限も超えて、**厳密に新しい positive 報告（取れた・補充された・成功ドリンクが展開する machine 行）が出るまで**消えない。清掃中と残り少なめは「新しい知らせだが良い知らせではない」ので**ラッチを解除できない**（39b64ac / 5abb7e4）。ただし**遡れるのは `listRecentReports` が返す直近24時間・最大200行まで**（`worker/store.ts:18,21`）で、`shared/` はこの窓の外を見られない。
+- **マシンの「作れない」はラッチする**（2026-09-07 の新仕様）。観測窓も残照上限も超えて、**厳密に新しい positive 報告（取れた・補充された・成功ドリンクが展開する machine 行）が出るまで**消えない。清掃中と残り少なめは「新しい知らせだが良い知らせではない」ので**ラッチを解除できない**（39b64ac / 5abb7e4）。ただし**遡れるのは `listRecentReports` が返す範囲まで**で、`shared/` はこの窓の外を見られない。窓は直近24時間・全対象で最大200行（`worker/store.ts` の `HISTORY_WINDOW_MS` / `HISTORY_LIMIT`）だが、**マシンの最新20行はその枠外で必ず含まれる**（`MACHINE_HISTORY_LIMIT`）。共通枠は古い行から溢れるので、この予約が無いとアウテージ行が無関係な投稿200件に押し出されてラッチが黙って解除される。
 - **材料の悪い知らせには残照を与えない。** 良い知らせ（取れた・補充された）だけが最大120分持ち越され、必ず `confidence:'low'` / `total:0` / `carried:true` に落ちる（票数に数えない）。
 - **投稿ゼロなら全対象 'none'。** デモ由来の既定値（75/35/80）を復活させてはいけない（`UNKNOWN_STATUSES` 前コメント、aggregate.ts:249-256）。現行の残量%は `ACTION_META`（`shared/domain.ts:78-81`）。
 - 集計の重みと閾値は固定値。在庫は10分1.0/20分0.7/30分0.4（`weight()`）、高=3票以上かつ75%以上かつ10分以内、中=2票/60%/20分以内（`summarize()` の confidence）。行列は2分1.0/5分0.6/10分0.3（`queueWeight()`）、高=2票/67%/3分以内、中=50%/5分以内（`summarizeQueue()` の confidence）。
