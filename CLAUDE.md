@@ -196,8 +196,9 @@
 
 ## 現況（2026-09-07 時点）
 
-- `origin/main` = **978f2b3**（`claude/new-cloud-session-edsa9o` をマージ済み。ブランチと同一内容）。
-- **集計バグ修正3件は本番反映済み**（2026-09-07 08:04 UTC、Deploy run #30、全ステップ success、所要26秒）。`bff903b`（未報告のマシンを正常扱いしない）、`39b64ac`（壊れたマシンはラッチする）、`5abb7e4`（良い知らせだけがラッチを解除する）。マイグレーションの追加は無いので D1 のスキーマは不変。**ただし本番URLが不明なため実機での目視確認はできていない**（「文脈が失われた範囲」参照）。CI の結果のみが根拠。
+- **SHA をここに書かない**。すぐ腐るので現在地は毎回コマンドで取る: `git fetch origin main && git log --oneline -5 origin/main && git rev-list --left-right --count origin/main...HEAD`。デプロイ履歴は Actions の Deploy ワークフローを見る。
+- **マシン集計の一連の修正は 2026-09-07 に本番反映済み**（Deploy 2回、いずれも全ステップ success）。内訳は4コミット: `bff903b` 未報告のマシンを正常扱いしない / `39b64ac` 壊れたマシンはラッチする / `5abb7e4` 良い知らせだけがラッチを解除する / `7c85126` ラッチの根拠行を共通200件枠の外に出す（+ 最終観測の逆行と確からしさピルの対象ずれ）。D1 のマイグレーション追加は無くスキーマは不変。
+- **どのデプロイも実機での目視確認はしていない**。本番URLが不明なため（「文脈が失われた範囲」参照）、根拠は CI と、`worker/store.ts` の SQL についてはローカル D1 での実行結果のみ。
 - テストは **13ファイル150件が全通過**（aggregate 61 / drinkReport 14 / hours 11 / rhythm 10 / labels 9 / drinks 6 / feedback 5、push 9 / notify 5、machineLayout 6 / shipped 6 / a2hs 5 / postings 3）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
 - 直近の作業の流れは、9/3 Blender レンダー化 → 9/4 目撃導線の作り直し・CI/デプロイの足回り整備 → 9/7 集計ロジックのバグ修正3連。UI の作り込みからロジックの正しさへ軸足が移っている。
 - コミット trailer から、**失われたセッションは `https://claude.ai/code/session_01Pq73qark1HNzZuwCmf9PXq`**（72コミットが持つ）。現行セッションは `session_01Au31ns5hDxA7y21maRPVci`（直近3件）。`git log --format='%h %(trailers:key=Claude-Session,valueonly)'` でどのコミットがどちらの産物か機械的に判別できる。
