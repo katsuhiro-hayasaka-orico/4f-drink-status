@@ -43,7 +43,7 @@
 | `tools/blender/wmf1100s.py` | マシン画像とレイアウト座標の生成元（1000行超） |
 | `migrations/` | 0001 reports+users / 0002 feedback+feedback_likes / 0003 feedback.updated_at / 0004 events / 0005 reports.group_id / 0006 push_subscriptions |
 
-`src/App.tsx` の画面の並び（243-380）: ヘッダ → A2hsBanner / MobileInvite → overview（マシンの絵＋SummaryPanel）→ **ReportForm** → 行列の待ち状況 → いつ切れやすい？ → 材料の推定残量 → ドリンクの作成可否 → ドリンクの人気度 → みんなの観測 → 投稿の内訳 → ご意見箱 → フッタ。加えてフォームが画面外のときだけ出る FAB。ReportForm が overview の直後にあるのは UI/UX 監査対応（8f28291）の結果で、`App.tsx:271-272` のコメントが理由を書いている。
+`src/App.tsx` の画面の並び: ヘッダ → A2hsBanner / MobileInvite → overview（マシンの絵＋SummaryPanel）→ **ドリンクの作成可否**（`id="drinks"`、1行要約＋折りたたみ詳細）→ **ReportForm（折りたたみ。`open` prop、`goToReport` が展開する）** → 行列の待ち状況 → いつ切れやすい？ → 材料の推定残量 → ドリンクの人気度 → みんなの観測 → 投稿の内訳 → ご意見箱 → フッタ。加えてフォームが画面外のときだけ出る FAB。2026-08-13 の監査対応（8f28291）では ReportForm が overview の直後にあったが、2026-09-09 にユーザー判断で可否を前に出しフォームを折りたたんだ（`App.tsx` の該当コメントに経緯。計測で判断する前提）。
 
 ## タスク別の逆引き
 
@@ -144,6 +144,7 @@
 - **投稿はドリンク起点**（e427a1b）。人はマシンをホッパーではなくドリンクとして経験するから。材料の残量票はサーバーが導出する。
 - **目撃報告を材料→状態の2タップに組み替え、「十分にある」を追加**（d72b958）。以前は満杯のホッパーが見えている人に言う手段が無く、残量記録目的で作っていないドリンクを「作った」と偽投稿する回避策が生まれていた。ご意見箱の声が発端。
 - **マシンだけラッチが逆向き**（39b64ac→5abb7e4）。壊れたマシンは自分で直らない。実際のボードで「53分前に2人が作れないと言った直後に『いま飲めます』」が出たのが発端。5abb7e4 はその修正の穴（清掃中がラッチを解除でき「掃除中と言うほうが黙っているより良く読める」状態だった）を adversarial review で潰したもの。
+- **投稿フォームは折りたたみ、ドリンク可否が先**（2026-09-09）。外部の UI/UX 検証の提案をユーザーが採用し、8f28291 の「フォームを hero 直後へ」を覆した。「閲覧専用に見える」への逆戻りリスクは承知の上で、`cta_click` / `report_view`（展開時）/ `post_done` の比率を変更前後で比べて判断する前提。同じ検証由来で、投稿の成功宣言をサーバー確認後に（`PostOutcome`）、取り消し窓を着地後に、時計とポーリングを分離、「最終更新」→「最新の投稿」（行列除外）、読込状態の3区別、を入れた。
 - **ご意見箱は収集は公開・閲覧は管理者のみ**（3c4eeb2）。公開ページの自由記述には個人情報が書き込まれ得るため、外部への流出経路を持たない設計にした。編集・削除・いいねは API/UI ごと撤去。
 - **通知は「見られているタブでは出さない」抑制を撤回**（b686a91）。掲示板は壁掛けディスプレイのように開きっぱなしにされる。最初の設計判断が現場で否定された例。
 - **Service Worker はキャッシュを持たない**（`public/sw.js:4-10`）。「アプリはオンライン専用として作ってあり、キャッシュ層は staleness バグの第二の発生源になる」。オフライン対応は意図的な不在なので、足す前にこの判断を覆す根拠が要る。
@@ -179,7 +180,9 @@
 - `SESSION_SECRET` 未設定時は開発用固定鍵へ**無警告でフォールバック**する（`worker/identity.ts:18,27`）。本番で未設定なら誰でもクッキーを偽造できる。
 - 楽観行の id は `crypto.randomUUID()` なので、**セキュアコンテキスト（https / localhost）でないと投稿時に例外**になる。生成は try の内側にあるので例外は `'unknown'` の失敗として扱われ `posting` は戻る（以前は try の外で throw して `finally` に届かず、全ボタンが disabled のまま固着した）。
 - **投稿の成功はサーバー確認後にしか宣言しない**。`post` / `postDrink`（`src/hooks/useDrinkStatus.ts`）は `Promise<PostOutcome>`（`'ok' | 'rejected' | 'unknown' | 'skipped'`、`src/lib/postOutcome.ts`）を返し、`ReportForm` の `settle` は `'ok'` のときだけ reset・フォローアップへ進む。取り消し窓（5秒）も `openUndoWindow` が**確認後**に開く（タップ時は `'sending'` トーストで、その間の取り消しは `undoRequested` 経路）。rethrow ではなく戻り値なのは、結果を見ない呼び出し側（`QueuePanel`）で unhandled rejection を作らないため——`useFeedback.submit` が rethrow する流儀とは意図的に分けている。
-- `useDrinkStatus` の `now` useMemo は依存に `reports`/`tick` を持つが本体で使っていない。**意図的な無効化トリガー**なので「不要な依存」として消すと「N分前」が固まる。
+- `useDrinkStatus` の `now` useMemo は依存に `reports`/`tick` を持つが本体で使っていない。**意図的な無効化トリガー**なので「不要な依存」として消すと「N分前」が固まる。`tick` を進める時計 effect は**自動更新 OFF でも回る**（ポーリング effect とは別。以前は同じ interval だったため OFF で「N分前」・残照・閉館判定が全部凍った）。
+- **`report_view` は投稿フォームが展開された瞬間に1回**発火する（`App.tsx` の `reportOpen` effect）。折りたたみの見出しがビューポートに入っただけでは数えない。FAB の表示判定（`useInView`）は従来どおり wrapper の可視性。
+- ヘッダーの「最新の投稿」は `latestReportAt`（`shared/aggregate.ts`）＝行列を除く最新投稿。「最後に取得 HH:MM」（`fetchedAt`、自動更新 OFF のときだけ表示）とは別物。読込状態の3区別は `src/lib/loadStatus.ts`（`loading` / 初回失敗 / 取得後の失敗）。
 - 閉館中のマスクは `src/App.tsx:166-190` にあり `shared/` 側には無い。shared のテストだけ読むと閉館時の挙動を見落とす。
 - `machineCleaning` フラグは shared が計算せず App が組み立てる（`App.tsx:179`）。`overallState` へは直接（:182）、`drinkAvailability` へは `DrinkAvailability.tsx`（App.tsx:323 で props、同 60/107 行で呼ぶ）を経由して届く。
 - rhythm の JST 変換は `shared/hours.ts` ではなく **SQL の `strftime '+9 hours'`**（`worker/store.ts:239-240`）にもう1箇所ある。

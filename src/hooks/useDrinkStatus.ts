@@ -97,6 +97,13 @@ export function useDrinkStatus() {
   // times don't drift on a machine with a wrong clock.
   const [skewMs, setSkewMs] = useState(0);
   const [tick, setTick] = useState(0);
+  /**
+   * Server time of the last snapshot adopted — null until the first one
+   * lands, which is also how the board tells "loading" and "never reached
+   * the server" apart from "no reports". Every successful path (poll, post,
+   * undo) goes through adopt(), so this is set in exactly one place.
+   */
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
 
   /**
    * What the toast can take back, once the server has confirmed it: a single
@@ -124,6 +131,7 @@ export function useDrinkStatus() {
       setDrinkTotals(res.drinkTotals);
       setMe(res.me);
       setSkewMs(res.serverNow - Date.now());
+      setFetchedAt(res.serverNow);
     },
     [],
   );
@@ -144,13 +152,20 @@ export function useDrinkStatus() {
     void refresh().finally(() => setLoading(false));
   }, [refresh]);
 
-  // While 自動更新 is ON, re-poll and re-render so「N分前」stays honest.
+  // The clock and the poll are separate timers. The clock always runs:
+  // 「N分前」, the 30-minute window, the afterglow and the opening-hours mask
+  // all read `now`, and while the two were one timer, switching 自動更新 off
+  // froze every one of them — a board left open on a wall said 「12分前」 all
+  // afternoon and never noticed 17:00. 自動更新 decides only whether new data
+  // is fetched.
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), CONFIG.refreshIntervalMs);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     if (!autoOn) return;
-    const id = setInterval(() => {
-      setTick((n) => n + 1);
-      void refresh();
-    }, CONFIG.refreshIntervalMs);
+    const id = setInterval(() => void refresh(), CONFIG.refreshIntervalMs);
     return () => clearInterval(id);
   }, [autoOn, refresh]);
 
@@ -390,6 +405,7 @@ export function useDrinkStatus() {
     now,
     loading,
     loadError,
+    fetchedAt,
     posting,
     toast,
     autoOn,

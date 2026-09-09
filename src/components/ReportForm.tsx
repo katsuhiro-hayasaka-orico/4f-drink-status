@@ -22,6 +22,13 @@ import { outcomeMessage, type PostOutcome } from '../lib/postOutcome.js';
 import { SubjectIcon } from './SubjectIcon.js';
 
 export interface ReportFormProps {
+  /**
+   * Folded until asked. The section and its heading always render — the hero
+   * CTA and the floating button scroll to `#report` — but the questions only
+   * appear once something has opened it.
+   */
+  open: boolean;
+  onOpen: () => void;
   hours: LoungeHours;
   posting: boolean;
   /**
@@ -48,10 +55,12 @@ export interface ReportFormProps {
  *
  * **Made a drink** — 「どのドリンク？」→「作れましたか？」. People experience
  * the machine as drinks, not as hoppers, so the form asks about drinks and the
- * server derives the material levels. The happy path is two taps. 「作れたが
- * 残り少なそう」 opens an optional detail step; 「作れなかった」 requires
- * naming a cause — an ingredient, the machine, or an honest わからない —
- * because a failure without a culprit must not guess at one.
+ * server derives the material levels. The happy path is two taps, and the
+ * three result buttons do three different things: 「問題なく作れた」 posts on
+ * the tap, 「作れたが、残り少なそう」 opens a detail step that needs at least
+ * one material named before its own 投稿する button, and 「作れなかった」
+ * opens a cause step whose chips post on the tap — a failure without a
+ * culprit must not guess at one, so naming the cause is the post.
  *
  * **Only looked** — 「どの材料？」→「どのくらい？」. The hoppers are
  * transparent, so a passer-by often knows more about the cocoa than the last
@@ -72,6 +81,8 @@ export interface ReportFormProps {
  * and the split form placement was costing us exactly those reports.
  */
 export function ReportForm({
+  open,
+  onOpen,
   hours,
   posting,
   onPostDrink,
@@ -233,6 +244,12 @@ export function ReportForm({
           </span>
         </div>
 
+        {!open ? (
+          <button type="button" className="summary__cta report__open" onClick={onOpen} aria-expanded={false}>
+            ＋ 今の状態を投稿する
+          </button>
+        ) : (
+          <>
         {/* On a phone the drink chips stack to eight rows, which puts the other
             half of the form more than a screen away. This is the shortcut for
             the person who did not make anything — the exact person who was
@@ -349,7 +366,8 @@ export function ReportForm({
             <span className="action__mark" aria-hidden="true">
               ✓
             </span>
-            <span className="action__label">問題なく作れた</span>
+            {/* The only one of the three that posts on the tap — say so. */}
+            <span className="action__label">問題なく作れた — すぐ投稿</span>
           </button>
           <button
             type="button"
@@ -554,6 +572,8 @@ export function ReportForm({
           投稿はどちらも、届いてから{CONFIG.undoWindowMs / 1000}
           秒のあいだ取り消せます。作れたドリンクが使った材料と、見かけた残量は、どちらも同じように推定に反映されます。
         </p>
+          </>
+        )}
       </div>
     </section>
   );

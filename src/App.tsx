@@ -4,6 +4,7 @@ import {
   UNKNOWN_STATUSES,
   aggregate,
   focusSummary,
+  latestReportAt,
   overallState,
   summarizeDrinkReports,
   summarizeQueue,
@@ -13,12 +14,13 @@ import {
   DRINK_KEYS,
   QUEUE_SUBJECT,
   SUBJECT_LABELS,
+  isSupplySubjectKey,
   type ConfidenceKey,
   type DrinkKey,
   type DrinkResult,
   type MaterialKey,
 } from '../shared/domain.js';
-import { loungeHours } from '../shared/hours.js';
+import { jstTimeLabel, loungeHours } from '../shared/hours.js';
 import { relativeTime } from '../shared/time.js';
 
 import { A2hsBanner } from './components/A2hsBanner.js';
@@ -47,6 +49,7 @@ import { useRhythm } from './hooks/useRhythm.js';
 import { useNotifications } from './hooks/useNotifications.js';
 import { useTheme } from './hooks/useTheme.js';
 import { markPrompted, shouldAutoPrompt } from './lib/feedbackPrompt.js';
+import { loadStatus } from './lib/loadStatus.js';
 import { track } from './lib/metrics.js';
 
 const CONFIDENCE_SHORT: Record<ConfidenceKey, string> = {
@@ -65,7 +68,7 @@ function buildMetrics(
   dayPeople: number,
 ): Metric[] {
   return [
-    { label: '最終更新', value: lastUpdated },
+    { label: '最新の投稿', value: lastUpdated },
     {
       label: `過去${CONFIG.observationWindowMin}分の有効観測`,
       value: `${validVotes}票・${recentPeople}人`,
@@ -80,7 +83,9 @@ export function App() {
     drinkTotals,
     me,
     now,
+    loading,
     loadError,
+    fetchedAt: reportsFetchedAt,
     posting,
     toast,
     autoOn,
@@ -88,6 +93,7 @@ export function App() {
     post,
     postDrink,
     undo,
+    refresh,
   } = useDrinkStatus();
 
   const { preference: themePreference, choose: chooseTheme } = useTheme();
@@ -98,6 +104,13 @@ export function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState<'auto' | 'manual' | null>(null);
+  /**
+   * The report form opens from a button and stays folded otherwise — the
+   * drink-by-drink verdict took its place at the top of the page. Any way in
+   * (hero CTA, floating button, a levels card) goes through goToReport, which
+   * unfolds it first.
+   */
+  const [reportOpen, setReportOpen] = useState(false);
 
   // The thanks toast is the cue: if this device hasn't submitted or dismissed
   // the form within the cooldown, the dialog opens itself. The toast's small
@@ -115,20 +128,24 @@ export function App() {
     setFeedbackOpen(null);
   }, []);
 
-  // Report-form visibility: hides the floating CTA while the real form is
-  // reachable, and fires the one-shot report_view metric (the audit's
-  // "did they ever find it" number). `null` = not measured yet — neither.
+  // Report-form visibility hides the floating CTA while the form's section is
+  // reachable. `null` = not measured yet — neither.
   const { ref: reportRef, inView: reportInView } = useInView<HTMLDivElement>();
+  // The one-shot report_view metric (the audit's "did they ever find it"
+  // number) fires when the form is unfolded, not when its folded heading
+  // scrolls into view — seeing a button is not seeing the form. Same event,
+  // same meaning; only the moment moved with the fold.
   const reportViewTracked = useRef(false);
   useEffect(() => {
-    if (reportInView === true && !reportViewTracked.current) {
+    if (reportOpen && !reportViewTracked.current) {
       reportViewTracked.current = true;
       track('report_view');
     }
-  }, [reportInView]);
+  }, [reportOpen]);
 
   const goToReport = useCallback((focusStepOne = true) => {
     track('cta_click');
+    setReportOpen(true);
     const el = document.getElementById('report');
     if (!el) return;
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -163,6 +180,12 @@ export function App() {
     void toggleNotify().catch(() => {});
   };
 
+  // What the board can say about its own data — before the first snapshot,
+  // or when the server has stopped answering. Computed outside the memo and
+  // read by kind, so a fresh object each render does not bust the cache.
+  const status = loadStatus({ loading, loadError, fetchedAt: reportsFetchedAt }, jstTimeLabel);
+  const statusKind = status.kind;
+
   const view = useMemo(() => {
     const agg = aggregate(reports, now);
     const hours = loungeHours(now);
@@ -196,19 +219,27 @@ export function App() {
       DRINK_KEYS.map((k) => [k, closed ? null : summarizeDrinkReports(reports, k, now)]),
     ) as Record<DrinkKey, DrinkResult | null>;
 
-    const latest = reports.reduce<number | null>(
-      (max, r) => (max === null || r.createdAt > max ? r.createdAt : max),
-      null,
-    );
-    const lastUpdated = latest === null ? '情報なし' : relativeTime(latest, now);
+    // 「最新の投稿」: the last report about the machine or its supplies. Queue
+    // reports are left out (latestReportAt) — a fresh headcount is not a fresh
+    // look at the beans. Before the first snapshot there is nothing to date.
+    const latest = latestReportAt(reports);
+    const lastUpdated =
+      statusKind === 'loading'
+        ? '確認中…'
+        : statusKind === 'failedFirst'
+          ? '取得できず'
+          : latest === null
+            ? '情報なし'
+            : relativeTime(latest, now);
 
     // Both halves of 「N票・M人」 count supply reports only, so the metric stays
     // internally consistent — queue reports live on a different window and are
-    // surfaced by the queue panel instead.
+    // surfaced by the queue panel, and a drink row on its own is not a vote
+    // (a failed drink of unknown cause used to read as 「0票・1人」).
     const validVotes = summaries.reduce((sum, s) => sum + s.total, 0);
     const recentPeople = new Set(
       reports
-        .filter((r) => r.subject !== QUEUE_SUBJECT && now - r.createdAt <= OBSERVATION_WINDOW_MS)
+        .filter((r) => isSupplySubjectKey(r.subject) && now - r.createdAt <= OBSERVATION_WINDOW_MS)
         .map((r) => r.userId),
     ).size;
     const dayPeople = new Set(
@@ -228,7 +259,16 @@ export function App() {
       lastUpdated,
       metrics: buildMetrics(lastUpdated, validVotes, recentPeople, dayPeople),
     };
-  }, [reports, now]);
+  }, [reports, now, statusKind]);
+
+  // Until a snapshot has landed the headline must not deliver a verdict —
+  // 「まだ情報がありません」 says nobody posted, which is not known yet.
+  const pending =
+    statusKind === 'loading'
+      ? { headline: '最新の状況を確認しています', reason: 'いまの状態を取得しています' }
+      : statusKind === 'failedFirst'
+        ? { headline: '状況を取得できていません', reason: '再試行するか、少し待ってから開き直してください' }
+        : null;
 
   return (
     <div className="page">
@@ -236,6 +276,8 @@ export function App() {
         lastUpdated={view.lastUpdated}
         autoOn={autoOn}
         onToggleAuto={toggleAuto}
+        fetchedAt={reportsFetchedAt}
+        onRefresh={() => void refresh()}
         hours={view.hours}
         notifyState={notifyState}
         onToggleNotify={onToggleNotify}
@@ -249,9 +291,21 @@ export function App() {
       <MobileInvite onShowQr={() => setQrOpen(true)} />
 
       <main className="main">
-        {loadError && (
-          <p role="alert" className="section__footnote" style={{ marginTop: 0 }}>
-            {loadError}（表示は前回取得した内容です）
+        {/* Loading, never-loaded and failed-since-loading are three different
+            things, and only the last one has "previous content" to fall back
+            on — the old banner said so in all of them. */}
+        {status.text && (
+          <p
+            role={status.kind === 'loading' ? 'status' : 'alert'}
+            className="section__footnote load-status"
+            style={{ marginTop: 0 }}
+          >
+            <span>{status.text}</span>
+            {status.retry && (
+              <button type="button" className="chip chip--small" onClick={() => void refresh()}>
+                再試行
+              </button>
+            )}
           </p>
         )}
 
@@ -270,16 +324,33 @@ export function App() {
           <SummaryPanel
             overall={view.overall}
             confidence={view.confidence}
+            pending={pending}
             metrics={view.metrics}
             hours={view.hours}
             onReport={() => goToReport()}
           />
         </section>
 
-        {/* The audit's core finding: the form sat 1.6 screens down and the
-            page read as view-only. Posting now comes right after the hero. */}
+        {/* The 2026-08 audit's core finding was that the form sat 1.6 screens
+            down and the page read as view-only, and 8f28291 moved the whole
+            form here. On 2026-09-09 the order was changed by decision: the
+            question people arrive with is 「自分のドリンクは作れる?」, so the
+            drink-by-drink verdict — its always-visible one-line tally — comes
+            first, and the form follows as a folded section that any CTA
+            unfolds. Whether that costs postings is what cta_click /
+            report_view / post_done are there to show; judge by the numbers. */}
+        <Section id="drinks" title="ドリンクの作成可否" note="要約のみ・詳細は開いて確認">
+          <DrinkAvailability
+            statuses={view.statuses}
+            direct={view.drinkDirect}
+            machineCleaning={view.machineCleaning}
+          />
+        </Section>
+
         <div ref={reportRef}>
           <ReportForm
+            open={reportOpen}
+            onOpen={() => goToReport()}
             hours={view.hours}
             posting={posting}
             onPostDrink={postDrink}
@@ -321,14 +392,6 @@ export function App() {
             statuses={view.statuses}
             levels={view.levels}
             onReport={reportSighting}
-          />
-        </Section>
-
-        <Section title="ドリンクの作成可否" note="要約のみ・詳細は開いて確認">
-          <DrinkAvailability
-            statuses={view.statuses}
-            direct={view.drinkDirect}
-            machineCleaning={view.machineCleaning}
           />
         </Section>
 

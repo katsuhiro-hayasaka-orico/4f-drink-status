@@ -16,6 +16,12 @@ export interface SummaryPanelProps {
   confidence: ConfidenceKey;
   metrics: readonly Metric[];
   hours: LoungeHours;
+  /**
+   * Set while the board has no snapshot at all — still loading, or never
+   * reached the server. Replaces the verdict, which would otherwise assert
+   * 「まだ情報がありません」 about reports nobody has seen yet.
+   */
+  pending?: { headline: string; reason: string } | null;
   onReport: () => void;
 }
 
@@ -30,7 +36,14 @@ export interface SummaryPanelProps {
  * subheading. Saying 「利用できます」 at 2am is true about the beans and wrong
  * about everything else.
  */
-export function SummaryPanel({ overall, confidence, metrics, hours, onReport }: SummaryPanelProps) {
+export function SummaryPanel({
+  overall,
+  confidence,
+  metrics,
+  hours,
+  pending = null,
+  onReport,
+}: SummaryPanelProps) {
   const closed = hours.state === 'closed';
 
   return (
@@ -42,6 +55,11 @@ export function SummaryPanel({ overall, confidence, metrics, hours, onReport }: 
             <h1 className="summary__headline summary__headline--closed">いまは閉まっています</h1>
             <p className="summary__reason">{hours.note}</p>
             <p className="summary__aside">開放時間 {hours.rangeLabel}</p>
+          </>
+        ) : pending ? (
+          <>
+            <h1 className="summary__headline summary__headline--closed">{pending.headline}</h1>
+            <p className="summary__reason">{pending.reason}</p>
           </>
         ) : (
           <>

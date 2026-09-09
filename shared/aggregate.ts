@@ -21,6 +21,7 @@ import {
   QUEUE_META,
   QUEUE_SUBJECT,
   SUPPLY_SUBJECT_KEYS,
+  isQueueReport,
   type ActionKey,
   type CleaningAction,
   type ConfidenceKey,
@@ -518,4 +519,24 @@ export function summarizeQueue(reports: readonly Report[], now: number): QueueSu
  */
 export function queueIsNotable(summary: QueueSummary): boolean {
   return summary.level !== null && QUEUE_META[summary.level].tone !== 'available';
+}
+
+/* ----------------------------------------------------------------- header -- */
+
+/**
+ * When somebody last said anything about the machine or its supplies — the
+ * header's 「最新の投稿」. Queue reports are left out: they live on their own
+ * ten-minute window and the queue panel shows their own timestamp, and a
+ * board whose beans were last seen an hour ago must not read 「たった今」
+ * because someone just counted the line. A failed drink of unknown cause
+ * stays in — it adds no material vote, but it is somebody trying the machine
+ * right now, and the breakdown table lists it as exactly that.
+ */
+export function latestReportAt(reports: readonly Report[]): number | null {
+  let latest: number | null = null;
+  for (const r of reports) {
+    if (isQueueReport(r)) continue;
+    if (latest === null || r.createdAt > latest) latest = r.createdAt;
+  }
+  return latest;
 }
