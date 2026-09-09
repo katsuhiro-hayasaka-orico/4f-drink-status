@@ -339,7 +339,7 @@ export function App() {
             first, and the form follows as a folded section that any CTA
             unfolds. Whether that costs postings is what cta_click /
             report_view / post_done are there to show; judge by the numbers. */}
-        <Section id="drinks" title="ドリンクの作成可否" note="要約のみ・詳細は開いて確認">
+        <Section id="drinks" title="ドリンクの作成可否" note="ドリンク別の可否。まとめだけに畳めます">
           <DrinkAvailability
             statuses={view.statuses}
             direct={view.drinkDirect}

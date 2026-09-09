@@ -43,7 +43,7 @@
 | `tools/blender/wmf1100s.py` | マシン画像とレイアウト座標の生成元（1000行超） |
 | `migrations/` | 0001 reports+users / 0002 feedback+feedback_likes / 0003 feedback.updated_at / 0004 events / 0005 reports.group_id / 0006 push_subscriptions |
 
-`src/App.tsx` の画面の並び: ヘッダ → A2hsBanner / MobileInvite → overview（マシンの絵＋SummaryPanel）→ **ドリンクの作成可否**（`id="drinks"`、1行要約＋折りたたみ詳細）→ **ReportForm（折りたたみ。`open` prop、`goToReport` が展開する）** → 行列の待ち状況 → いつ切れやすい？ → 材料の推定残量 → ドリンクの人気度 → みんなの観測 → 投稿の内訳 → ご意見箱 → フッタ。加えてフォームが画面外のときだけ出る FAB。2026-08-13 の監査対応（8f28291）では ReportForm が overview の直後にあったが、2026-09-09 にユーザー判断で可否を前に出しフォームを折りたたんだ（`App.tsx` の該当コメントに経緯。計測で判断する前提）。
+`src/App.tsx` の画面の並び: ヘッダ → A2hsBanner / MobileInvite → overview（マシンの絵＋SummaryPanel）→ **ドリンクの作成可否**（`id="drinks"`、1行要約＋ドリンク別カード。カードは既定で展開、畳める）→ **ReportForm（折りたたみ。`open` prop、`goToReport` が展開する）** → 行列の待ち状況 → いつ切れやすい？ → 材料の推定残量 → ドリンクの人気度 → みんなの観測 → 投稿の内訳 → ご意見箱 → フッタ。加えてフォームが画面外のときだけ出る FAB。2026-08-13 の監査対応（8f28291）では ReportForm が overview の直後にあったが、2026-09-09 にユーザー判断で可否を前に出しフォームを折りたたんだ（`App.tsx` の該当コメントに経緯。計測で判断する前提）。
 
 ## タスク別の逆引き
 
