@@ -177,7 +177,8 @@
 - **Blender は CI に無い**。絵を描き直したら生成物（WebP 3枚＋layout.json）をコミットする。PNG マスターと `*.blend1` は .gitignore。
 - `wmf1100s.py` の窓定数だけ書き換えて再レンダーを忘れても **テストは緑のまま通る**（`machineLayout.test.ts` はコミット済み layout.json しか見ない）。
 - `SESSION_SECRET` 未設定時は開発用固定鍵へ**無警告でフォールバック**する（`worker/identity.ts:18,27`）。本番で未設定なら誰でもクッキーを偽造できる。
-- 楽観行の id は `crypto.randomUUID()` なので、**セキュアコンテキスト（https / localhost）でないと投稿時に例外**になる。
+- 楽観行の id は `crypto.randomUUID()` なので、**セキュアコンテキスト（https / localhost）でないと投稿時に例外**になる。生成は try の内側にあるので例外は `'unknown'` の失敗として扱われ `posting` は戻る（以前は try の外で throw して `finally` に届かず、全ボタンが disabled のまま固着した）。
+- **投稿の成功はサーバー確認後にしか宣言しない**。`post` / `postDrink`（`src/hooks/useDrinkStatus.ts`）は `Promise<PostOutcome>`（`'ok' | 'rejected' | 'unknown' | 'skipped'`、`src/lib/postOutcome.ts`）を返し、`ReportForm` の `settle` は `'ok'` のときだけ reset・フォローアップへ進む。取り消し窓（5秒）も `openUndoWindow` が**確認後**に開く（タップ時は `'sending'` トーストで、その間の取り消しは `undoRequested` 経路）。rethrow ではなく戻り値なのは、結果を見ない呼び出し側（`QueuePanel`）で unhandled rejection を作らないため——`useFeedback.submit` が rethrow する流儀とは意図的に分けている。
 - `useDrinkStatus` の `now` useMemo は依存に `reports`/`tick` を持つが本体で使っていない。**意図的な無効化トリガー**なので「不要な依存」として消すと「N分前」が固まる。
 - 閉館中のマスクは `src/App.tsx:166-190` にあり `shared/` 側には無い。shared のテストだけ読むと閉館時の挙動を見落とす。
 - `machineCleaning` フラグは shared が計算せず App が組み立てる（`App.tsx:179`）。`overallState` へは直接（:182）、`drinkAvailability` へは `DrinkAvailability.tsx`（App.tsx:323 で props、同 60/107 行で呼ぶ）を経由して届く。
@@ -196,8 +197,9 @@
 
 ## 現況（2026-09-07 時点）
 
-- `origin/main` = **978f2b3**（`claude/new-cloud-session-edsa9o` をマージ済み。ブランチと同一内容）。
-- **集計バグ修正3件は本番反映済み**（2026-09-07 08:04 UTC、Deploy run #30、全ステップ success、所要26秒）。`bff903b`（未報告のマシンを正常扱いしない）、`39b64ac`（壊れたマシンはラッチする）、`5abb7e4`（良い知らせだけがラッチを解除する）。マイグレーションの追加は無いので D1 のスキーマは不変。**ただし本番URLが不明なため実機での目視確認はできていない**（「文脈が失われた範囲」参照）。CI の結果のみが根拠。
+- **SHA をここに書かない**。すぐ腐るので現在地は毎回コマンドで取る: `git fetch origin main && git log --oneline -5 origin/main && git rev-list --left-right --count origin/main...HEAD`。デプロイ履歴は Actions の Deploy ワークフローを見る。
+- **マシン集計の一連の修正は 2026-09-07 に本番反映済み**（Deploy 2回、いずれも全ステップ success）。内訳は4コミット: `bff903b` 未報告のマシンを正常扱いしない / `39b64ac` 壊れたマシンはラッチする / `5abb7e4` 良い知らせだけがラッチを解除する / `7c85126` ラッチの根拠行を共通200件枠の外に出す（+ 最終観測の逆行と確からしさピルの対象ずれ）。D1 のマイグレーション追加は無くスキーマは不変。
+- **どのデプロイも実機での目視確認はしていない**。本番URLが不明なため（「文脈が失われた範囲」参照）、根拠は CI と、`worker/store.ts` の SQL についてはローカル D1 での実行結果のみ。
 - テストは **13ファイル150件が全通過**（aggregate 61 / drinkReport 14 / hours 11 / rhythm 10 / labels 9 / drinks 6 / feedback 5、push 9 / notify 5、machineLayout 6 / shipped 6 / a2hs 5 / postings 3）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
 - 直近の作業の流れは、9/3 Blender レンダー化 → 9/4 目撃導線の作り直し・CI/デプロイの足回り整備 → 9/7 集計ロジックのバグ修正3連。UI の作り込みからロジックの正しさへ軸足が移っている。
 - コミット trailer から、**失われたセッションは `https://claude.ai/code/session_01Pq73qark1HNzZuwCmf9PXq`**（72コミットが持つ）。現行セッションは `session_01Au31ns5hDxA7y21maRPVci`（直近3件）。`git log --format='%h %(trailers:key=Claude-Session,valueonly)'` でどのコミットがどちらの産物か機械的に判別できる。
@@ -223,6 +225,7 @@
 - `ReportForm.tsx:437` が材料未選択時に `actionLabelFor(sighting ?? 'coffeeBeans', action)` とダミー subject を渡す。現状は全材料でラベル共通なので実害なし。
 - 削除したデザインバンドル（チャットログとアップロード画像）が public リポジトリの過去コミットに残っている。履歴の書き換えは未実施。
 - rhythm は平日（月〜金）のみ集計するが `loungeHours` は毎日9-17時。この非対称が意図的か未整理かはリポジトリからは判断できない。
+- **取り消し対象は直近1件のみ**（`useDrinkStatus.ts` の `undoTargetId` は単一 ref）。ドリンク投稿の5秒窓の途中で行列フォローアップを送ると上書きされ、ドリンク側はアプリのどこからも取り消せなくなる（サーバーは各投稿を20秒受けるので UI だけの制約）。同根で、後続の post が前の `undoTimer` を止めるため先行投稿の `track('post_done')` が落ちる。2026-09-09 のユーザー判断で見送り。直すなら `Toast` に `key` と `target` を持たせ配列化する。
 
 ## 復元可能な一次資料
 

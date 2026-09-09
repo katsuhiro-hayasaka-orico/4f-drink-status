@@ -24,12 +24,19 @@ import {
   postReport,
 } from '../lib/api.js';
 import { secondsSinceLoad, track } from '../lib/metrics.js';
+import { classifyPostError, type PostOutcome } from '../lib/postOutcome.js';
 
 export interface Toast {
-  /** `thanks` appears once the undo window closes without an undo. */
-  kind: 'undo' | 'error' | 'thanks';
+  /**
+   * `sending` while the POST is in flight — still undoable, but nothing has
+   * been promised yet. `undo` once the server has the row and the window is
+   * open. `thanks` once that window closes without an undo.
+   */
+  kind: 'sending' | 'undo' | 'error' | 'thanks';
   text: string;
 }
+
+type UndoTarget = { kind: 'report' | 'group'; id: string };
 
 /** Confirms what was posted, and what it changed. */
 function postedToast(subject: SubjectKey, value: ReportValue): string {
@@ -71,8 +78,10 @@ function postedDrinkToast(input: DrinkReportInput): string {
  *
  * Posting writes to local state first so the tanks and meters move on the tap
  * rather than on the round trip. The server's copy replaces it as soon as it
- * lands; if the write fails, the optimistic row is rolled back and the toast
- * turns into an error.
+ * lands, and only then does the board call the post a success: the undo
+ * window opens on confirmation, not on the tap. If the write fails, the
+ * optimistic row is rolled back and the toast turns into an error — and the
+ * caller gets told, so a form never claims a post it does not have.
  */
 export function useDrinkStatus() {
   const [reports, setReports] = useState<Report[]>([]);
@@ -93,7 +102,7 @@ export function useDrinkStatus() {
    * What the toast can take back, once the server has confirmed it: a single
    * report row, or a whole fanned-out drink posting (group).
    */
-  const undoTargetId = useRef<{ kind: 'report' | 'group'; id: string } | null>(null);
+  const undoTargetId = useRef<UndoTarget | null>(null);
   /** Set when undo is tapped before the POST has come back. */
   const undoRequested = useRef(false);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -171,75 +180,115 @@ export function useDrinkStatus() {
     errorTimer.current = setTimeout(() => setToast(null), 4500);
   }, []);
 
+  /**
+   * Opens the undo window — called only once the server has confirmed the
+   * row. It used to start on the tap; on a slow round trip it then closed,
+   * said thanks and invited feedback before anyone knew whether the post had
+   * landed at all. The server accepts the delete for undoWindowMs + 15 s
+   * after the row's own timestamp (worker/store.ts), so a window that opens
+   * on confirmation still fits inside it unless the trip took over 15 s.
+   */
+  const openUndoWindow = useCallback(() => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => {
+      undoTargetId.current = null;
+      // The undo window closing without an undo is the moment the post is
+      // truly settled — which makes it the honest moment to say thanks and
+      // invite feedback. An undone post never reaches this line: undo()
+      // clears this timer. Settled is also what post_done measures.
+      track('post_done', secondsSinceLoad());
+      setToast((t) =>
+        t?.kind === 'undo' ? { kind: 'thanks', text: '投稿ありがとうございます！' } : t,
+      );
+      if (thanksTimer.current) clearTimeout(thanksTimer.current);
+      thanksTimer.current = setTimeout(
+        () => setToast((t) => (t?.kind === 'thanks' ? null : t)),
+        6_000,
+      );
+    }, CONFIG.undoWindowMs);
+  }, []);
+
+  /**
+   * Undo was tapped before the POST came back, so the row exists on the
+   * server now: delete it, and land on the delete's snapshot rather than the
+   * post's (adopting the post's first flashed the undone row back onto the
+   * board for one render). If the delete fails the post stands — say so as an
+   * undo failure, never as a posting failure, and let a refresh settle it.
+   */
+  const undoInFlight = useCallback(
+    async (target: UndoTarget, posted: { reports: Report[]; drinkTotals: DrinkTally; me: string; serverNow: number }) => {
+      try {
+        const deleted =
+          target.kind === 'group' ? await deleteReportGroup(target.id) : await deleteReport(target.id);
+        generation.current += 1;
+        adopt(deleted);
+      } catch (err) {
+        adopt(posted);
+        showError(err instanceof ApiError ? err.message : '取り消しに失敗しました');
+        void refresh();
+      }
+    },
+    [adopt, refresh, showError],
+  );
+
   const post = useCallback(
-    async (subject: SubjectKey, action: ReportValue) => {
-      if (posting) return;
+    async (subject: SubjectKey, action: ReportValue): Promise<PostOutcome> => {
+      if (posting) return 'skipped';
       setPosting(true);
 
       // A stale error toast's timer would otherwise fire mid-undo-window and
       // clear the undo toast this post is about to show.
       if (errorTimer.current) clearTimeout(errorTimer.current);
 
-      generation.current += 1;
-      const optimisticId = `pending-${crypto.randomUUID()}`;
-      const optimistic: Report = {
-        id: optimisticId,
-        subject,
-        action,
-        userId: me,
-        userLabel: '利用者（あなた）',
-        createdAt: Date.now() + skewMs,
-      };
-      setReports((prev) => [optimistic, ...prev]);
-
-      setToast({ kind: 'undo', text: postedToast(subject, action) });
-
-      undoTargetId.current = null;
-      undoRequested.current = false;
-      if (undoTimer.current) clearTimeout(undoTimer.current);
-      undoTimer.current = setTimeout(() => {
-        undoTargetId.current = null;
-        // The undo window closing without an undo is the moment the post is
-        // truly settled — which makes it the honest moment to say thanks and
-        // invite feedback. An undone post never reaches this line: undo()
-        // clears this timer, and a failed POST clears it in the catch.
-        // Settled is also what post_done measures, for the same reason.
-        track('post_done', secondsSinceLoad());
-        setToast((t) =>
-          t?.kind === 'undo' ? { kind: 'thanks', text: '投稿ありがとうございます！' } : t,
-        );
-        if (thanksTimer.current) clearTimeout(thanksTimer.current);
-        thanksTimer.current = setTimeout(
-          () => setToast((t) => (t?.kind === 'thanks' ? null : t)),
-          6_000,
-        );
-      }, CONFIG.undoWindowMs);
-
+      // Declared out here so the rollback in catch can see it, minted inside
+      // the try: crypto.randomUUID() throws outside a secure context, and a
+      // throw before the try skipped finally and left `posting` stuck on.
+      let optimisticId: string | null = null;
       try {
+        generation.current += 1;
+        optimisticId = `pending-${crypto.randomUUID()}`;
+        const optimistic: Report = {
+          id: optimisticId,
+          subject,
+          action,
+          userId: me,
+          userLabel: '利用者（あなた）',
+          createdAt: Date.now() + skewMs,
+        };
+        setReports((prev) => [optimistic, ...prev]);
+
+        // Undoable already, but not yet promised: the window opens below,
+        // once the server has the row.
+        setToast({ kind: 'sending', text: '送信しています…' });
+        undoTargetId.current = null;
+        undoRequested.current = false;
+        if (undoTimer.current) clearTimeout(undoTimer.current);
+
         const res = await postReport(subject, action);
         generation.current += 1;
-        adopt(res);
         setLoadError(null);
 
         if (undoRequested.current) {
-          // Undo was tapped while the post was still in flight.
           undoRequested.current = false;
-          const deleted = await deleteReport(res.report.id);
-          generation.current += 1;
-          adopt(deleted);
+          await undoInFlight({ kind: 'report', id: res.report.id }, res);
         } else {
+          adopt(res);
           undoTargetId.current = { kind: 'report', id: res.report.id };
+          setToast({ kind: 'undo', text: postedToast(subject, action) });
+          openUndoWindow();
         }
+        return 'ok';
       } catch (err) {
         generation.current += 1;
         setReports((prev) => prev.filter((r) => r.id !== optimisticId));
         if (undoTimer.current) clearTimeout(undoTimer.current);
         showError(err instanceof ApiError ? err.message : '投稿に失敗しました');
+        return classifyPostError(err);
       } finally {
         setPosting(false);
       }
     },
-    [adopt, me, posting, showError, skewMs],
+    [adopt, me, openUndoWindow, posting, showError, skewMs, undoInFlight],
   );
 
   /**
@@ -248,70 +297,59 @@ export function useDrinkStatus() {
    * meters move on the tap exactly the way they will settle.
    */
   const postDrink = useCallback(
-    async (input: DrinkReportInput) => {
-      if (posting) return;
+    async (input: DrinkReportInput): Promise<PostOutcome> => {
+      if (posting) return 'skipped';
       setPosting(true);
       if (errorTimer.current) clearTimeout(errorTimer.current);
 
-      generation.current += 1;
-      const stamp = Date.now() + skewMs;
       const optimisticIds: string[] = [];
-      const optimisticRows: Report[] = buildDrinkReportRows(input).map((seed) => {
-        const id = `pending-${crypto.randomUUID()}`;
-        optimisticIds.push(id);
-        return {
-          id,
-          subject: seed.subject,
-          action: seed.action,
-          userId: me,
-          userLabel: '利用者（あなた）',
-          createdAt: stamp,
-        };
-      });
-      setReports((prev) => [...optimisticRows, ...prev]);
-
-      setToast({ kind: 'undo', text: postedDrinkToast(input) });
-
-      undoTargetId.current = null;
-      undoRequested.current = false;
-      if (undoTimer.current) clearTimeout(undoTimer.current);
-      undoTimer.current = setTimeout(() => {
-        undoTargetId.current = null;
-        track('post_done', secondsSinceLoad());
-        setToast((t) =>
-          t?.kind === 'undo' ? { kind: 'thanks', text: '投稿ありがとうございます！' } : t,
-        );
-        if (thanksTimer.current) clearTimeout(thanksTimer.current);
-        thanksTimer.current = setTimeout(
-          () => setToast((t) => (t?.kind === 'thanks' ? null : t)),
-          6_000,
-        );
-      }, CONFIG.undoWindowMs);
-
       try {
+        generation.current += 1;
+        const stamp = Date.now() + skewMs;
+        const optimisticRows: Report[] = buildDrinkReportRows(input).map((seed) => {
+          const id = `pending-${crypto.randomUUID()}`;
+          optimisticIds.push(id);
+          return {
+            id,
+            subject: seed.subject,
+            action: seed.action,
+            userId: me,
+            userLabel: '利用者（あなた）',
+            createdAt: stamp,
+          };
+        });
+        setReports((prev) => [...optimisticRows, ...prev]);
+
+        setToast({ kind: 'sending', text: '送信しています…' });
+        undoTargetId.current = null;
+        undoRequested.current = false;
+        if (undoTimer.current) clearTimeout(undoTimer.current);
+
         const res = await postDrinkReport(input);
         generation.current += 1;
-        adopt(res);
         setLoadError(null);
 
         if (undoRequested.current) {
           undoRequested.current = false;
-          const deleted = await deleteReportGroup(res.groupId);
-          generation.current += 1;
-          adopt(deleted);
+          await undoInFlight({ kind: 'group', id: res.groupId }, res);
         } else {
+          adopt(res);
           undoTargetId.current = { kind: 'group', id: res.groupId };
+          setToast({ kind: 'undo', text: postedDrinkToast(input) });
+          openUndoWindow();
         }
+        return 'ok';
       } catch (err) {
         generation.current += 1;
         setReports((prev) => prev.filter((r) => !optimisticIds.includes(r.id)));
         if (undoTimer.current) clearTimeout(undoTimer.current);
         showError(err instanceof ApiError ? err.message : '投稿に失敗しました');
+        return classifyPostError(err);
       } finally {
         setPosting(false);
       }
     },
-    [adopt, me, posting, showError, skewMs],
+    [adopt, me, openUndoWindow, posting, showError, skewMs, undoInFlight],
   );
 
   const undo = useCallback(async () => {

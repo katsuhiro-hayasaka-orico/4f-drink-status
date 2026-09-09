@@ -11,7 +11,9 @@ export function ToastBar({ toast, onUndo, onFeedback }: ToastBarProps) {
   return (
     <div role="status" className={`toast${toast.kind === 'error' ? ' toast--error' : ''}`}>
       <span className="toast__text">{toast.text}</span>
-      {toast.kind === 'undo' && (
+      {/* Undoable from the tap: while sending, the hook remembers the wish
+          and deletes the row the moment the server minted it. */}
+      {(toast.kind === 'sending' || toast.kind === 'undo') && (
         <button type="button" className="toast__undo" onClick={onUndo}>
           取り消す
         </button>

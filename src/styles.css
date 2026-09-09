@@ -1880,6 +1880,19 @@ a:focus-visible {
   color: var(--unavailable);
 }
 
+/* A posting that did not land. Same voice as the feedback form's error, but
+   it stays put until the person retries or moves on, and carries the retry. */
+.report__error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--unavailable);
+}
+
 .feedback__done {
   font-weight: 700;
 }

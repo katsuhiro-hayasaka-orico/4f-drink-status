@@ -282,9 +282,9 @@ export function App() {
           <ReportForm
             hours={view.hours}
             posting={posting}
-            onPostDrink={(input) => void postDrink(input)}
-            onPostSimple={(subject, action) => void post(subject, action)}
-            onPostQueue={(level) => void post(QUEUE_SUBJECT, level)}
+            onPostDrink={postDrink}
+            onPostSimple={post}
+            onPostQueue={(level) => post(QUEUE_SUBJECT, level)}
             sightingTarget={sightingTarget}
             onSightingTargetUsed={clearSightingTarget}
           />

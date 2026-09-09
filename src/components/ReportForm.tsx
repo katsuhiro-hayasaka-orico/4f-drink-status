@@ -18,16 +18,21 @@ import type { DrinkReportInput } from '../../shared/drinkReport.js';
 import { CONFIG } from '../../shared/config.js';
 import type { LoungeHours } from '../../shared/hours.js';
 import { PALETTE } from '../lib/palette.js';
+import { outcomeMessage, type PostOutcome } from '../lib/postOutcome.js';
 import { SubjectIcon } from './SubjectIcon.js';
 
 export interface ReportFormProps {
   hours: LoungeHours;
   posting: boolean;
-  onPostDrink: (input: DrinkReportInput) => void;
+  /**
+   * All three resolve to what actually happened. The form moves on only on
+   * 'ok'; anything else keeps the person's input and offers to send again.
+   */
+  onPostDrink: (input: DrinkReportInput) => Promise<PostOutcome>;
   /** Refill sightings and machine down/up — the non-drink reports. */
-  onPostSimple: (subject: SubjectKey, action: ReportValue) => void;
+  onPostSimple: (subject: SubjectKey, action: ReportValue) => Promise<PostOutcome>;
   /** The queue follow-up posts through here (a plain queue report). */
-  onPostQueue: (level: QueueLevel) => void;
+  onPostQueue: (level: QueueLevel) => Promise<PostOutcome>;
   /**
    * A material sent over from the levels card, to be pre-selected in the
    * sighting picker. Someone tapping 「見かけた残量を報告」 next to 氷 has
@@ -106,10 +111,23 @@ export function ReportForm({
 
   const recipe = drink ? RECIPE_BY_KEY[drink] : null;
 
+  /**
+   * A posting that did not land, held in place with a way to send it again.
+   * `where` picks which half of the form shows it — beside the buttons the
+   * person just pressed, not under a half they have scrolled past. Cleared
+   * by the next attempt, and by picking a new drink.
+   */
+  const [failure, setFailure] = useState<{
+    where: 'drink' | 'others';
+    outcome: 'rejected' | 'unknown';
+    retry: () => void;
+  } | null>(null);
+
   const pickDrink = (key: DrinkKey) => {
     setDrink(key);
     setDetail(null);
     setLowSel([]);
+    setFailure(null);
   };
 
   const reset = () => {
@@ -118,30 +136,89 @@ export function ReportForm({
     setLowSel([]);
   };
 
+  /**
+   * The form used to reset and move on the instant a button was pressed,
+   * before the server had said anything — a failed post left 「投稿を受け付け
+   * ました」 on screen with the person's choices already wiped. Now the
+   * transition waits for the verdict: 'ok' moves on, 'skipped' (a double tap
+   * during another post) does nothing, and a failure keeps every input and
+   * shows what to do next. `send` is a closure over the exact arguments, so a
+   * retry re-sends what was pressed even if state has moved since.
+   */
+  const settle = async (
+    where: 'drink' | 'others',
+    send: () => Promise<PostOutcome>,
+    onOk: () => void,
+  ) => {
+    setFailure(null);
+    const outcome = await send();
+    if (outcome === 'ok') onOk();
+    else if (outcome !== 'skipped') {
+      setFailure({ where, outcome, retry: () => void settle(where, send, onOk) });
+    }
+  };
+
   const postMade = (low: MaterialKey[]) => {
     if (!drink) return;
-    onPostDrink({ drink, result: 'made', low, cause: null });
-    reset();
-    setFollowup(true);
+    const input: DrinkReportInput = { drink, result: 'made', low, cause: null };
+    void settle(
+      'drink',
+      () => onPostDrink(input),
+      () => {
+        reset();
+        setFollowup(true);
+      },
+    );
   };
 
   const postFailed = (cause: DrinkReportInput['cause']) => {
     if (!drink) return;
-    onPostDrink({ drink, result: 'failed', low: [], cause });
-    reset();
-    setFollowup(true);
+    const input: DrinkReportInput = { drink, result: 'failed', low: [], cause };
+    void settle(
+      'drink',
+      () => onPostDrink(input),
+      () => {
+        reset();
+        setFollowup(true);
+      },
+    );
   };
 
   const postQueue = (level: QueueLevel) => {
-    onPostQueue(level);
-    setFollowup(false);
+    void settle(
+      'drink',
+      () => onPostQueue(level),
+      () => setFollowup(false),
+    );
   };
 
   const postSighting = (action: ActionKey) => {
     if (!sighting) return;
-    onPostSimple(sighting, action);
-    setSighting(null);
+    const material = sighting;
+    void settle(
+      'others',
+      () => onPostSimple(material, action),
+      () => setSighting(null),
+    );
   };
+
+  const postMachine = (action: ReportValue) => {
+    void settle(
+      'others',
+      () => onPostSimple('machine', action),
+      () => {},
+    );
+  };
+
+  const failureRow = (where: 'drink' | 'others') =>
+    failure?.where === where ? (
+      <p className="report__error" role="alert">
+        <span>{outcomeMessage(failure.outcome)}</span>
+        <button type="button" className="chip chip--small" disabled={posting} onClick={failure.retry}>
+          もう一度送る
+        </button>
+      </p>
+    ) : null;
 
   const toggleLow = (m: MaterialKey) =>
     setLowSel((sel) => (sel.includes(m) ? sel.filter((x) => x !== m) : [...sel, m]));
@@ -374,6 +451,7 @@ export function ReportForm({
 
           </>
         )}
+        {failureRow('drink')}
 
         {/* The other half of the form, and it has to look like a half rather
             than a footnote. Someone who only looked at the hoppers is reporting
@@ -445,7 +523,7 @@ export function ReportForm({
               type="button"
               className="chip chip--small"
               disabled={posting}
-              onClick={() => onPostSimple('machine', 'unavailable')}
+              onClick={() => postMachine('unavailable')}
             >
               故障中
             </button>
@@ -453,7 +531,7 @@ export function ReportForm({
               type="button"
               className="chip chip--small"
               disabled={posting}
-              onClick={() => onPostSimple('machine', 'cleaning')}
+              onClick={() => postMachine('cleaning')}
             >
               清掃中
             </button>
@@ -461,19 +539,20 @@ export function ReportForm({
               type="button"
               className="chip chip--small"
               disabled={posting}
-              onClick={() => onPostSimple('machine', 'refilled')}
+              onClick={() => postMachine('refilled')}
             >
               復旧した
             </button>
           </div>
+          {failureRow('others')}
         </div>
 
         {/* Shared footer: the undo window and the aggregation rule apply to
             both halves, so the note sits under both rather than closing the
             drink flow and implying the sightings below are an afterthought. */}
         <p className="report__note">
-          投稿はどちらも{CONFIG.undoWindowMs / 1000}
-          秒だけ取り消せます。作れたドリンクが使った材料と、見かけた残量は、どちらも同じように推定に反映されます。
+          投稿はどちらも、届いてから{CONFIG.undoWindowMs / 1000}
+          秒のあいだ取り消せます。作れたドリンクが使った材料と、見かけた残量は、どちらも同じように推定に反映されます。
         </p>
       </div>
     </section>
