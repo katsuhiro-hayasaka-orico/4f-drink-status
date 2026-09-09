@@ -68,13 +68,18 @@ function summaryLine(
 }
 
 /**
- * Eight cards was the page's longest block, and it sat between a first-time
- * visitor and the report form (audit P1: pre-form information overload).
- * The always-visible one-line tally answers the common question; the cards
- * are a click away for anyone who wants the per-drink detail.
+ * The one-line tally always shows; the eight cards fold behind it.
+ *
+ * They started folded: eight cards was the page's longest block, and in the
+ * 2026-08 audit it sat between a first-time visitor and the report form
+ * (P1: pre-form information overload). Since 2026-09-09 this section leads
+ * the page and the form folds instead, and on 2026-09-09 the cards were set
+ * open by default by decision — the per-drink answer is now the thing people
+ * arrive for. The toggle still folds them for anyone who wants the tally
+ * alone.
  */
 export function DrinkAvailability({ statuses, direct, machineCleaning }: DrinkAvailabilityProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const detailId = useId().replace(/:/g, '');
 
   return (
