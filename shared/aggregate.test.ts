@@ -3,6 +3,7 @@ import {
   UNKNOWN_STATUSES,
   aggregate,
   focusSummary,
+  latestReportAt,
   overallState,
   queueIsNotable,
   queueWeight,
@@ -697,5 +698,31 @@ describe('focusSummary with unreported materials', () => {
   it('still returns something when nobody has reported anything', () => {
     const { summaries, statuses } = aggregate([], NOW);
     expect(focusSummary(summaries, statuses)).toBeDefined();
+  });
+});
+
+describe('latestReportAt', () => {
+  it('ignores queue reports — the line is not the machine', () => {
+    // Beans last seen an hour ago; someone just counted the queue. The header
+    // must not read 「たった今」 as if the beans had been checked.
+    const reports = [report('coffeeBeans', 'available', 'a', 60), report('queue', 'short', 'b', 0)];
+    expect(latestReportAt(reports)).toBe(NOW - 60 * MIN);
+  });
+
+  it('counts a failed drink of unknown cause — somebody just tried the machine', () => {
+    const tried: Report = {
+      id: 'd1',
+      subject: 'hotCoffee',
+      action: 'failed',
+      userId: 'c',
+      userLabel: '利用者C',
+      createdAt: NOW - 2 * MIN,
+    };
+    expect(latestReportAt([report('ice', 'available', 'a', 40), tried])).toBe(NOW - 2 * MIN);
+  });
+
+  it('is null with nothing but queue reports, or nothing at all', () => {
+    expect(latestReportAt([report('queue', 'long', 'a', 1)])).toBeNull();
+    expect(latestReportAt([])).toBeNull();
   });
 });

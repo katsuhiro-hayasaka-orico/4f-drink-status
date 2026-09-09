@@ -1,4 +1,4 @@
-import type { LoungeHours } from '../../shared/hours.js';
+import { jstTimeLabel, type LoungeHours } from '../../shared/hours.js';
 import type { NotifyState } from '../hooks/useNotifications.js';
 import type { ThemePreference } from '../hooks/useTheme.js';
 import { ThemeSwitcher } from './ThemeSwitcher.js';
@@ -32,9 +32,13 @@ const NOTIFY_TITLE: Record<Exclude<NotifyState, 'unsupported'>, string> = {
 const BADGE: string | null = 'デモ';
 
 export interface HeaderProps {
+  /** 「最新の投稿」 — when somebody last reported on the machine or supplies. */
   lastUpdated: string;
   autoOn: boolean;
   onToggleAuto: () => void;
+  /** Server time of the last snapshot the board adopted; null before the first. */
+  fetchedAt: number | null;
+  onRefresh: () => void;
   hours: LoungeHours;
   notifyState: NotifyState;
   onToggleNotify: () => void;
@@ -46,6 +50,8 @@ export function Header({
   lastUpdated,
   autoOn,
   onToggleAuto,
+  fetchedAt,
+  onRefresh,
   hours,
   notifyState,
   onToggleNotify,
@@ -68,8 +74,12 @@ export function Header({
             {hours.badge}
             <span className="header__hours-range">{hours.rangeLabel}</span>
           </span>
+          {/* Two different kinds of fresh. 「最新の投稿」 is about the machine —
+              when a person last reported on it. The fetch time is about the
+              connection, and only worth showing when polling is off and the
+              board is knowingly standing still. */}
           <span className="header__updated">
-            最終更新 <strong>{lastUpdated}</strong>
+            最新の投稿 <strong>{lastUpdated}</strong>
           </span>
           <button
             type="button"
@@ -79,6 +89,16 @@ export function Header({
           >
             自動更新 {autoOn ? 'ON' : 'OFF'}
           </button>
+          {!autoOn && (
+            <>
+              <span className="header__updated">
+                最後に取得 <strong>{fetchedAt === null ? '—' : jstTimeLabel(fetchedAt)}</strong>
+              </span>
+              <button type="button" className="header__toggle" onClick={onRefresh}>
+                今すぐ更新
+              </button>
+            </>
+          )}
           {notifyState !== 'unsupported' && (
             <button
               type="button"
