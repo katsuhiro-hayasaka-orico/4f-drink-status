@@ -177,7 +177,8 @@
 - **Blender は CI に無い**。絵を描き直したら生成物（WebP 3枚＋layout.json）をコミットする。PNG マスターと `*.blend1` は .gitignore。
 - `wmf1100s.py` の窓定数だけ書き換えて再レンダーを忘れても **テストは緑のまま通る**（`machineLayout.test.ts` はコミット済み layout.json しか見ない）。
 - `SESSION_SECRET` 未設定時は開発用固定鍵へ**無警告でフォールバック**する（`worker/identity.ts:18,27`）。本番で未設定なら誰でもクッキーを偽造できる。
-- 楽観行の id は `crypto.randomUUID()` なので、**セキュアコンテキスト（https / localhost）でないと投稿時に例外**になる。
+- 楽観行の id は `crypto.randomUUID()` なので、**セキュアコンテキスト（https / localhost）でないと投稿時に例外**になる。生成は try の内側にあるので例外は `'unknown'` の失敗として扱われ `posting` は戻る（以前は try の外で throw して `finally` に届かず、全ボタンが disabled のまま固着した）。
+- **投稿の成功はサーバー確認後にしか宣言しない**。`post` / `postDrink`（`src/hooks/useDrinkStatus.ts`）は `Promise<PostOutcome>`（`'ok' | 'rejected' | 'unknown' | 'skipped'`、`src/lib/postOutcome.ts`）を返し、`ReportForm` の `settle` は `'ok'` のときだけ reset・フォローアップへ進む。取り消し窓（5秒）も `openUndoWindow` が**確認後**に開く（タップ時は `'sending'` トーストで、その間の取り消しは `undoRequested` 経路）。rethrow ではなく戻り値なのは、結果を見ない呼び出し側（`QueuePanel`）で unhandled rejection を作らないため——`useFeedback.submit` が rethrow する流儀とは意図的に分けている。
 - `useDrinkStatus` の `now` useMemo は依存に `reports`/`tick` を持つが本体で使っていない。**意図的な無効化トリガー**なので「不要な依存」として消すと「N分前」が固まる。
 - 閉館中のマスクは `src/App.tsx:166-190` にあり `shared/` 側には無い。shared のテストだけ読むと閉館時の挙動を見落とす。
 - `machineCleaning` フラグは shared が計算せず App が組み立てる（`App.tsx:179`）。`overallState` へは直接（:182）、`drinkAvailability` へは `DrinkAvailability.tsx`（App.tsx:323 で props、同 60/107 行で呼ぶ）を経由して届く。
@@ -224,6 +225,7 @@
 - `ReportForm.tsx:437` が材料未選択時に `actionLabelFor(sighting ?? 'coffeeBeans', action)` とダミー subject を渡す。現状は全材料でラベル共通なので実害なし。
 - 削除したデザインバンドル（チャットログとアップロード画像）が public リポジトリの過去コミットに残っている。履歴の書き換えは未実施。
 - rhythm は平日（月〜金）のみ集計するが `loungeHours` は毎日9-17時。この非対称が意図的か未整理かはリポジトリからは判断できない。
+- **取り消し対象は直近1件のみ**（`useDrinkStatus.ts` の `undoTargetId` は単一 ref）。ドリンク投稿の5秒窓の途中で行列フォローアップを送ると上書きされ、ドリンク側はアプリのどこからも取り消せなくなる（サーバーは各投稿を20秒受けるので UI だけの制約）。同根で、後続の post が前の `undoTimer` を止めるため先行投稿の `track('post_done')` が落ちる。2026-09-09 のユーザー判断で見送り。直すなら `Toast` に `key` と `target` を持たせ配列化する。
 
 ## 復元可能な一次資料
 
