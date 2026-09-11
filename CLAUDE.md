@@ -39,7 +39,7 @@
 | `index.html` | Google Fonts（Zen Maru Gothic）の読み込みと、初回ペイント前にテーマを確定させるインラインスクリプト（30-48） |
 | `public/sw.js` | Service Worker。**push 表示専用で fetch ハンドラもキャッシュも意図的に持たない**（1-11 行に理由） |
 | `scripts/` | `setup-cloudflare.sh` / `.ps1`（初回セットアップの唯一の入口）`preflight.mjs` `generate-vapid.mjs` `announce.mjs` `seed.mjs` |
-| `.github/workflows/` | `ci.yml`（main 以外の push と main 宛 PR）/ `deploy.yml`（main への push で本番） |
+| `.github/workflows/` | `ci.yml`（main 以外の push と main 宛 PR）/ `deploy.yml`（main への push で本番）/ `stats.yml`（手動、または main への push で `scripts/stats/**` か自身が変わったとき。本番 D1 の利用状況を Job Summary に） |
 | `tools/blender/wmf1100s.py` | マシン画像とレイアウト座標の生成元（1000行超） |
 | `migrations/` | 0001 reports+users / 0002 feedback+feedback_likes / 0003 feedback.updated_at / 0004 events / 0005 reports.group_id / 0006 push_subscriptions |
 
@@ -64,6 +64,7 @@
 - `npm run build` は typecheck を含む。`npm run preview` は Vite のプレビュー。8787 で本番同等確認をするなら先に build（wrangler が `./dist/client` を配る）。
 - `npm run db:migrate:remote` / `npm run deploy`（= build + wrangler deploy。`predeploy` で `scripts/preflight.mjs` が走る）。
 - `npm run vapid`（VAPID 鍵生成）/ `npm run announce`（お知らせ配信。環境変数 `ANNOUNCE_TOKEN` と `SITE_URL` が必須）。
+- `npm run stats` / `stats:local` は `scripts/stats/run.mjs` 経由で `scripts/stats/*.sql` を D1 に投げ、Markdown 表にする。Actions の **Stats**（`workflow_dispatch`、`detail` 入力で端末明細。`scripts/stats/**` を変えた main push でも自動で走る）も同じスクリプト。**wrangler の `d1 execute --remote --file` は D1 のインポート経路で SELECT の結果を返さない**ので `--command` で渡している（行頭 `--` コメントは `run.mjs` が落とす。SQL は1ファイル1文）。ログは public なので出すのは集計値・日付・ラベルまで（`FORBIDDEN_COLUMNS` で `user_id` 等をガード）。テストは `scripts/stats/stats.test.ts` が `node:sqlite` で migrations＋fixture に対して期待値を固定（Node 22.13+）。
 - `npm run render:machine` は Blender 4.x が必要（CI に無い）。light テーマ時は `wmf1100s.blend` を上書き保存する。
 - `npm run feedback` / `feedback:tally` は本番 D1 を直接叩く。**D1:Edit 権限の API トークンが必要**で、`wrangler login` の OAuth のままだと 7403（README:564 付近）。
 - ローカルで push を試すには git 管理外の `.dev.vars` に `VAPID_PRIVATE_JWK=...`（README:483）。
@@ -162,6 +163,8 @@
 - **`CONFIG.undoWindowMs` を触るとサーバー側が3箇所同時に動く**（undo の DELETE 猶予 +15秒、push 遅延 +16秒、クライアントUI）。`ctx.waitUntil` の30秒予算を食い潰すと通知が黙って届かなくなる。
 - **`shared/feedback.test.ts` と `shared/labels.test.ts` は `shared/domain.ts` のテスト**。同名の実装ファイルは存在しない。ファイル名だけ見て「domain.ts は未テスト」と誤判定しやすい。
 - **コンポーネントテストは書いても走らない。** `vitest.config.ts` の include が `*.test.ts` のみ（.tsx 無し）、environment は node、jsdom も testing-library も入っていない。
+- **D1（workerd の SQLite）は compound SELECT を 5 項まで**しか受け付けない（6 項で `too many terms in compound SELECT`。`wrangler d1 execute --local` で実測）。`scripts/stats/summary.sql` はこのために 8 指標を a / b の 2 CTE に分けている。`touch` の 5 項は上限ちょうどで、表を1つ足すと落ちる。`stats.test.ts` の `node:sqlite` は素の SQLite なのでこの制限を**検知できない**。SQL を変えたら `--persist-to` で隔離した D1 に migrations＋`scripts/stats/fixture.sql` を流し `run.mjs --local --persist-to=...` を通すこと。
+- **vitest（vite 6）は `node:sqlite` を builtin と認識せず** `Failed to load url sqlite` で落ちる。`scripts/stats/stats.test.ts` は `process.getBuiltinModule('node:sqlite')` で取っている。普通の `import` に戻すと壊れる。
 - **`npm run db:seed:local` は冪等ではなく破壊的**。出力 SQL の先頭が `DELETE FROM reports;`（`scripts/seed.mjs:45`）。手で作った検証データがあるなら流さない。さらに seed の INSERT は `group_id` を書かない（seed.mjs:58-62）ので seed 行は group_id NULL になり、クライアントのグルーピングと undo の挙動が本番の行と異なる。
 - **seed を流してもリズムカードと人気度は空**。seed は18行しか入れず判定票が15（`INSUFFICIENT_BELOW=20` 未満）、しかもドリンク行が0件（ピボット前のまま）。
 - **`node scripts/announce.mjs "本文"` は動かない。** `--title` を省略すると `titleIdx = -1` → filter が `i !== 0` になり本文が落ちて body が undefined（使い方表示で exit 1）。README の「### 管理者からのお知らせ配信」節とスクリプト自身は `--title` を任意と書いているが実際には必須。
@@ -203,7 +206,7 @@
 - **SHA をここに書かない**。すぐ腐るので現在地は毎回コマンドで取る: `git fetch origin main && git log --oneline -5 origin/main && git rev-list --left-right --count origin/main...HEAD`。デプロイ履歴は Actions の Deploy ワークフローを見る。
 - **マシン集計の一連の修正は 2026-09-07 に本番反映済み**（Deploy 2回、いずれも全ステップ success）。内訳は4コミット: `bff903b` 未報告のマシンを正常扱いしない / `39b64ac` 壊れたマシンはラッチする / `5abb7e4` 良い知らせだけがラッチを解除する / `7c85126` ラッチの根拠行を共通200件枠の外に出す（+ 最終観測の逆行と確からしさピルの対象ずれ）。D1 のマイグレーション追加は無くスキーマは不変。
 - **どのデプロイも実機での目視確認はしていない**。本番URLが不明なため（「文脈が失われた範囲」参照）、根拠は CI と、`worker/store.ts` の SQL についてはローカル D1 での実行結果のみ。
-- テストは **13ファイル150件が全通過**（aggregate 61 / drinkReport 14 / hours 11 / rhythm 10 / labels 9 / drinks 6 / feedback 5、push 9 / notify 5、machineLayout 6 / shipped 6 / a2hs 5 / postings 3）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
+- テストは **16ファイル176件が全通過**（aggregate 65 / drinkReport 14 / hours 11 / rhythm 10 / labels 9 / drinks 6 / feedback 5、push 9 / notify 5、machineLayout 6 / shipped 6 / a2hs 5 / postings 3 / loadStatus 5 / postOutcome 5、stats 12）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
 - 直近の作業の流れは、9/3 Blender レンダー化 → 9/4 目撃導線の作り直し・CI/デプロイの足回り整備 → 9/7 集計ロジックのバグ修正3連。UI の作り込みからロジックの正しさへ軸足が移っている。
 - コミット trailer から、**失われたセッションは `https://claude.ai/code/session_01Pq73qark1HNzZuwCmf9PXq`**（72コミットが持つ）。現行セッションは `session_01Au31ns5hDxA7y21maRPVci`（直近3件）。`git log --format='%h %(trailers:key=Claude-Session,valueonly)'` でどのコミットがどちらの産物か機械的に判別できる。
 
@@ -249,5 +252,5 @@ git show '359e30c^:project/uploads/4f-drink-status-demo-v3.html'  # 1388行
 - **利用者からの未反映の要望を記録する場所がリポジトリ内に無い。** 反映済み3件は `FeedbackBox.tsx` にあるが、未反映のものは本番 D1 のご意見本文としてのみ存在し `npm run feedback` を叩かないと読めない。GitHub Issue も0件。したがって「次に何を作る約束をしていたか」はリポジトリからは一件も判定できない。
 - **UI/UX 監査（2026-08）の原文が無い。** README とコミット本文に要約が残るだけで、誰がいつどの範囲を見たのか、未対応の指摘が残っているのかは不明。
 - **「デモ」バッジを外す判断（＝パイロット終了の定義）**が誰の・どの条件の判断だったか。
-- **本番の運用実態**。実際の利用者数、購読者数（30件上限に達しているか）、ラウンジの実際の開放曜日。
+- **本番の運用実態**。ラウンジの実際の開放曜日。利用端末数・購読者数は Actions の **Stats** で取れるようになった（2026-09-11）が、「ページを開いただけ」の端末は D1 に無い。
 - `wrangler.toml` にコミット済みの `database_id` / `account_id` が指す環境の位置づけ（本番専用か、ステージングがあるか）。

@@ -1,0 +1,72 @@
+name: Stats
+
+# 本番 D1 の利用状況（端末数・推移・投稿の内訳）を集計して、ログと Job Summary に出します。
+# 起動は 2 通り。Actions タブの「Run workflow」（明細 detail はこちらでだけ選べる）と、
+# main への push で集計 SQL か本ファイルが変わったとき（SELECT しかしないので本番には影響せず、
+# 変えた SQL が本番 D1 で通ることの確認を兼ねる。push 時は inputs が空なので明細は出ない）。
+#
+# このリポジトリは public なので、ここに出るものは誰でも読めます。出してよいのは
+# 集計値・日付・「利用者X」ラベル（掲示板の投稿者欄と同じ粒度）まで。user_id・購読 endpoint・
+# ご意見本文は scripts/stats/*.sql が SELECT しないことと、scripts/stats/run.mjs が
+# それらの列名を見つけたら表を出さずに失敗することで守っています。SQL を足す・直すときも
+# この線を越えないでください。
+on:
+  workflow_dispatch:
+    inputs:
+      detail:
+        description: '端末ごとの明細（ラベル・初出・最終・投稿数・イベント数）も出す'
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/stats/**'
+      - '.github/workflows/stats.yml'
+
+# 読むだけ。GITHUB_TOKEN に書き込み権限を持たせません。
+permissions:
+  contents: read
+
+# Deploy とは別グループ。SELECT しかしないので同時に走っても本番には影響しません。
+concurrency:
+  group: stats
+  cancel-in-progress: false
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      # deploy.yml と同じ段取り（setup-node + node_modules キャッシュ + npm ci）。
+      # key も同じにして、Deploy が温めたキャッシュをそのまま使います。
+      # wrangler は npm ci が入れた固定版を使います（deploy.yml の理由と同じ）。
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/cache@v4
+        id: node-modules
+        with:
+          path: node_modules
+          key: v1-node-modules-${{ runner.os }}-${{ runner.arch }}-node22-${{ hashFiles('package-lock.json') }}
+
+      - run: npm ci --prefer-offline --no-audit --fund=false
+        if: steps.node-modules.outputs.cache-hit != 'true'
+
+      # wrangler の `d1 execute --remote --file` は D1 のインポート経路で SELECT の結果を返さないため、
+      # run.mjs が SQL を --command で渡し、--json の結果を Markdown の表にします。
+      # 表は Run ページ上部の Job Summary にも出ます（ログの生 Markdown より読みやすい）。
+      - name: 累計・推移・内訳
+        run: node scripts/stats/run.mjs --remote summary trend breakdown | tee -a "$GITHUB_STEP_SUMMARY"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      # push 起動では inputs.detail が空（= false）なので、この段は Run workflow でチェックしたときだけ走る。
+      - name: 端末ごとの明細（ラベルのみ）
+        if: ${{ inputs.detail }}
+        run: node scripts/stats/run.mjs --remote detail | tee -a "$GITHUB_STEP_SUMMARY"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
