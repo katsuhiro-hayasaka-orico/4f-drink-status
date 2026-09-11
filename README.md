@@ -599,7 +599,7 @@ npx wrangler d1 execute drink-status --remote --command "DELETE FROM feedback WH
 `dsid` の単位で、同じ人の PC とスマホは2端末、クッキーを消せば新しい端末です。
 
 - **GitHub Actions で見る** — Actions タブの **Stats** を「Run workflow」で手動実行すると、Run ページ上部の
-  Job Summary に表が出ます。`detail` にチェックを入れると端末ごとの明細（ラベル・初出・最終・投稿数・
+  Job Summary に表が出ます（`scripts/stats/` か `stats.yml` を変えて main に push したときも自動で走ります）。`detail` にチェックを入れると端末ごとの明細（ラベル・初出・最終・投稿数・
   イベント数）も出ます。**このリポジトリは public なので、ログと Job Summary は誰でも読めます。**
   出しているのは集計値・日付・「利用者X」ラベル（掲示板の投稿者欄と同じ粒度）だけで、`user_id`・
   購読 endpoint・ご意見本文は SQL が SELECT せず、`scripts/stats/run.mjs` がそれらの列名を見つけたら

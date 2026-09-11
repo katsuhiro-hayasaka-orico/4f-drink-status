@@ -39,7 +39,7 @@
 | `index.html` | Google Fonts（Zen Maru Gothic）の読み込みと、初回ペイント前にテーマを確定させるインラインスクリプト（30-48） |
 | `public/sw.js` | Service Worker。**push 表示専用で fetch ハンドラもキャッシュも意図的に持たない**（1-11 行に理由） |
 | `scripts/` | `setup-cloudflare.sh` / `.ps1`（初回セットアップの唯一の入口）`preflight.mjs` `generate-vapid.mjs` `announce.mjs` `seed.mjs` |
-| `.github/workflows/` | `ci.yml`（main 以外の push と main 宛 PR）/ `deploy.yml`（main への push で本番）/ `stats.yml`（手動。本番 D1 の利用状況を Job Summary に） |
+| `.github/workflows/` | `ci.yml`（main 以外の push と main 宛 PR）/ `deploy.yml`（main への push で本番）/ `stats.yml`（手動、または main への push で `scripts/stats/**` か自身が変わったとき。本番 D1 の利用状況を Job Summary に） |
 | `tools/blender/wmf1100s.py` | マシン画像とレイアウト座標の生成元（1000行超） |
 | `migrations/` | 0001 reports+users / 0002 feedback+feedback_likes / 0003 feedback.updated_at / 0004 events / 0005 reports.group_id / 0006 push_subscriptions |
 
@@ -64,7 +64,7 @@
 - `npm run build` は typecheck を含む。`npm run preview` は Vite のプレビュー。8787 で本番同等確認をするなら先に build（wrangler が `./dist/client` を配る）。
 - `npm run db:migrate:remote` / `npm run deploy`（= build + wrangler deploy。`predeploy` で `scripts/preflight.mjs` が走る）。
 - `npm run vapid`（VAPID 鍵生成）/ `npm run announce`（お知らせ配信。環境変数 `ANNOUNCE_TOKEN` と `SITE_URL` が必須）。
-- `npm run stats` / `stats:local` は `scripts/stats/run.mjs` 経由で `scripts/stats/*.sql` を D1 に投げ、Markdown 表にする。Actions の **Stats**（`workflow_dispatch`、`detail` 入力で端末明細）も同じスクリプト。**wrangler の `d1 execute --remote --file` は D1 のインポート経路で SELECT の結果を返さない**ので `--command` で渡している（行頭 `--` コメントは `run.mjs` が落とす。SQL は1ファイル1文）。ログは public なので出すのは集計値・日付・ラベルまで（`FORBIDDEN_COLUMNS` で `user_id` 等をガード）。テストは `scripts/stats/stats.test.ts` が `node:sqlite` で migrations＋fixture に対して期待値を固定（Node 22.13+）。
+- `npm run stats` / `stats:local` は `scripts/stats/run.mjs` 経由で `scripts/stats/*.sql` を D1 に投げ、Markdown 表にする。Actions の **Stats**（`workflow_dispatch`、`detail` 入力で端末明細。`scripts/stats/**` を変えた main push でも自動で走る）も同じスクリプト。**wrangler の `d1 execute --remote --file` は D1 のインポート経路で SELECT の結果を返さない**ので `--command` で渡している（行頭 `--` コメントは `run.mjs` が落とす。SQL は1ファイル1文）。ログは public なので出すのは集計値・日付・ラベルまで（`FORBIDDEN_COLUMNS` で `user_id` 等をガード）。テストは `scripts/stats/stats.test.ts` が `node:sqlite` で migrations＋fixture に対して期待値を固定（Node 22.13+）。
 - `npm run render:machine` は Blender 4.x が必要（CI に無い）。light テーマ時は `wmf1100s.blend` を上書き保存する。
 - `npm run feedback` / `feedback:tally` は本番 D1 を直接叩く。**D1:Edit 権限の API トークンが必要**で、`wrangler login` の OAuth のままだと 7403（README:564 付近）。
 - ローカルで push を試すには git 管理外の `.dev.vars` に `VAPID_PRIVATE_JWK=...`（README:483）。

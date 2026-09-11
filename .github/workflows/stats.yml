@@ -1,7 +1,9 @@
 name: Stats
 
 # 本番 D1 の利用状況（端末数・推移・投稿の内訳）を集計して、ログと Job Summary に出します。
-# 手動実行のみ。
+# 起動は 2 通り。Actions タブの「Run workflow」（明細 detail はこちらでだけ選べる）と、
+# main への push で集計 SQL か本ファイルが変わったとき（SELECT しかしないので本番には影響せず、
+# 変えた SQL が本番 D1 で通ることの確認を兼ねる。push 時は inputs が空なので明細は出ない）。
 #
 # このリポジトリは public なので、ここに出るものは誰でも読めます。出してよいのは
 # 集計値・日付・「利用者X」ラベル（掲示板の投稿者欄と同じ粒度）まで。user_id・購読 endpoint・
@@ -15,6 +17,11 @@ on:
         description: '端末ごとの明細（ラベル・初出・最終・投稿数・イベント数）も出す'
         type: boolean
         default: false
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/stats/**'
+      - '.github/workflows/stats.yml'
 
 # 読むだけ。GITHUB_TOKEN に書き込み権限を持たせません。
 permissions:
@@ -57,6 +64,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
+      # push 起動では inputs.detail が空（= false）なので、この段は Run workflow でチェックしたときだけ走る。
       - name: 端末ごとの明細（ラベルのみ）
         if: ${{ inputs.detail }}
         run: node scripts/stats/run.mjs --remote detail | tee -a "$GITHUB_STEP_SUMMARY"
