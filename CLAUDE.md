@@ -207,6 +207,7 @@
 - **マシン集計の一連の修正は 2026-09-07 に本番反映済み**（Deploy 2回、いずれも全ステップ success）。内訳は4コミット: `bff903b` 未報告のマシンを正常扱いしない / `39b64ac` 壊れたマシンはラッチする / `5abb7e4` 良い知らせだけがラッチを解除する / `7c85126` ラッチの根拠行を共通200件枠の外に出す（+ 最終観測の逆行と確からしさピルの対象ずれ）。D1 のマイグレーション追加は無くスキーマは不変。
 - **どのデプロイも実機での目視確認はしていない**。本番URLが不明なため（「文脈が失われた範囲」参照）、根拠は CI と、`worker/store.ts` の SQL についてはローカル D1 での実行結果のみ。
 - テストは **16ファイル176件が全通過**（aggregate 65 / drinkReport 14 / hours 11 / rhythm 10 / labels 9 / drinks 6 / feedback 5、push 9 / notify 5、machineLayout 6 / shipped 6 / a2hs 5 / postings 3 / loadStatus 5 / postOutcome 5、stats 12）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
+- **本番の利用実態（Stats run #1、2026-09-11 16:48 JST 時点）**: 何らかの痕跡を残した端末 69、投稿かご意見で登録された端末 35（現存する投稿を持つのは 34）、投稿 515 件（目撃 164 / 行列 155 / ドリンク作れた 126 / 作れなかった 54 / マシン 16）、ご意見 16 件（13 端末）、通知購読 6 端末（`MAX_PUSH_PER_POST`=30 には遠い）。活動は平日のみ。8/27（木）に 18 端末が初出し（週 8/24 で 39 端末が初出・50 端末が活動）、以後は週 21〜34 端末が活動。**9/9 の `report_view` の意味変更以降は active ≒ posters**（開いただけの端末は見えない）。次回以降の比較はこの行ではなく Stats を再実行して取る。
 - 直近の作業の流れは、9/3 Blender レンダー化 → 9/4 目撃導線の作り直し・CI/デプロイの足回り整備 → 9/7 集計ロジックのバグ修正3連。UI の作り込みからロジックの正しさへ軸足が移っている。
 - コミット trailer から、**失われたセッションは `https://claude.ai/code/session_01Pq73qark1HNzZuwCmf9PXq`**（72コミットが持つ）。現行セッションは `session_01Au31ns5hDxA7y21maRPVci`（直近3件）。`git log --format='%h %(trailers:key=Claude-Session,valueonly)'` でどのコミットがどちらの産物か機械的に判別できる。
 
