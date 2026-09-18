@@ -6,6 +6,7 @@ import type {
   ReportValue,
   SubjectKey,
 } from '../../shared/domain.js';
+import type { ContributorsResponse } from '../../shared/contributors.js';
 import type { DrinkReportInput } from '../../shared/drinkReport.js';
 import type { RhythmResponse } from '../../shared/rhythm.js';
 
@@ -79,6 +80,15 @@ export function postFeedback(mood: MoodKey, body: string): Promise<FeedbackRespo
     method: 'POST',
     body: JSON.stringify({ mood, body }),
   });
+}
+
+/**
+ * 投稿の常連さん. Its own endpoint rather than a field on the poll: the counts
+ * are an all-time GROUP BY, and the board asks for them every few minutes
+ * instead of every 30 seconds (CONFIG.contributorsRefreshMs).
+ */
+export function fetchContributors(): Promise<ContributorsResponse> {
+  return request<ContributorsResponse>('/api/reports/contributors');
 }
 
 /** Four weeks of weekday×hour report counts, for the いつ切れやすい？ card. */

@@ -62,6 +62,14 @@ export const CONFIG = {
   feedbackPromptCooldownDays: 7,
   /** Newest feedback entries the board shows and the API returns. */
   feedbackListLimit: 30,
+
+  /**
+   * How often the client re-fetches 投稿の常連さん. Ten times the board's own
+   * poll, because the numbers behind it are an all-time GROUP BY: riding the
+   * 30-second poll would spend a growing number of D1 row reads re-learning a
+   * ranking that moves at most once per posting. Same reasoning as useRhythm.
+   */
+  contributorsRefreshMs: 300_000,
 } as const;
 
 export const OBSERVATION_WINDOW_MS = CONFIG.observationWindowMin * 60_000;

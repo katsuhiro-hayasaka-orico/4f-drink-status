@@ -1,0 +1,11 @@
+-- 投稿の常連さん groups the whole reports table by user_id (worker/store.ts,
+-- CONTRIBUTORS_SQL). Without an index on that column SQLite has to scan every
+-- row and sort it; feedback, events and push_subscriptions already carry the
+-- equivalent index and reports was the one table missing it.
+--
+-- created_at rides along because the same statement filters the window half of
+-- its counts on it, and because the one other user_id query — the rate limit's
+-- countRecentPostings — is exactly (user_id, created_at >= ?).
+--
+-- Idempotent: IF NOT EXISTS, so re-running the file by hand is a no-op.
+CREATE INDEX IF NOT EXISTS idx_reports_user_created_at ON reports (user_id, created_at DESC);

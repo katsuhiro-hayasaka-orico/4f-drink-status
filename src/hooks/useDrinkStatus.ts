@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CONFIG } from '../../shared/config.js';
 import {
+  milestoneMessage,
+  tierNewlyReached,
+  type ContributorsResponse,
+} from '../../shared/contributors.js';
+import {
   DRINK_LABELS,
   emptyDrinkTally,
   QUEUE_META,
@@ -10,6 +15,7 @@ import {
   type QueueLevel,
   type DrinkTally,
   type Report,
+  type ReportsResponse,
   type ReportValue,
   type SubjectKey,
 } from '../../shared/domain.js';
@@ -18,10 +24,12 @@ import {
   ApiError,
   deleteReport,
   deleteReportGroup,
+  fetchContributors,
   fetchReports,
   postDrinkReport,
   postReport,
 } from '../lib/api.js';
+import { markCelebrated, nextCelebration, readCelebrated } from '../lib/milestones.js';
 import { secondsSinceLoad, track } from '../lib/metrics.js';
 import { classifyPostError, type PostOutcome } from '../lib/postOutcome.js';
 
@@ -29,9 +37,11 @@ export interface Toast {
   /**
    * `sending` while the POST is in flight — still undoable, but nothing has
    * been promised yet. `undo` once the server has the row and the window is
-   * open. `thanks` once that window closes without an undo.
+   * open. `thanks` once that window closes without an undo, or `celebrate`
+   * when that same moment happens to be this device's 10th, 20th, 30th …
+   * posting.
    */
-  kind: 'sending' | 'undo' | 'error' | 'thanks';
+  kind: 'sending' | 'undo' | 'error' | 'thanks' | 'celebrate';
   text: string;
 }
 
@@ -92,6 +102,8 @@ export function useDrinkStatus() {
   const [posting, setPosting] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [autoOn, setAutoOn] = useState<boolean>(CONFIG.autoRefresh);
+  /** 投稿の常連さん — null until its own slower fetch lands (or a mutation carries it). */
+  const [contributors, setContributors] = useState<ContributorsResponse | null>(null);
 
   // Difference between the server's clock and this browser's, so relative
   // times don't drift on a machine with a wrong clock.
@@ -117,6 +129,22 @@ export function useDrinkStatus() {
   const thanksTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
+   * The milestone toast fires from inside openUndoWindow's timer, which is
+   * created once (useCallback with no deps), so everything it reads has to be
+   * a ref rather than a captured render value.
+   */
+  const contributorsRef = useRef<ContributorsResponse | null>(null);
+  const meRef = useRef('');
+  /** When the contributor counts were last taken, for the 5-minute cadence. */
+  const contributorsAt = useRef(0);
+  /**
+   * The highest milestone celebrated in this tab. localStorage is the durable
+   * record; this covers the case where writing it failed (private mode), so at
+   * least the same tab doesn't repeat itself.
+   */
+  const celebratedInSession = useRef(0);
+
+  /**
    * Bumped whenever local state changes authoritatively outside the poll
    * (optimistic insert, post/undo responses, rollbacks). A poll GET that was
    * already in flight when that happened is a snapshot of the older world;
@@ -125,18 +153,47 @@ export function useDrinkStatus() {
    */
   const generation = useRef(0);
 
-  const adopt = useCallback(
-    (res: { reports: Report[]; drinkTotals: DrinkTally; me: string; serverNow: number }) => {
-      setReports(res.reports);
-      setDrinkTotals(res.drinkTotals);
-      setMe(res.me);
-      setSkewMs(res.serverNow - Date.now());
-      setFetchedAt(res.serverNow);
-    },
-    [],
-  );
+  const adopt = useCallback((res: ReportsResponse) => {
+    setReports(res.reports);
+    setDrinkTotals(res.drinkTotals);
+    setMe(res.me);
+    meRef.current = res.me;
+    setSkewMs(res.serverNow - Date.now());
+    setFetchedAt(res.serverNow);
+    // Only mutations carry this (the poll deliberately does not), and when
+    // they do it is fresher than anything the timer would fetch.
+    if (res.contributors) {
+      contributorsRef.current = res.contributors;
+      setContributors(res.contributors);
+      contributorsAt.current = Date.now();
+    }
+  }, []);
+
+  /**
+   * The contributor counts, on their own slow cadence. Claims the timestamp
+   * before awaiting so a slow (or failing) request cannot start a second one
+   * on the next poll — including against a Worker too old to know the
+   * endpoint, where every poll would otherwise spend a 404.
+   */
+  const refreshContributors = useCallback(async () => {
+    const startedAt = generation.current;
+    contributorsAt.current = Date.now();
+    try {
+      const res = await fetchContributors();
+      if (startedAt !== generation.current) return; // a mutation brought newer counts
+      contributorsRef.current = res;
+      setContributors(res);
+    } catch {
+      /* no ranking, no card — the board above is unaffected */
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
+    // One place covers the first load, the tab coming back, and roughly every
+    // tenth poll — whichever happens first after the interval has elapsed.
+    if (Date.now() - contributorsAt.current >= CONFIG.contributorsRefreshMs) {
+      void refreshContributors();
+    }
     const startedAt = generation.current;
     try {
       const res = await fetchReports();
@@ -146,7 +203,7 @@ export function useDrinkStatus() {
     } catch (err) {
       setLoadError(err instanceof ApiError ? err.message : '読み込みに失敗しました');
     }
-  }, [adopt]);
+  }, [adopt, refreshContributors]);
 
   useEffect(() => {
     void refresh().finally(() => setLoading(false));
@@ -196,6 +253,33 @@ export function useDrinkStatus() {
   }, []);
 
   /**
+   * The thank-you a settled post earns — every tenth one by name.
+   *
+   * Reads the count from the mutation's own response, so the milestone is the
+   * server's number rather than a tally the client keeps. Marking happens here
+   * rather than inside the setToast updater because StrictMode invokes those
+   * twice; the cost is that a thank-you swallowed by a concurrent error toast
+   * counts as told, which is the same outcome as one nobody read.
+   */
+  const celebrationToast = useCallback((): Toast => {
+    const thanks: Toast = { kind: 'thanks', text: '投稿ありがとうございます！' };
+    const mine = contributorsRef.current?.mine;
+    const me = meRef.current;
+    if (!mine || !me) return thanks;
+
+    const last = Math.max(readCelebrated(me), celebratedInSession.current);
+    const milestone = nextCelebration(mine.postings, last);
+    if (milestone === null) return thanks;
+
+    celebratedInSession.current = milestone;
+    markCelebrated(me, milestone);
+    return {
+      kind: 'celebrate',
+      text: milestoneMessage(milestone, tierNewlyReached(milestone, last)),
+    };
+  }, []);
+
+  /**
    * Opens the undo window — called only once the server has confirmed the
    * row. It used to start on the tap; on a slow round trip it then closed,
    * said thanks and invited feedback before anyone knew whether the post had
@@ -212,16 +296,17 @@ export function useDrinkStatus() {
       // invite feedback. An undone post never reaches this line: undo()
       // clears this timer. Settled is also what post_done measures.
       track('post_done', secondsSinceLoad());
-      setToast((t) =>
-        t?.kind === 'undo' ? { kind: 'thanks', text: '投稿ありがとうございます！' } : t,
-      );
+      const settled = celebrationToast();
+      setToast((t) => (t?.kind === 'undo' ? settled : t));
       if (thanksTimer.current) clearTimeout(thanksTimer.current);
       thanksTimer.current = setTimeout(
-        () => setToast((t) => (t?.kind === 'thanks' ? null : t)),
-        6_000,
+        () => setToast((t) => (t?.kind === 'thanks' || t?.kind === 'celebrate' ? null : t)),
+        // A milestone gets a couple of seconds longer: it says more, and it
+        // is the one toast worth finishing.
+        settled.kind === 'celebrate' ? 8_000 : 6_000,
       );
     }, CONFIG.undoWindowMs);
-  }, []);
+  }, [celebrationToast]);
 
   /**
    * Undo was tapped before the POST came back, so the row exists on the
@@ -231,7 +316,7 @@ export function useDrinkStatus() {
    * undo failure, never as a posting failure, and let a refresh settle it.
    */
   const undoInFlight = useCallback(
-    async (target: UndoTarget, posted: { reports: Report[]; drinkTotals: DrinkTally; me: string; serverNow: number }) => {
+    async (target: UndoTarget, posted: ReportsResponse) => {
       try {
         const deleted =
           target.kind === 'group' ? await deleteReportGroup(target.id) : await deleteReport(target.id);
@@ -406,6 +491,7 @@ export function useDrinkStatus() {
   return {
     reports,
     drinkTotals,
+    contributors,
     me,
     now,
     loading,

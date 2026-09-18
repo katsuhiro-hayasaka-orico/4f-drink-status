@@ -2236,6 +2236,101 @@ a:focus-visible {
   }
 }
 
+/* ----------------------------------------------------- 投稿の常連さん -- */
+
+/*
+ * The ranking reuses .popularity wholesale; only the name column and the bar's
+ * single segment differ. The name column is narrower than the drink one
+ * because 「利用者（あなた）」 plus a badge is shorter than 「アイスカフェモカ」
+ * plus ICE plus 人気No.1.
+ */
+.contributors .popularity__row {
+  grid-template-columns: 26px 250px 1fr 96px;
+}
+
+.popularity__seg--days {
+  background: var(--accent);
+}
+
+.contributors__mine {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--drop);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--body-text);
+}
+
+@media (max-width: 720px) {
+  .contributors .popularity__row {
+    grid-template-columns: 26px 1fr 84px;
+  }
+}
+
+/*
+ * 称号. Stars carry the tier (1/2/3); the tint is decoration, so the two
+ * higher tiers borrow pairs the palette already checks for contrast rather
+ * than inventing new ones.
+ */
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--body-text);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.tier-badge__stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.tier-badge--expert {
+  border-color: var(--hot-line);
+  background: var(--hot-bg);
+  color: var(--hot-fg);
+}
+
+.tier-badge--master {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-status);
+}
+
+/* The poster cell carries a badge now, so it wraps instead of overflowing
+   the 投稿の内訳 grid's last column. */
+.reports__poster {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+/* A milestone is good news, not a warning: the accent ground it shares with
+   人気No.1, rather than the espresso of an ordinary toast. */
+.toast--celebrate {
+  background: var(--accent);
+  color: var(--on-status);
+}
+
+.toast--celebrate .toast__undo {
+  border-color: var(--on-status);
+  color: var(--on-status);
+}
+
+.toast--celebrate .toast__undo:hover {
+  background: var(--on-status);
+  color: var(--accent);
+}
+
 /* ------------------------------------------------------------- a11y/etc -- */
 
 .visually-hidden {

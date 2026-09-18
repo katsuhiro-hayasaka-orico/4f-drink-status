@@ -14,6 +14,8 @@
  * the API validates against exactly these tables.
  */
 
+import type { ContributorsResponse } from './contributors.js';
+
 /** Consumables with a level, in display order. */
 export const MATERIAL_KEYS = ['coffeeBeans', 'cocoaPowder', 'milkPowder', 'ice'] as const;
 export type MaterialKey = (typeof MATERIAL_KEYS)[number];
@@ -423,6 +425,20 @@ export interface ReportsResponse {
   me: string;
   /** Server clock at response time — used to keep relative times honest. */
   serverNow: number;
+  /**
+   * 投稿の常連さん, when this response happens to carry it.
+   *
+   * Optional, and absent from the 30-second poll on purpose: the counts behind
+   * it are a GROUP BY over the whole reports table, which would make every
+   * poll's rows_read grow with the table forever. Mutations carry it (the
+   * milestone toast needs the caller's new total the instant they post) and
+   * GET /api/reports/contributors fetches it on its own slow cadence.
+   *
+   * Optional also keeps the halves of a deploy independent: an older bundle
+   * ignores the field, and a newer bundle against an older Worker simply has
+   * no ranking to show.
+   */
+  contributors?: ContributorsResponse;
 }
 
 /* -------------------------------------------------------------- feedback -- */
