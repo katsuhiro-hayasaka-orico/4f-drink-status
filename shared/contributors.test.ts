@@ -43,10 +43,10 @@ describe('contributorTier', () => {
     expect(contributorTier(50)?.key).toBe('expert');
     expect(contributorTier(99)?.key).toBe('expert');
     expect(contributorTier(100)?.key).toBe('master');
-    expect(contributorTier(149)?.key).toBe('master');
-    expect(contributorTier(150)?.key).toBe('sage');
-    expect(contributorTier(199)?.key).toBe('sage');
-    expect(contributorTier(200)?.key).toBe('legend');
+    expect(contributorTier(199)?.key).toBe('master');
+    expect(contributorTier(200)?.key).toBe('sage');
+    expect(contributorTier(299)?.key).toBe('sage');
+    expect(contributorTier(300)?.key).toBe('legend');
     expect(contributorTier(10_000)?.key).toBe('legend');
   });
 
@@ -74,12 +74,12 @@ describe('nextTier', () => {
     expect(nextTier(23)).toMatchObject({ remaining: 27 });
     expect(nextTier(99)).toMatchObject({ remaining: 1 });
     expect(nextTier(100)?.tier.key).toBe('sage');
-    expect(nextTier(150)?.tier.key).toBe('legend');
+    expect(nextTier(200)?.tier.key).toBe('legend');
   });
 
   it('is null at the top — there is nothing left to promise', () => {
-    expect(nextTier(200)).toBeNull();
-    expect(nextTier(500)).toBeNull();
+    expect(nextTier(300)).toBeNull();
+    expect(nextTier(900)).toBeNull();
   });
 });
 
@@ -113,8 +113,8 @@ describe('tierNewlyReached', () => {
     expect(tierNewlyReached(10, 0)?.key).toBe('regular');
     expect(tierNewlyReached(50, 40)?.key).toBe('expert');
     expect(tierNewlyReached(100, 90)?.key).toBe('master');
-    expect(tierNewlyReached(150, 140)?.key).toBe('sage');
-    expect(tierNewlyReached(200, 190)?.key).toBe('legend');
+    expect(tierNewlyReached(200, 190)?.key).toBe('sage');
+    expect(tierNewlyReached(300, 290)?.key).toBe('legend');
   });
 
   it('stays quiet on a milestone inside a tier already held', () => {
@@ -261,7 +261,7 @@ describe('buildContributors', () => {
     // in the report list must not appear here.
     const res = buildContributors(rows, 'e', ['a', 'c'], AFTERNOON);
     expect(Object.keys(res.tiersByUser).sort()).toEqual(['a', 'c', 'e']);
-    expect(res.tiersByUser).toEqual({ a: 'expert', c: 'legend', e: 'regular' });
+    expect(res.tiersByUser).toEqual({ a: 'expert', c: 'sage', e: 'regular' });
   });
 
   it('leaves untitled devices out of tiersByUser entirely', () => {
@@ -297,8 +297,8 @@ describe('describeMine', () => {
   });
 
   it('stops promising a next rung at the top', () => {
-    expect(mine({ postings: 210, recentDays: 20, recentPostings: 90, rank: 1, tier: 'legend' })).toBe(
-      'あなたは12端末中1位（20日・90件）。累計210件・称号「4Fの伝説」。',
+    expect(mine({ postings: 310, recentDays: 20, recentPostings: 90, rank: 1, tier: 'legend' })).toBe(
+      'あなたは12端末中1位（20日・90件）。累計310件・称号「4Fの伝説」。',
     );
   });
 });
@@ -306,7 +306,7 @@ describe('describeMine', () => {
 describe('tierLadderNote', () => {
   it('spells the ladder the footnotes quote', () => {
     expect(tierLadderNote()).toBe(
-      '常連10件・ソムリエ50件・4Fの主100件・4F仙人150件・4Fの伝説200件',
+      '常連10件・ソムリエ50件・4Fの主100件・4F仙人200件・4Fの伝説300件',
     );
   });
 });
