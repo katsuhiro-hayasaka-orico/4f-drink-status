@@ -12,6 +12,7 @@ import {
   type SubjectKey,
 } from '../shared/domain.js';
 import { CONFIG } from '../shared/config.js';
+import type { ContributorRaw } from '../shared/contributors.js';
 import type { RhythmRawCell } from '../shared/rhythm.js';
 
 /** Reports older than this are never sent to the client. */
@@ -305,6 +306,67 @@ export async function tallyRhythm(db: D1Database, since: number): Promise<Rhythm
     subject: r.subject,
     action: r.action,
     n: Number(r.n),
+  }));
+}
+
+/* ---------------------------------------------------------- contributors -- */
+
+/**
+ * Per-device posting counts for 投稿の常連さん: all-time postings, plus the
+ * days and postings inside the ranking window.
+ *
+ * Exported so worker/store.test.ts can run this exact string against a real
+ * SQLite — the counting rules below are subtle enough that a test written
+ * against a paraphrase would prove nothing.
+ *
+ * Postings, not rows: a drink report fans out into several rows under one
+ * group id and is one posting, the same unit countRecentPostings and the Stats
+ * workflow use. Rows written before 0005 have no group id, so they fall back to
+ * (user_id, created_at) — the pair that identified a posting before groups
+ * existed.
+ *
+ * Days are JST calendar days (`+9 hours`), matching tallyRhythm and the Stats
+ * SQL. Every row of one posting shares its created_at, so counting distinct
+ * days over rows and over postings gives the same answer.
+ *
+ * One pass, no CTEs and no compound SELECT: workerd's SQLite caps a compound
+ * SELECT at five terms (see scripts/stats/summary.sql), and a single GROUP BY
+ * has no need to go near it.
+ */
+export const CONTRIBUTORS_SQL = `
+  SELECT user_id,
+         MAX(user_label) AS label,
+         COUNT(DISTINCT COALESCE(group_id, user_id || '@' || created_at)) AS postings,
+         COUNT(DISTINCT CASE WHEN created_at >= ?1
+                             THEN date(created_at / 1000, 'unixepoch', '+9 hours') END)
+           AS recent_days,
+         COUNT(DISTINCT CASE WHEN created_at >= ?1
+                             THEN COALESCE(group_id, user_id || '@' || created_at) END)
+           AS recent_postings
+    FROM reports
+   GROUP BY user_id`;
+
+/** Runs CONTRIBUTORS_SQL; all judgement lives in shared/contributors.ts. */
+export async function tallyContributors(
+  db: D1Database,
+  since: number,
+): Promise<ContributorRaw[]> {
+  const { results } = await db
+    .prepare(CONTRIBUTORS_SQL)
+    .bind(since)
+    .all<{
+      user_id: string;
+      label: string;
+      postings: number;
+      recent_days: number;
+      recent_postings: number;
+    }>();
+  return (results ?? []).map((r) => ({
+    userId: r.user_id,
+    label: r.label,
+    postings: Number(r.postings),
+    recentDays: Number(r.recent_days),
+    recentPostings: Number(r.recent_postings),
   }));
 }
 

@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { toStatus } from '../../shared/aggregate.js';
+import { isTierKey, type TierKey } from '../../shared/contributors.js';
 import { CONFIG } from '../../shared/config.js';
 import {
   QUEUE_META,
@@ -20,6 +21,7 @@ import {
 import { relativeTime } from '../../shared/time.js';
 import { collapsePostings } from '../lib/postings.js';
 import { ON_STATUS, PALETTE, statusColor } from '../lib/palette.js';
+import { ContributorBadge } from './ContributorBadge.js';
 
 export type FilterKey = SubjectKey | 'all' | 'drinks';
 
@@ -52,15 +54,39 @@ function tagStyle(subject: ReportSubject, value: ReportRowValue): CSSProperties 
   return { border: `2px solid ${PALETTE[status]}`, color: PALETTE[status] };
 }
 
+/**
+ * The poster's 称号, defensively. The map arrives from the server, which can
+ * be a deploy ahead of this bundle, so an unrecognised tier key reads as no
+ * badge rather than as a broken class name.
+ */
+function tierOf(tiers: Record<string, TierKey> | undefined, userId: string): TierKey | null {
+  if (!tiers || !Object.hasOwn(tiers, userId)) return null;
+  const key = tiers[userId];
+  return isTierKey(key) ? key : null;
+}
+
 export interface ReportBreakdownProps {
   reports: readonly Report[];
   me: string;
   now: number;
   filter: FilterKey;
   onFilter: (filter: FilterKey) => void;
+  /**
+   * 称号 per poster, limited server-side to the ids in `reports` plus the
+   * caller. Absent until the contributor counts have been fetched — and while
+   * it is, the table simply shows names without badges.
+   */
+  tiersByUser?: Record<string, TierKey>;
 }
 
-export function ReportBreakdown({ reports, me, now, filter, onFilter }: ReportBreakdownProps) {
+export function ReportBreakdown({
+  reports,
+  me,
+  now,
+  filter,
+  onFilter,
+  tiersByUser,
+}: ReportBreakdownProps) {
   // The table shows postings, not rows: a drink report's fanned-out material
   // votes are its derivation, and listing コーヒー豆・氷・マシン全体 next to
   // the アイスコーヒー that implied them reads as noise. collapsePostings
@@ -104,8 +130,9 @@ export function ReportBreakdown({ reports, me, now, filter, onFilter }: ReportBr
                 </span>
               </span>
               <span className="reports__muted">{relativeTime(r.createdAt, now)}</span>
-              <span className="reports__muted">
+              <span className="reports__muted reports__poster">
                 {r.userId === me ? '利用者（あなた）' : r.userLabel}
+                <ContributorBadge tier={tierOf(tiersByUser, r.userId)} />
               </span>
             </div>
           ))}

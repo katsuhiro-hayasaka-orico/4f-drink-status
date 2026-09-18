@@ -10,6 +10,7 @@ import {
   summarizeQueue,
 } from '../shared/aggregate.js';
 import { CONFIG, OBSERVATION_WINDOW_MS } from '../shared/config.js';
+import { tierLadderNote } from '../shared/contributors.js';
 import {
   DRINK_KEYS,
   QUEUE_SUBJECT,
@@ -25,6 +26,7 @@ import { relativeTime } from '../shared/time.js';
 
 import { A2hsBanner } from './components/A2hsBanner.js';
 import { AboutDialog } from './components/AboutDialog.js';
+import { ContributorRanking } from './components/ContributorRanking.js';
 import { DrinkAvailability } from './components/DrinkAvailability.js';
 import { DrinkPopularity } from './components/DrinkPopularity.js';
 import { FeedbackDialog } from './components/FeedbackDialog.js';
@@ -51,6 +53,8 @@ import { useTheme } from './hooks/useTheme.js';
 import { markPrompted, shouldAutoPrompt } from './lib/feedbackPrompt.js';
 import { loadStatus } from './lib/loadStatus.js';
 import { track } from './lib/metrics.js';
+
+const TIER_NOTE = tierLadderNote();
 
 const CONFIDENCE_SHORT: Record<ConfidenceKey, string> = {
   high: '高',
@@ -81,6 +85,7 @@ export function App() {
   const {
     reports,
     drinkTotals,
+    contributors,
     me,
     now,
     loading,
@@ -115,6 +120,9 @@ export function App() {
   // The thanks toast is the cue: if this device hasn't submitted or dismissed
   // the form within the cooldown, the dialog opens itself. The toast's small
   // link stays available every time regardless.
+  //
+  // 'celebrate' is deliberately not a cue. A milestone toast is already saying
+  // something, and covering it with a modal turns a thank-you into a demand.
   useEffect(() => {
     if (toast?.kind !== 'thanks') return;
     if (feedbackOpen === null && shouldAutoPrompt(Date.now())) setFeedbackOpen('auto');
@@ -404,6 +412,19 @@ export function App() {
           <DrinkPopularity totals={drinkTotals} />
         </Section>
 
+        {/* History, like 人気度 above it — no closing-hours mask: what people
+            posted stays true after 17:00. */}
+        {contributors && (
+          <Section
+            title="投稿の常連さん"
+            ariaLabel="投稿の常連さん"
+            note={`直近${contributors.windowDays}日に投稿した日数で並べています`}
+            footnote={`同じ日に何件投稿しても1日と数え、日数が同じときは件数の多い順です。称号は累計の投稿件数で、${TIER_NOTE}。どちらも端末（ブラウザ）ごとの集計なので、クッキーを消すと新しい端末として数え直します。投稿の多さが盤面の集計に影響することはありません（利用者ごとの最新投稿を1票として数えます）。`}
+          >
+            <ContributorRanking contributors={contributors} />
+          </Section>
+        )}
+
         <Section
           title="みんなの観測"
           ariaLabel="みんなの観測"
@@ -420,6 +441,7 @@ export function App() {
             now={now}
             filter={filter}
             onFilter={setFilter}
+            tiersByUser={contributors?.tiersByUser}
           />
         </Section>
 

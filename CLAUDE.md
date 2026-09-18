@@ -20,6 +20,7 @@
 | `shared/drinkReport.ts` | ドリンク投稿の受理条件（`parseDrinkReport`）と材料票への展開（`buildDrinkReportRows`） |
 | `shared/drinks.ts` | RECIPES（8種）と `drinkAvailability`（材料状態→1杯の可否） |
 | `shared/rhythm.ts` | 「いつ切れやすい？」曜日×時間帯の判断（good/bad分類・6段階バケット・スロット導出） |
+| `shared/contributors.ts` | 投稿の常連さん。称号（累計10件=常連／30件=ソムリエ／50件=4Fの主。閾値が低いのは4Fのドリンクが2026年末までの期間限定で、100件では誰も届かないため。表示名は差し替え自由、`key` はワイヤとCSSに出る安定側）・10件ごとの節目・直近30日の窓（JST暦日）・ランキングの並び（`buildContributors`）・自分の1行（`describeMine`）。**盤面の集計とは無関係**（1人1票の原則に触らない） |
 | `shared/hours.ts` | 開放時間の唯一の判定箇所（`loungeHours`）。JST 固定 |
 | `shared/time.ts` | `relativeTime`（「たった今」「12分前」「2時間前」）。**盤面唯一の時刻表記**（8行） |
 | `worker/index.ts` | API の唯一の入口。`route()` は 426-508 行。`json()` / `fail()`（85-98）以外でレスポンスを作らない。SQL は1行も無い |
@@ -42,9 +43,9 @@
 | `.github/workflows/` | `ci.yml`（main 以外の push と main 宛 PR）/ `deploy.yml`（main への push で本番）/ `stats.yml`（手動、または main への push で `scripts/stats/**` か自身が変わったとき。本番 D1 の利用状況を Job Summary に） |
 | `tools/blender/wmf1100s.py` | マシン画像とレイアウト座標の生成元（1000行超） |
 | `tools/icons/build-icons.mjs` | ファビコン／アプリアイコンの生成元。原本は `public/favicon.svg` の1枚で、PNG 5枚はここから作る |
-| `migrations/` | 0001 reports+users / 0002 feedback+feedback_likes / 0003 feedback.updated_at / 0004 events / 0005 reports.group_id / 0006 push_subscriptions / 0007 reports.level |
+| `migrations/` | 0001 reports+users / 0002 feedback+feedback_likes / 0003 feedback.updated_at / 0004 events / 0005 reports.group_id / 0006 push_subscriptions / 0007 reports.level / 0008 idx_reports_user_created_at |
 
-`src/App.tsx` の画面の並び: ヘッダ → A2hsBanner / MobileInvite → overview（マシンの絵＋SummaryPanel）→ **ドリンクの作成可否**（`id="drinks"`、1行要約＋ドリンク別カード。カードは既定で展開、畳める）→ **ReportForm（折りたたみ。`open` prop、`goToReport` が展開する）** → 行列の待ち状況 → いつ切れやすい？ → 材料の推定残量 → ドリンクの人気度 → みんなの観測 → 投稿の内訳 → ご意見箱 → フッタ。加えてフォームが画面外のときだけ出る FAB。2026-08-13 の監査対応（8f28291）では ReportForm が overview の直後にあったが、2026-09-09 にユーザー判断で可否を前に出しフォームを折りたたんだ（`App.tsx` の該当コメントに経緯。計測で判断する前提）。
+`src/App.tsx` の画面の並び: ヘッダ → A2hsBanner / MobileInvite → overview（マシンの絵＋SummaryPanel）→ **ドリンクの作成可否**（`id="drinks"`、1行要約＋ドリンク別カード。カードは既定で展開、畳める）→ **ReportForm（折りたたみ。`open` prop、`goToReport` が展開する）** → 行列の待ち状況 → いつ切れやすい？ → 材料の推定残量 → ドリンクの人気度 → **投稿の常連さん**（`contributors` が取れているときだけ）→ みんなの観測 → 投稿の内訳 → ご意見箱 → フッタ。加えてフォームが画面外のときだけ出る FAB。2026-08-13 の監査対応（8f28291）では ReportForm が overview の直後にあったが、2026-09-09 にユーザー判断で可否を前に出しフォームを折りたたんだ（`App.tsx` の該当コメントに経緯。計測で判断する前提）。
 
 ## タスク別の逆引き
 
@@ -74,13 +75,14 @@
 
 ## API（`worker/index.ts:436-508`）
 
-11パス／13のメソッド×パス組。`/api/` で始まらないものは全て `ASSETS` へフォールスルー（`worker/index.ts:514-516`）。**変更系は更新後の一覧（`snapshot()`）も返すのでクライアントは再取得しない**（index.ts:23-25）。
+12パス／14のメソッド×パス組。`/api/` で始まらないものは全て `ASSETS` へフォールスルー。**変更系は更新後の一覧（`snapshot()`）も返すのでクライアントは再取得しない**。変更系だけは `snapshotAfterMutation()` で `contributors` も足す（GET には載せない。不変条件の項）。
 
 | メソッド | パス | 備考 |
 | --- | --- | --- |
 | GET / POST | `/api/reports` | POST は20投稿/分（`POST_RATE_LIMIT`, index.ts:74） |
 | POST | `/api/reports/drink` | ドリンク報告。材料票へ展開して同一 group_id で保存 |
 | GET | `/api/reports/rhythm` | 曜日×時間帯の生カウント |
+| GET | `/api/reports/contributors` | 投稿の常連さん（上位5・自分の累計と順位・`tiersByUser`）。**ポーリングには載せない** |
 | DELETE | `/api/reports/group/:gid` | undo（投稿単位） |
 | DELETE | `/api/reports/:id` | undo（行単位。group_id が NULL の歴史行向け） |
 | GET / POST | `/api/feedback` | GET は満足度の件数のみ。POST は5件/日（`FEEDBACK_RATE_LIMIT`, index.ts:81） |
@@ -89,7 +91,7 @@
 | POST | `/api/push/subscribe`・`/api/push/unsubscribe` | 購読は1 identity あたり8件まで（store.ts:324） |
 | POST | `/api/push/announce` | 管理者お知らせ。認証は Bearer `ANNOUNCE_TOKEN` |
 
-**`worker/index.ts` 冒頭のドックコメント（1-26行）の API 一覧は古く、drink / rhythm / announce が載っていない。仕様と信じないこと。**
+**`worker/index.ts` 冒頭のドックコメントの API 一覧は 2026-09-18 に実物へ揃えた**（drink / rhythm / contributors / group削除 / announce を追記）。次に増やすときも同時に直すこと。
 
 ## D1 スキーマと語彙
 
@@ -131,6 +133,9 @@
 - **通知は undo 窓が閉じてから送る。** `SEND_DELAY_MS = CONFIG.undoWindowMs + 16_000`（21秒）は undo の DELETE 猶予（`undoWindowMs + 15_000`）より必ず1秒長い（`worker/notify.ts:25`、`worker/store.ts:180,195`）。送信直前に `groupExists` で生存を再確認し、自分の購読は除外する。
 - 1投稿あたりの push は30件で頭打ち（無料プランの subrequest 上限50に収めるため。`MAX_PUSH_PER_POST`, `worker/notify.ts:32`）。**超過分は捨てられるが無言ではなく `console.warn` に出る**（notify.ts:112-114。上限+1件取得して超過を検知する設計。ただし Cloudflare のログを見ないと気づけない）。
 - サーバ側の数値上限は5つ。投稿20/分・ご意見5/日・イベント30/分（index.ts:74,81,84）、購読8件/identity（store.ts:324）、取得は24時間・最大200行（store.ts:18,21）。**集計は30分窓なのに取得は24時間ぶん**という非対称はラッチと残照のための前提。
+- **他端末の `user_id` は、同じ応答に載っている投稿の範囲を超えて配らない。** `tiersByUser` は「配信済みの投稿行に現れる id ＋ 呼び出し元」に限定する（`buildContributors` の `visibleUserIds`）。他人について返すのは表示名・称号・期間内の日数/件数だけで、他人の累計件数も返さない。
+- **contributors はポーリングの `snapshot()` に入れない。** reports 全件の GROUP BY なので、30秒ポーリングに同梱すると rows_read が行数に比例して増え続ける。載るのは変更系4つ（`snapshotAfterMutation`）と専用 GET だけ。
+- **称号とランキングは盤面の集計に一切影響しない。** 順位は「直近30日に投稿した日数」（件数ではない＝水増ししても得がない）。`shared/contributors.ts` は `shared/aggregate.ts` から参照されない。
 - **計測イベントは許可リストの4つだけ**（cta_click / report_view / post_done / post_undone）。自由記述は保存しない。「許可リストがプライバシーポリシーそのもの」（`shared/domain.ts:376-390`）。
 - **1投稿＝1グループ。** 単票も自分の id を group_id に入れるので、undo・レート制限・通知が単票とドリンク報告を同じコードパスで扱える（`worker/store.ts:110-118`）。レート制限は行ではなくグループを数える。
 - `/api/reports/drink`・`/rhythm`・`/group/:gid` は `/api/reports/:id` パターンより**先に判定しなければならない**（`worker/index.ts:442-443` に明記）。
@@ -176,7 +181,9 @@
 - **CI のデプロイ経路は `scripts/preflight.mjs` を通らない。** `predeploy` は npm フックなので手元の `npm run deploy` でしか走らず、`deploy.yml` は `npx wrangler deploy` を直接叩く。
 - `wrangler.toml:19` のコメントは「Replace with the id printed by ...」のままだが 20行目には実 ID がコミット済み。別環境では `./scripts/setup-cloudflare.sh` が自動で書き込む（:66,73）ので**手で直す必要は無い**。コメントだけが取り残されている。
 - **`migrations/0006` だけ `CREATE TABLE`（IF NOT EXISTS 無し、:7）。** `deploy.yml:61-63` のコメントは「全て冪等」と書いている。wrangler が適用済みを飛ばすので実運用では表面化しないが、手で流し直すと落ちる。**新規マイグレーションを冪等に書くことは本番デプロイの前提。**
-- クライアントの localStorage キーは3つ。`drink-status-theme`（`useTheme.ts:11`、`index.html:39` のインラインも同じキーを読む）、`drink-status-feedback-prompted`（`lib/feedbackPrompt.ts:13`）、`drink-status-a2hs-dismissed`（`lib/a2hs.ts:9`）。「バナーが出ない」「ご意見ダイアログが開かない」の第一容疑者。
+- クライアントの localStorage キーは4つ。`drink-status-theme`（`useTheme.ts:11`、`index.html:39` のインラインも同じキーを読む）、`drink-status-feedback-prompted`（`lib/feedbackPrompt.ts:13`）、`drink-status-a2hs-dismissed`（`lib/a2hs.ts:9`）、`drink-status-celebrated`（`lib/milestones.ts`、値は `<userId>:<件数>`）。「バナーが出ない」「ご意見ダイアログが開かない」「お礼が出ない／何度も出る」の第一容疑者。
+- **`worker/*.test.ts` は `tsconfig.worker.json` で型検査される**ので Node の型が無い。`node:sqlite` は `process.getBuiltinModule` をキャストして取り、`node:fs` に渡すパスは `URL` ではなく `fileURLToPath(...)` の文字列にする（workers-types の `URL` は Node の `URL` と別物で代入できない）。`scripts/**` はどちらの tsconfig の include にも入っておらず型検査されないので、同じ書き方が通っても参考にならない。
+- **お礼のトーストは `contributors.mine.postings`（サーバーの数）で判定する。** 変更系の応答にしか載らないので、投稿を経由しない限り最新化されない。`openUndoWindow` は `useCallback([])` なので、読む値は全て ref（`contributorsRef` / `meRef`）。`thanksTimer` の消去条件は `thanks || celebrate` の両方（片方だけにすると祝いのトーストが消えない）。
 - **`public/sw.js` は push を受けたら必ず1件通知を表示する**（ペイロードが壊れていても既定文で）。表示しないと iOS がプッシュ許可を停止する。
 - **通知バッジは 32px ファビコンの流用のまま**（`public/sw.js:31`）。Android はバッジをアルファだけの単色シルエットで描くので、2026-09-18 に角を透過にした結果「角丸の塊」になる（以前は「四角い塊」）。直すにはマーク形状だけの専用バッジ画像と `sw.js` の変更が要る。favicon-32 の透過は**不具合ではない**ので戻さないこと（暗いタブで角が白く浮くのを直したもの）。
 - 通知の **tag が衝突すると無言で置き換わる**（バナーも音も出ない）。有効化確認は `drink-status-hello`、投稿は `drink-status-reports`、お知らせは `drink-status-announce`。過去に同 tag で「有効化したのに何も来ない」事故が起きた（6e40bae）。
@@ -211,7 +218,7 @@
 - **SHA をここに書かない**。すぐ腐るので現在地は毎回コマンドで取る: `git fetch origin main && git log --oneline -5 origin/main && git rev-list --left-right --count origin/main...HEAD`。デプロイ履歴は Actions の Deploy ワークフローを見る。
 - **マシン集計の一連の修正は 2026-09-07 に本番反映済み**（Deploy 2回、いずれも全ステップ success）。内訳は4コミット: `bff903b` 未報告のマシンを正常扱いしない / `39b64ac` 壊れたマシンはラッチする / `5abb7e4` 良い知らせだけがラッチを解除する / `7c85126` ラッチの根拠行を共通200件枠の外に出す（+ 最終観測の逆行と確からしさピルの対象ずれ）。D1 のマイグレーション追加は無くスキーマは不変。
 - **どのデプロイも実機での目視確認はしていない**。本番URLが不明なため（「文脈が失われた範囲」参照）、根拠は CI と、`worker/store.ts` の SQL についてはローカル D1 での実行結果のみ。
-- テストは **16ファイル204件が全通過**（aggregate 78 / labels 22 / drinkReport 15 / stats 12 / hours 11 / rhythm 10 / push 9 / drinks 6 / notify 6 / machineLayout 6 / shipped 6 / feedback 5 / loadStatus 5 / postOutcome 5 / a2hs 5 / postings 3）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
+- テストは **19ファイル246件が全通過**（aggregate 78 / contributors 27 / labels 22 / drinkReport 15 / stats 12 / hours 11 / rhythm 10 / milestones 9 / push 9 / drinks 6 / notify 6 / machineLayout 6 / shipped 6 / store 6 / feedback 5 / loadStatus 5 / postOutcome 5 / a2hs 5 / postings 3）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
 - **本番の利用実態（Stats run #1、2026-09-11 16:48 JST 時点）**: 何らかの痕跡を残した端末 69、投稿かご意見で登録された端末 35（現存する投稿を持つのは 34）、投稿 515 件（目撃 164 / 行列 155 / ドリンク作れた 126 / 作れなかった 54 / マシン 16）、ご意見 16 件（13 端末）、通知購読 6 端末（`MAX_PUSH_PER_POST`=30 には遠い）。活動は平日のみ。8/27（木）に 18 端末が初出し（週 8/24 で 39 端末が初出・50 端末が活動）、以後は週 21〜34 端末が活動。**9/9 の `report_view` の意味変更以降は active ≒ posters**（開いただけの端末は見えない）。次回以降の比較はこの行ではなく Stats を再実行して取る。
 - 直近の作業の流れは、9/3 Blender レンダー化 → 9/4 目撃導線の作り直し・CI/デプロイの足回り整備 → 9/7 集計ロジックのバグ修正3連。UI の作り込みからロジックの正しさへ軸足が移っている。
 - コミット trailer から、**失われたセッションは `https://claude.ai/code/session_01Pq73qark1HNzZuwCmf9PXq`**（72コミットが持つ）。現行セッションは `session_01Au31ns5hDxA7y21maRPVci`（直近3件）。`git log --format='%h %(trailers:key=Claude-Session,valueonly)'` でどのコミットがどちらの産物か機械的に判別できる。
@@ -219,7 +226,7 @@
 ## 次に着手すべきもの
 
 1. **`scripts/announce.mjs` の引数パースのバグ**（影響:運用）。`--title` を省略すると本文が落ちる。README の該当節とスクリプトのヘッダも同時に直す。
-2. **Worker にテストが1本も無い**（影響:開発）。`index.ts`（528行）`store.ts`（450行）`identity.ts`（103行）。ルーティング順序・3種のレート制限・undo の所有者チェック・HMAC 署名検証が回帰検知されない。`worker/push.test.ts` が WebCrypto でテストを書けているので技術的障壁はない。
+2. **Worker のルーティングとレート制限にテストが無い**（影響:開発）。SQL は `worker/store.test.ts` が `node:sqlite` ＋実物の migrations で `CONTRIBUTORS_SQL` を固定したが、`index.ts` の分岐順序・3種のレート制限・undo の所有者チェック・HMAC 署名検証（`identity.ts`）は回帰検知されない。`worker/push.test.ts` と `worker/store.test.ts` があるので技術的障壁はない。
 
 ## 既知の負債（把握のみ）
 
@@ -230,6 +237,7 @@
 - README:685 が参照する `project/4F Drink Status.dc.html` は 359e30c で削除済み（次節から読める）。
 - README は `CLOUDFLARE_API_TOKEN` を「手元/ヘッドレスの環境変数」としては説明している（README:105-118、必要権限の表つき）が、**GitHub の repository secret として登録が要ることと、main への push で本番に出ることには一切触れていない**（README に `.github` / Actions / ci.yml / deploy.yml の記述は0件）。`scripts/preflight.mjs` も未記載。
 - `listRecentReports` が `group_id` を SELECT していないため、クライアントは `userId:createdAt` でグルーピングを推測している（`src/lib/postings.ts:15`）。サーバーに正確な情報があるのに使っていない。
+- `tallyDrinkReports` は30秒ポーリングごとに reports 全件を走る（`subject IN (8種)` の GROUP BY）。contributors を別エンドポイントに出した理由と同じコストが、人気度には残ったまま。件数が増えたらこちらも切り出す。
 - README の「UI/UX 監査対応（2026-08）」節と「つくり」ディレクトリツリーが実装に追随していない。
 - 「ご意見から改善した機能」リストが `FeedbackBox.tsx` のハードコード配列で、1件足すたびにコード変更とデプロイが要る。
 - 3つのダイアログにフォーカストラップとフォーカス復帰が無い。

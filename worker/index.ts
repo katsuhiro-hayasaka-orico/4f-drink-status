@@ -2,9 +2,13 @@
  * 4Fドリンク速報 — Cloudflare Worker API.
  *
  * The machine board, over one D1 table:
- *   GET    /api/reports      the last 24h of observations
- *   POST   /api/reports      post one ({ subject, action, level? })
- *   DELETE /api/reports/:id  take your own back, inside the undo window
+ *   GET    /api/reports        the last 24h of observations
+ *   POST   /api/reports        post one ({ subject, action, level? })
+ *   POST   /api/reports/drink  post a drink verdict, fanned out into materials
+ *   GET    /api/reports/rhythm weekday×hour counts for いつ切れやすい？
+ *   GET    /api/reports/contributors  投稿の常連さん: ranking, 称号, my totals
+ *   DELETE /api/reports/:id    take your own back, inside the undo window
+ *   DELETE /api/reports/group/:gid  the same, for a fanned-out posting
  *
  * And ご意見箱 — collected publicly, read privately. Bodies may carry
  * personal or confidential details, so no endpoint ever returns them;
@@ -19,13 +23,20 @@
  *   GET    /api/push/key          the applicationServerKey, or null
  *   POST   /api/push/subscribe    register this browser ({ endpoint, p256dh, auth })
  *   POST   /api/push/unsubscribe  unregister ({ endpoint })
+ *   POST   /api/push/announce     admin broadcast, behind ANNOUNCE_TOKEN
  *
- * Mutations return the refreshed list too, so the client never needs a second
- * round trip to re-render. Everything else falls through to the static assets
- * built by Vite.
+ * Mutations return the refreshed list too — plus the contributor counts, which
+ * the poll deliberately leaves out — so the client never needs a second round
+ * trip to re-render. Everything else falls through to the static assets built
+ * by Vite.
  */
 
 import { CONFIG } from '../shared/config.js';
+import {
+  buildContributors,
+  contributorWindowStart,
+  type ContributorsResponse,
+} from '../shared/contributors.js';
 import {
   QUEUE_SUBJECT,
   isEventName,
@@ -65,6 +76,7 @@ import {
   insertReport,
   insertReportRows,
   listRecentReports,
+  tallyContributors,
   tallyDrinkReports,
   tallyFeedback,
   tallyRhythm,
@@ -107,8 +119,57 @@ async function snapshot(env: Env, identity: Identity, now: number): Promise<Repo
   };
 }
 
+/**
+ * 投稿の常連さん for this caller. `reports` is the list going out in the same
+ * response — the 称号 map is narrowed to the posters it already contains, so
+ * the endpoint never hands out a per-device history for anyone the client
+ * cannot already see.
+ */
+async function contributorsFor(
+  env: Env,
+  identity: Identity,
+  now: number,
+  reports: readonly Report[],
+): Promise<ContributorsResponse> {
+  const raw = await tallyContributors(env.DB, contributorWindowStart(now));
+  return buildContributors(
+    raw,
+    identity.userId,
+    reports.map((r) => r.userId),
+    now,
+  );
+}
+
+/**
+ * What a mutation answers with: the usual snapshot plus the contributor
+ * counts, because the moment someone posts is the moment their own total
+ * changed — the milestone toast has no other way to know.
+ *
+ * The plain GET deliberately does NOT go through here: it runs every 30
+ * seconds per open tab, and the counts are an all-time GROUP BY whose cost
+ * grows with the table. Mutations are rare by comparison, and the dedicated
+ * GET below serves everyone else on a five-minute cadence.
+ */
+async function snapshotAfterMutation(
+  env: Env,
+  identity: Identity,
+  now: number,
+): Promise<ReportsResponse> {
+  const base = await snapshot(env, identity, now);
+  return { ...base, contributors: await contributorsFor(env, identity, now, base.reports) };
+}
+
 async function handleGet(env: Env, identity: Identity, now: number): Promise<Response> {
   return json(await snapshot(env, identity, now));
+}
+
+async function handleContributorsGet(
+  env: Env,
+  identity: Identity,
+  now: number,
+): Promise<Response> {
+  const reports = await listRecentReports(env.DB, now);
+  return json(await contributorsFor(env, identity, now, reports));
 }
 
 async function handlePost(
@@ -168,7 +229,7 @@ async function handlePost(
     notifyAfterUndoWindow(env, report.id, identity.userId, postingNotificationBody([report])),
   );
 
-  return json({ report, ...(await snapshot(env, identity, now)) }, 201);
+  return json({ report, ...(await snapshotAfterMutation(env, identity, now)) }, 201);
 }
 
 /**
@@ -213,7 +274,7 @@ async function handleDrinkPost(
     notifyAfterUndoWindow(env, groupId, identity.userId, postingNotificationBody(rows)),
   );
 
-  return json({ groupId, ...(await snapshot(env, identity, now)) }, 201);
+  return json({ groupId, ...(await snapshotAfterMutation(env, identity, now)) }, 201);
 }
 
 async function handleGroupDelete(
@@ -224,7 +285,7 @@ async function handleGroupDelete(
 ): Promise<Response> {
   const removed = await deleteOwnRecentGroup(env.DB, groupId, identity.userId, now);
   if (!removed) return fail(404, '取り消せる投稿が見つかりませんでした');
-  return json({ ok: true, ...(await snapshot(env, identity, now)) });
+  return json({ ok: true, ...(await snapshotAfterMutation(env, identity, now)) });
 }
 
 async function handleDelete(
@@ -235,7 +296,7 @@ async function handleDelete(
 ): Promise<Response> {
   const removed = await deleteOwnRecentReport(env.DB, id, identity.userId, now);
   if (!removed) return fail(404, '取り消せる投稿が見つかりませんでした');
-  return json({ ok: true, ...(await snapshot(env, identity, now)) });
+  return json({ ok: true, ...(await snapshotAfterMutation(env, identity, now)) });
 }
 
 /**
@@ -459,6 +520,11 @@ async function route(
   // which would otherwise swallow them as report ids.
   if (path === '/api/reports/drink') {
     if (request.method === 'POST') return handleDrinkPost(request, env, identity, now, ctx);
+    return fail(405, 'サポートされていないメソッドです');
+  }
+
+  if (path === '/api/reports/contributors') {
+    if (request.method === 'GET') return handleContributorsGet(env, identity, now);
     return fail(405, 'サポートされていないメソッドです');
   }
 

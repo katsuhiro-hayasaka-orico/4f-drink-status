@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { CONFIG } from '../../shared/config.js';
+import {
+  CONTRIBUTOR_WINDOW_DAYS,
+  MILESTONE_EVERY,
+  tierLadderNote,
+} from '../../shared/contributors.js';
 
 export interface AboutDialogProps {
   onClose: () => void;
@@ -53,6 +58,13 @@ export function AboutDialog({ onClose }: AboutDialogProps) {
           ブラウザのタブから開いている間は、iOSの仕様により通知ボタンは表示されません。
           Androidでは、ブラウザのメニュー（⋮）から「ホーム画面に追加」できます
           （通知はタブのままでもONにできます）。
+        </p>
+        <p className="dialog__body">
+          投稿してくださった方には、累計の投稿件数に応じて称号（{tierLadderNote()}）が付き、
+          {MILESTONE_EVERY}件ごとにお礼を表示します。「投稿の常連さん」は直近
+          {CONTRIBUTOR_WINDOW_DAYS}日に投稿した日数で並べたもので、同じ日に何件投稿しても1日と
+          数えます。いずれも端末（ブラウザ）ごとの集計で、クッキーを消すと新しい端末として
+          数え直します。投稿の多さが、いまの状態の集計に影響することはありません。
         </p>
         <p className="dialog__body">
           Cloudflare Workers・D1・静的アセット配信で動作しています。ログインは不要で、
