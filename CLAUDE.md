@@ -41,6 +41,7 @@
 | `scripts/` | `setup-cloudflare.sh` / `.ps1`（初回セットアップの唯一の入口）`preflight.mjs` `generate-vapid.mjs` `announce.mjs` `seed.mjs` |
 | `.github/workflows/` | `ci.yml`（main 以外の push と main 宛 PR）/ `deploy.yml`（main への push で本番）/ `stats.yml`（手動、または main への push で `scripts/stats/**` か自身が変わったとき。本番 D1 の利用状況を Job Summary に） |
 | `tools/blender/wmf1100s.py` | マシン画像とレイアウト座標の生成元（1000行超） |
+| `tools/icons/build-icons.mjs` | ファビコン／アプリアイコンの生成元。原本は `public/favicon.svg` の1枚で、PNG 5枚はここから作る |
 | `migrations/` | 0001 reports+users / 0002 feedback+feedback_likes / 0003 feedback.updated_at / 0004 events / 0005 reports.group_id / 0006 push_subscriptions |
 
 `src/App.tsx` の画面の並び: ヘッダ → A2hsBanner / MobileInvite → overview（マシンの絵＋SummaryPanel）→ **ドリンクの作成可否**（`id="drinks"`、1行要約＋ドリンク別カード。カードは既定で展開、畳める）→ **ReportForm（折りたたみ。`open` prop、`goToReport` が展開する）** → 行列の待ち状況 → いつ切れやすい？ → 材料の推定残量 → ドリンクの人気度 → みんなの観測 → 投稿の内訳 → ご意見箱 → フッタ。加えてフォームが画面外のときだけ出る FAB。2026-08-13 の監査対応（8f28291）では ReportForm が overview の直後にあったが、2026-09-09 にユーザー判断で可否を前に出しフォームを折りたたんだ（`App.tsx` の該当コメントに経緯。計測で判断する前提）。
@@ -66,6 +67,7 @@
 - `npm run vapid`（VAPID 鍵生成）/ `npm run announce`（お知らせ配信。環境変数 `ANNOUNCE_TOKEN` と `SITE_URL` が必須）。
 - `npm run stats` / `stats:local` は `scripts/stats/run.mjs` 経由で `scripts/stats/*.sql` を D1 に投げ、Markdown 表にする。Actions の **Stats**（`workflow_dispatch`、`detail` 入力で端末明細。`scripts/stats/**` を変えた main push でも自動で走る）も同じスクリプト。**wrangler の `d1 execute --remote --file` は D1 のインポート経路で SELECT の結果を返さない**ので `--command` で渡している（行頭 `--` コメントは `run.mjs` が落とす。SQL は1ファイル1文）。ログは public なので出すのは集計値・日付・ラベルまで（`FORBIDDEN_COLUMNS` で `user_id` 等をガード）。テストは `scripts/stats/stats.test.ts` が `node:sqlite` で migrations＋fixture に対して期待値を固定（Node 22.13+）。
 - `npm run render:machine` は Blender 4.x が必要（CI に無い）。light テーマ時は `wmf1100s.blend` を上書き保存する。
+- `npm run render:icons` は `public/favicon.svg` から PNG 5枚（32 / 180 / 192 / 512 / maskable 512）を sharp で焼く。**32px だけ角丸＋透過、残りは角丸なし・透過なし**（iOS と Android が自前でマスクするため。角丸済みを渡すと OS の角の内側に縁が出る）。`-- --check` で SVG と PNG のずれを検出できる。sharp は wrangler 経由で元々入っていたが、黙って壊れないよう devDependencies に明示した。
 - `npm run feedback` / `feedback:tally` は本番 D1 を直接叩く。**D1:Edit 権限の API トークンが必要**で、`wrangler login` の OAuth のままだと 7403（README:564 付近）。
 - ローカルで push を試すには git 管理外の `.dev.vars` に `VAPID_PRIVATE_JWK=...`（README:483）。
 - `npm audit` は9件（critical 1含む）出るが `npm audit --production` は0件。全て devDependencies（vite/vitest/wrangler）由来。実行時の npm 依存は `react` / `react-dom` / `qrcode` の3つだけ（`package.json:26-30`）、実行時の外部依存は Google Fonts のみ。
@@ -174,6 +176,7 @@
 - **`migrations/0006` だけ `CREATE TABLE`（IF NOT EXISTS 無し、:7）。** `deploy.yml:61-63` のコメントは「全て冪等」と書いている。wrangler が適用済みを飛ばすので実運用では表面化しないが、手で流し直すと落ちる。**新規マイグレーションを冪等に書くことは本番デプロイの前提。**
 - クライアントの localStorage キーは3つ。`drink-status-theme`（`useTheme.ts:11`、`index.html:39` のインラインも同じキーを読む）、`drink-status-feedback-prompted`（`lib/feedbackPrompt.ts:13`）、`drink-status-a2hs-dismissed`（`lib/a2hs.ts:9`）。「バナーが出ない」「ご意見ダイアログが開かない」の第一容疑者。
 - **`public/sw.js` は push を受けたら必ず1件通知を表示する**（ペイロードが壊れていても既定文で）。表示しないと iOS がプッシュ許可を停止する。
+- **通知バッジは 32px ファビコンの流用のまま**（`public/sw.js:31`）。Android はバッジをアルファだけの単色シルエットで描くので、2026-09-18 に角を透過にした結果「角丸の塊」になる（以前は「四角い塊」）。直すにはマーク形状だけの専用バッジ画像と `sw.js` の変更が要る。favicon-32 の透過は**不具合ではない**ので戻さないこと（暗いタブで角が白く浮くのを直したもの）。
 - 通知の **tag が衝突すると無言で置き換わる**（バナーも音も出ない）。有効化確認は `drink-status-hello`、投稿は `drink-status-reports`、お知らせは `drink-status-announce`。過去に同 tag で「有効化したのに何も来ない」事故が起きた（6e40bae）。
 - 「通知が来ない」の切り分けはまず3点。約21秒待つ／自分の投稿は自分に届かない／iPhone はホーム画面アイコンから開かないとボタンすら出ない。
 - **VAPID 鍵を作り直すと既存の購読が全て無効**になり全員が ON し直す。setup スクリプトが既存鍵を上書きしないのはこのため。
@@ -227,7 +230,7 @@
 - `listRecentReports` が `group_id` を SELECT していないため、クライアントは `userId:createdAt` でグルーピングを推測している（`src/lib/postings.ts:15`）。サーバーに正確な情報があるのに使っていない。
 - README の「UI/UX 監査対応（2026-08）」節と「つくり」ディレクトリツリーが実装に追随していない。
 - 「ご意見から改善した機能」リストが `FeedbackBox.tsx` のハードコード配列で、1件足すたびにコード変更とデプロイが要る。
-- 3つのダイアログにフォーカストラップとフォーカス復帰が無い。PWA マニフェストのアイコンは 180x180 の1枚だけ。
+- 3つのダイアログにフォーカストラップとフォーカス復帰が無い。
 - `worker/push.ts:60` のコメントが「Tokens are cached per origin」と書いているがキャッシュは存在せず、購読1件ごとに署名している。
 - `ReportForm.tsx:437` が材料未選択時に `actionLabelFor(sighting ?? 'coffeeBeans', action)` とダミー subject を渡す。現状は全材料でラベル共通なので実害なし。
 - 削除したデザインバンドル（チャットログとアップロード画像）が public リポジトリの過去コミットに残っている。履歴の書き換えは未実施。

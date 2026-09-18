@@ -1,15 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="4Fドリンク速報">
   <!--
-    A single coffee bean on the brand terracotta.
+    The brand mark: a cream "4" beside an iced-drink cup on espresso. This file
+    is the original; every PNG in public/ is rendered from it by
+    tools/icons/build-icons.mjs (npm run render:icons).
 
-    One shape, no detail that dies at 16px, and a filled background so the mark
-    holds its own against either a light or a dark browser chrome. The split is
-    knocked out in the background colour, the same trick the subject chips use.
+    The geometry is measured off the 477px hero render of the brand board and
+    normalised to this 32-unit grid, so the numbers below are observations, not
+    taste: tile radius 7.00 (a circle fits the corner with RMSE 0.27px; a
+    squircle fits 20x worse), stem 3.47 wide, crossbar 11.45 x 2.90, diagonal
+    40.5 degrees off vertical, lid 9.20 x 1.60, cup 3.93 -> 2.78 half-width with
+    a 1.13 wall. The three colours are the app's own light-theme tokens, in
+    styles.css order: header-bg, page, accent-light.
+
+    Above the lid the board shows three separate terracotta strokes, not two
+    straws: one straw rooted in the cup (y 10.4 down into the lid) and two short
+    accent dashes floating up and to the right, at their own angles. They are
+    drawn before the lid so the bar covers the straw's round bottom cap.
   -->
-  <rect width="32" height="32" rx="7.5" fill="#b4552d"/>
-  <g transform="rotate(-32 16 16)">
-    <ellipse cx="16" cy="16" rx="7.8" ry="11.2" fill="#f9f0dd"/>
-    <path d="M16 5.6c-2.9 4.6-2.9 16.2 0 20.8"
-          fill="none" stroke="#b4552d" stroke-width="2.8" stroke-linecap="round"/>
+  <rect width="32" height="32" rx="7" fill="#2b1f18"/>
+
+  <g fill="none" stroke="#c96f42" stroke-linecap="round">
+    <path d="M22.71 11.01 21.69 14.7" stroke-width="1.27"/>
+    <path d="M22.93 6.75 22.41 8.3" stroke-width="0.8"/>
+    <path d="M25.36 8 24.55 9.25" stroke-width="0.95"/>
   </g>
+
+  <rect x="17.24" y="14.02" width="9.2" height="1.6" rx="0.4" fill="#f5edde"/>
+  <path fill="#f5edde" d="M18.27 16.4H25.23Q25.68 16.4 25.62 16.85L24.67 23.59Q24.53 24.58 23.53 24.58H19.97Q18.97 24.58 18.83 23.59L17.88 16.85Q17.82 16.4 18.27 16.4Z"/>
+  <path fill="#c96f42" d="M19.44 17.55H24.06Q24.36 17.55 24.32 17.85L23.61 22.88Q23.53 23.43 22.98 23.43H20.52Q19.97 23.43 19.89 22.88L19.18 17.85Q19.14 17.55 19.44 17.55Z"/>
+
+  <!-- One contour, clockwise from the diagonal's apex; the closing line is the
+       diagonal's left edge, parallel to the counter's hypotenuse and offset by
+       exactly the stem width, which is what makes it read as a constant stroke. -->
+  <path fill="#f5edde" fill-rule="evenodd" d="M11.15 10.65H14.62V18.2H16.25V21.1H14.62V24.55H11.15V21.1H4.8V18.2ZM11.15 14.78L8.27 18.2H11.15Z"/>
 </svg>
