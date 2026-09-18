@@ -43,7 +43,7 @@
 | `.github/workflows/` | `ci.yml`（main 以外の push と main 宛 PR）/ `deploy.yml`（main への push で本番）/ `stats.yml`（手動、または main への push で `scripts/stats/**` か自身が変わったとき。本番 D1 の利用状況を Job Summary に） |
 | `tools/blender/wmf1100s.py` | マシン画像とレイアウト座標の生成元（1000行超） |
 | `tools/icons/build-icons.mjs` | ファビコン／アプリアイコンの生成元。原本は `public/favicon.svg` の1枚で、PNG 5枚はここから作る |
-| `migrations/` | 0001 reports+users / 0002 feedback+feedback_likes / 0003 feedback.updated_at / 0004 events / 0005 reports.group_id / 0006 push_subscriptions / 0007 reports.level |
+| `migrations/` | 0001 reports+users / 0002 feedback+feedback_likes / 0003 feedback.updated_at / 0004 events / 0005 reports.group_id / 0006 push_subscriptions / 0007 reports.level / 0008 idx_reports_user_created_at |
 
 `src/App.tsx` の画面の並び: ヘッダ → A2hsBanner / MobileInvite → overview（マシンの絵＋SummaryPanel）→ **ドリンクの作成可否**（`id="drinks"`、1行要約＋ドリンク別カード。カードは既定で展開、畳める）→ **ReportForm（折りたたみ。`open` prop、`goToReport` が展開する）** → 行列の待ち状況 → いつ切れやすい？ → 材料の推定残量 → ドリンクの人気度 → **投稿の常連さん**（`contributors` が取れているときだけ）→ みんなの観測 → 投稿の内訳 → ご意見箱 → フッタ。加えてフォームが画面外のときだけ出る FAB。2026-08-13 の監査対応（8f28291）では ReportForm が overview の直後にあったが、2026-09-09 にユーザー判断で可否を前に出しフォームを折りたたんだ（`App.tsx` の該当コメントに経緯。計測で判断する前提）。
 
@@ -75,7 +75,7 @@
 
 ## API（`worker/index.ts:436-508`）
 
-11パス／13のメソッド×パス組。`/api/` で始まらないものは全て `ASSETS` へフォールスルー（`worker/index.ts:514-516`）。**変更系は更新後の一覧（`snapshot()`）も返すのでクライアントは再取得しない**（index.ts:23-25）。
+12パス／14のメソッド×パス組。`/api/` で始まらないものは全て `ASSETS` へフォールスルー。**変更系は更新後の一覧（`snapshot()`）も返すのでクライアントは再取得しない**。変更系だけは `snapshotAfterMutation()` で `contributors` も足す（GET には載せない。不変条件の項）。
 
 | メソッド | パス | 備考 |
 | --- | --- | --- |
