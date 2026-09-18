@@ -12,6 +12,11 @@
  *      the machine is empty is worth more than being told it isn't.
  *   6. When the window empties, the last report carries: good news for a
  *      couple of hours, a machine outage until something positive clears it.
+ *
+ * The gauge (材料の推定残量) is a separate question from the status. Among the
+ * votes that elected the status, it is the recency-weighted mean of what each
+ * one saw — a sighting's own `level`, or the fixed figure its action has
+ * always implied for votes that carry none — rounded to the nearest 5.
  */
 
 import {
@@ -62,6 +67,30 @@ export function toStatus(action: ActionKey | CleaningAction): StatusKey {
   return action === 'refilled' ? 'available' : action;
 }
 
+/**
+ * What one vote says the hopper holds. A sighting from the quantity picker
+ * carries its own number; every other vote — the material votes a drink report
+ * expands into, or anything posted before the bands existed — falls back to
+ * the fixed figure its action has always implied, so a board of old-style
+ * votes reads exactly as it did.
+ */
+function voteLevel(v: Report): number {
+  if (typeof v.level === 'number') return v.level;
+  const action = v.action as ActionKey | CleaningAction;
+  return action === 'cleaning' ? 0 : ACTION_META[action].level;
+}
+
+/**
+ * The bands are coarse (9割以上, 5〜7割 …), so their mean is shown to the
+ * nearest 5. 「約83%」 would claim a precision nobody reported, and a vote
+ * crossing a weight step would otherwise nudge the number by one every ten
+ * minutes. Every single-vote reading is already a multiple of 5, so this
+ * changes nothing a lone report says.
+ */
+function roundLevel(x: number): number {
+  return Math.round(x / 5) * 5;
+}
+
 export interface Summary {
   subject: SupplySubjectKey;
   status: StatusOrNone;
@@ -87,6 +116,12 @@ export interface Summary {
    * (total 0) and are always 低 confidence.
    */
   carried?: boolean;
+  /**
+   * The gauge for a material, 0–100: the recency-weighted mean of `level` over
+   * the votes that agreed with `status`, rounded to the nearest 5. Null for
+   * the machine (it has no hopper) and whenever the status is 'none'.
+   */
+  level: number | null;
 }
 
 export function summarize(
@@ -172,6 +207,7 @@ export function summarize(
           // went on showing the newer one.
           lastAt: newest.createdAt,
           carried: true,
+          level: null,
         };
       }
     }
@@ -196,6 +232,10 @@ export function summarize(
         confidence: 'low',
         lastAt: recent.createdAt,
         carried: true,
+        // The carried reading keeps the number it was carried from, so a
+        // two-hour-old 「半分くらい」 still shows 60 rather than snapping to
+        // the fixed figure for 取れた.
+        level: subject === 'machine' ? null : roundLevel(voteLevel(recent)),
       };
     }
     return {
@@ -207,6 +247,7 @@ export function summarize(
       agreement: 0,
       confidence: 'none',
       lastAt: null,
+      level: null,
     };
   }
 
@@ -250,7 +291,36 @@ export function summarize(
     if (newestDown?.action === 'cleaning') dominantAction = 'cleaning';
   }
 
-  return { subject, status, dominantAction, total, supporters, agreement, confidence, lastAt };
+  // The gauge: what the winning side saw, newest weighted heaviest. Only the
+  // votes that agreed with `status` count — a losing 「たっぷり」 must not drag
+  // a 残り少なめ gauge upward — and each vote carries the same weight that
+  // elected it. Every in-window vote weighs at least 0.4, so the denominator
+  // is never 0 while there is a supporter; the fallback only guards a future
+  // change to the window or the weight steps.
+  let level: number | null = null;
+  if (subject !== 'machine') {
+    let sum = 0;
+    let weights = 0;
+    for (const v of votes) {
+      if (toStatus(v.action as ActionKey | CleaningAction) !== status) continue;
+      const w = weight(v.createdAt, now);
+      sum += voteLevel(v) * w;
+      weights += w;
+    }
+    level = weights > 0 ? roundLevel(sum / weights) : ACTION_META[status].level;
+  }
+
+  return {
+    subject,
+    status,
+    dominantAction,
+    total,
+    supporters,
+    agreement,
+    confidence,
+    lastAt,
+    level,
+  };
 }
 
 /**
@@ -290,10 +360,7 @@ export function aggregate(reports: readonly Report[], now: number): Aggregation 
   for (const s of summaries) {
     if (s.status === 'none') continue;
     statuses[s.subject] = s.status;
-    if (s.subject !== 'machine') {
-      levels[s.subject] =
-        s.dominantAction === 'refilled' ? 100 : ACTION_META[s.status].level;
-    }
+    if (s.subject !== 'machine') levels[s.subject] = s.level;
   }
 
   return { summaries, statuses, levels };

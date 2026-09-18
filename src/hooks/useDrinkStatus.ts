@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CONFIG } from '../../shared/config.js';
 import {
-  ACTION_META,
   DRINK_LABELS,
   emptyDrinkTally,
   QUEUE_META,
   QUEUE_SUBJECT,
   SUBJECT_LABELS,
-  type ActionKey,
+  reportValueQuote,
   type QueueLevel,
   type DrinkTally,
   type Report,
@@ -39,7 +38,7 @@ export interface Toast {
 type UndoTarget = { kind: 'report' | 'group'; id: string };
 
 /** Confirms what was posted, and what it changed. */
-function postedToast(subject: SubjectKey, value: ReportValue): string {
+function postedToast(subject: SubjectKey, value: ReportValue, level: number | null): string {
   if (subject === QUEUE_SUBJECT) {
     return `行列を「${QUEUE_META[value as QueueLevel].label}」で投稿しました。いまの混雑を再集計しました`;
   }
@@ -48,9 +47,10 @@ function postedToast(subject: SubjectKey, value: ReportValue): string {
       value === 'cleaning' ? '清掃中' : value === 'unavailable' ? '故障中' : '復旧した';
     return `マシンを「${word}」で投稿しました。再集計しました`;
   }
-  const action = value as ActionKey;
-  const levelNote = `（推定残量 ${ACTION_META[action].level}%）`;
-  return `${SUBJECT_LABELS[subject]}を「${ACTION_META[action].label}」で投稿しました。みんなの観測を再集計しました${levelNote}`;
+  // The band that was pressed, and no promise about the gauge: the number on
+  // the card is a mean over everyone's reports now, so quoting a fixed
+  // 「推定残量 70%」 here would be wrong as often as not.
+  return `${SUBJECT_LABELS[subject]}を「${reportValueQuote(subject, value, level)}」で投稿しました。みんなの観測を再集計しました`;
 }
 
 /** Same, for a drink report — names the drink and what it implied. */
@@ -247,7 +247,11 @@ export function useDrinkStatus() {
   );
 
   const post = useCallback(
-    async (subject: SubjectKey, action: ReportValue): Promise<PostOutcome> => {
+    async (
+      subject: SubjectKey,
+      action: ReportValue,
+      level: number | null = null,
+    ): Promise<PostOutcome> => {
       if (posting) return 'skipped';
       setPosting(true);
 
@@ -269,6 +273,7 @@ export function useDrinkStatus() {
           userId: me,
           userLabel: '利用者（あなた）',
           createdAt: Date.now() + skewMs,
+          level,
         };
         setReports((prev) => [optimistic, ...prev]);
 
@@ -279,7 +284,7 @@ export function useDrinkStatus() {
         undoRequested.current = false;
         if (undoTimer.current) clearTimeout(undoTimer.current);
 
-        const res = await postReport(subject, action);
+        const res = await postReport(subject, action, level);
         generation.current += 1;
         setLoadError(null);
 
@@ -289,7 +294,7 @@ export function useDrinkStatus() {
         } else {
           adopt(res);
           undoTargetId.current = { kind: 'report', id: res.report.id };
-          setToast({ kind: 'undo', text: postedToast(subject, action) });
+          setToast({ kind: 'undo', text: postedToast(subject, action, level) });
           openUndoWindow();
         }
         return 'ok';

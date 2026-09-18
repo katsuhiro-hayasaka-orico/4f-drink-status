@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  ACTION_META,
   MATERIAL_KEYS,
   QUEUE_LEVELS,
   QUEUE_META,
-  SIGHTING_ACTIONS,
+  SIGHTING_LEVELS,
   SUBJECT_LABELS,
-  actionLabelFor,
   type ActionKey,
   type DrinkKey,
   type MaterialKey,
@@ -36,8 +36,15 @@ export interface ReportFormProps {
    * 'ok'; anything else keeps the person's input and offers to send again.
    */
   onPostDrink: (input: DrinkReportInput) => Promise<PostOutcome>;
-  /** Refill sightings and machine down/up — the non-drink reports. */
-  onPostSimple: (subject: SubjectKey, action: ReportValue) => Promise<PostOutcome>;
+  /**
+   * Sightings and machine down/up — the non-drink reports. `level` rides along
+   * on a material sighting only (SIGHTING_LEVELS, or 100 with 補充された).
+   */
+  onPostSimple: (
+    subject: SubjectKey,
+    action: ReportValue,
+    level?: number | null,
+  ) => Promise<PostOutcome>;
   /** The queue follow-up posts through here (a plain queue report). */
   onPostQueue: (level: QueueLevel) => Promise<PostOutcome>;
   /**
@@ -62,7 +69,7 @@ export interface ReportFormProps {
  * opens a cause step whose chips post on the tap — a failure without a
  * culprit must not guess at one, so naming the cause is the post.
  *
- * **Only looked** — 「どの材料？」→「どのくらい？」. The hoppers are
+ * **Only looked** — 「どの材料？」→「どのくらい残っていた？」. The hoppers are
  * transparent, so a passer-by often knows more about the cocoa than the last
  * person to make coffee does. This half used to be two rows of small chips
  * under the fine print, offering only 補充された and 残り少なめ; someone who
@@ -70,8 +77,16 @@ export interface ReportFormProps {
  * not made just to get the levels recorded. That is a bug in the form, not in
  * the person: the state they wanted was 「十分にある」 and it was missing.
  *
+ * The second question asks how much rather than which state, because the
+ * feedback box asked what 「十分にある」 was supposed to mean in tenths and the
+ * honest answer was nothing in particular. The bands (SIGHTING_LEVELS) still
+ * store 取れた or 残り少なめ; what is new is the number they carry, which the
+ * gauge averages. It is still two taps — the row is five chips instead of
+ * three, not a step longer.
+ *
  * 「なくなっている」 stays out of the sighting half on purpose — see
- * SIGHTING_ACTIONS in shared/domain.ts.
+ * SIGHTING_ACTIONS in shared/domain.ts. 「ほとんどない」 is the floor a witness
+ * may claim, and it stores 残り少なめ.
  *
  * Nothing starts selected in either half (a pre-chosen drink plus a tapped
  * result would silently misreport), and the second question's buttons stay
@@ -203,12 +218,12 @@ export function ReportForm({
     );
   };
 
-  const postSighting = (action: ActionKey) => {
+  const postSighting = (action: ActionKey, level: number) => {
     if (!sighting) return;
     const material = sighting;
     void settle(
       'others',
-      () => onPostSimple(material, action),
+      () => onPostSimple(material, action, level),
       () => setSighting(null),
     );
   };
@@ -484,6 +499,7 @@ export function ReportForm({
           <h3 className="report__others-title">作っていなくても、見えた残量を報告できます</h3>
           <p className="report__others-lead">
             ホッパーを覗いただけ、誰かが使っているのを見かけただけ、でもかまいません。
+            量は見た目の目安で大丈夫です。
           </p>
 
           <div className="report__step">
@@ -517,22 +533,39 @@ export function ReportForm({
             ) : (
               <>
                 <strong className="report__target">{SUBJECT_LABELS[sighting]}</strong>
-                はどのくらいでしたか？
+                はどのくらい残っていましたか？
               </>
             )}
           </div>
+          {/*
+            Four bands and then 補充された, in one row: 補充 is an event rather
+            than an amount, but it answers the same question at the same
+            moment, and splitting it out would cost a tap to reach. Labels come
+            from the table, so no placeholder subject is needed before a
+            material is picked.
+          */}
           <div className="chips" ref={sightingStateRef}>
-            {SIGHTING_ACTIONS.map((action) => (
+            {SIGHTING_LEVELS.map((band) => (
               <button
-                key={action}
+                key={band.key}
                 type="button"
-                className="chip"
+                className="chip chip--stacked"
                 disabled={posting || sighting === null}
-                onClick={() => postSighting(action)}
+                onClick={() => postSighting(band.action, band.level)}
               >
-                {actionLabelFor(sighting ?? 'coffeeBeans', action)}
+                <span>{band.label}</span>
+                <span className="chip__share">{band.share}</span>
               </button>
             ))}
+            <button
+              type="button"
+              className="chip chip--stacked"
+              disabled={posting || sighting === null}
+              onClick={() => postSighting('refilled', ACTION_META.refilled.level)}
+            >
+              <span>{ACTION_META.refilled.label}</span>
+              <span className="chip__share">いま満杯</span>
+            </button>
           </div>
 
           <div className="report__others-machine">

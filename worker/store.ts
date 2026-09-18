@@ -45,6 +45,8 @@ interface ReportRow {
   user_id: string;
   user_label: string;
   created_at: number;
+  /** Null on everything but a sighting from the quantity picker. */
+  level: number | null;
 }
 
 function toReport(row: ReportRow): Report {
@@ -55,6 +57,7 @@ function toReport(row: ReportRow): Report {
     userId: row.user_id,
     userLabel: row.user_label,
     createdAt: Number(row.created_at),
+    level: row.level ?? null,
   };
 }
 
@@ -72,9 +75,9 @@ export async function listRecentReports(db: D1Database, now: number): Promise<Re
   // group anywhere, dropping its machine row while keeping the drink row.
   const { results } = await db
     .prepare(
-      `SELECT id, subject, action, user_id, user_label, created_at FROM (
+      `SELECT id, subject, action, user_id, user_label, created_at, level FROM (
          SELECT * FROM (
-           SELECT id, subject, action, user_id, user_label, created_at
+           SELECT id, subject, action, user_id, user_label, created_at, level
              FROM reports
             WHERE created_at >= ?1
             ORDER BY created_at DESC, id DESC
@@ -82,7 +85,7 @@ export async function listRecentReports(db: D1Database, now: number): Promise<Re
          )
          UNION
          SELECT * FROM (
-           SELECT id, subject, action, user_id, user_label, created_at
+           SELECT id, subject, action, user_id, user_label, created_at, level
              FROM reports
             WHERE created_at >= ?1 AND subject = 'machine'
             ORDER BY created_at DESC, id DESC
@@ -151,9 +154,11 @@ export async function ensureUserLabel(
 export async function insertReport(db: D1Database, report: Report): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO reports (id, subject, action, user_id, user_label, created_at, group_id)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?1)`,
+      `INSERT INTO reports (id, subject, action, user_id, user_label, created_at, group_id, level)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?1, ?7)`,
     )
+    // `?? null`: D1 refuses to bind undefined, and every non-sighting row has
+    // no level at all rather than a null one.
     .bind(
       report.id,
       report.subject,
@@ -161,6 +166,7 @@ export async function insertReport(db: D1Database, report: Report): Promise<void
       report.userId,
       report.userLabel,
       report.createdAt,
+      report.level ?? null,
     )
     .run();
 }
@@ -172,12 +178,23 @@ export async function insertReportRows(
   groupId: string,
 ): Promise<void> {
   const stmt = db.prepare(
-    `INSERT INTO reports (id, subject, action, user_id, user_label, created_at, group_id)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+    `INSERT INTO reports (id, subject, action, user_id, user_label, created_at, group_id, level)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
   );
+  // Drink-expanded rows carry no level; kept symmetric with insertReport so a
+  // future multi-row posting cannot silently drop one.
   await db.batch(
     rows.map((r) =>
-      stmt.bind(r.id, r.subject, r.action, r.userId, r.userLabel, r.createdAt, groupId),
+      stmt.bind(
+        r.id,
+        r.subject,
+        r.action,
+        r.userId,
+        r.userLabel,
+        r.createdAt,
+        groupId,
+        r.level ?? null,
+      ),
     ),
   );
 }

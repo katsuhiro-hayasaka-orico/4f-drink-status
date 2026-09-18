@@ -958,6 +958,30 @@ a:focus-visible {
   gap: 9px;
 }
 
+/* Two lines in one chip: the word, and the share it stands for. Stacking is
+   what keeps the five quantity chips to two rows on a phone instead of five —
+   spelled out inline, 「たっぷり（9割以上）」 is wider than a 420px screen
+   allows beside anything else. The share reads as a caption, not a second
+   label, so the eye still lands on the word. */
+.chip--stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 7px 16px;
+  line-height: 1.25;
+}
+
+.chip__share {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.chip--stacked[aria-pressed='true'] .chip__share,
+.chip--stacked:hover:not([aria-pressed='true']) .chip__share {
+  color: inherit;
+}
+
 /* Icons take the chip's text colour, and `--icon-bg` its background, so both
    the shape and the details knocked out of it invert when selected. */
 .chip__icon {

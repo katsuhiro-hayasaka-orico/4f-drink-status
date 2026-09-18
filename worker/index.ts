@@ -3,7 +3,7 @@
  *
  * The machine board, over one D1 table:
  *   GET    /api/reports      the last 24h of observations
- *   POST   /api/reports      post one ({ subject, action })
+ *   POST   /api/reports      post one ({ subject, action, level? })
  *   DELETE /api/reports/:id  take your own back, inside the undo window
  *
  * And ご意見箱 — collected publicly, read privately. Bodies may carry
@@ -30,6 +30,7 @@ import {
   QUEUE_SUBJECT,
   isEventName,
   isMoodKey,
+  isSightingLevel,
   isSubjectKey,
   isValidReportValue,
   normalizeFeedbackBody,
@@ -124,13 +125,27 @@ async function handlePost(
     return fail(400, 'リクエストの形式が正しくありません');
   }
 
-  const { subject, action } = (payload ?? {}) as { subject?: unknown; action?: unknown };
+  const { subject, action, level } = (payload ?? {}) as {
+    subject?: unknown;
+    action?: unknown;
+    level?: unknown;
+  };
   if (!isSubjectKey(subject)) return fail(400, '対象の指定が正しくありません');
   if (!isValidReportValue(subject, action)) {
     return fail(
       400,
       subject === QUEUE_SUBJECT ? '待ち人数の指定が正しくありません' : '状態の指定が正しくありません',
     );
+  }
+  // Optional, and only a material sighting may carry one. Bundles from before
+  // the quantity picker send { subject, action } and must keep working, so
+  // absent and null both mean "no level" rather than a bad request.
+  let storedLevel: number | null = null;
+  if (level !== undefined && level !== null) {
+    if (!isSightingLevel(subject, action, level)) {
+      return fail(400, '残量の指定が正しくありません');
+    }
+    storedLevel = level;
   }
 
   if ((await countRecentPostings(env.DB, identity.userId, now - 60_000)) >= POST_RATE_LIMIT) {
@@ -144,6 +159,7 @@ async function handlePost(
     userId: identity.userId,
     userLabel: await ensureUserLabel(env.DB, identity.userId, now),
     createdAt: now,
+    level: storedLevel,
   };
   await insertReport(env.DB, report);
   // Single rows store their own id as group_id, so the same delayed-send

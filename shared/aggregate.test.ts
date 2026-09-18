@@ -29,6 +29,7 @@ function report(
   action: ReportValue,
   userId: string,
   minutesAgo: number,
+  level?: number,
 ): Report {
   return {
     id: `r${seq++}`,
@@ -37,6 +38,9 @@ function report(
     userId,
     userLabel: userId,
     createdAt: NOW - minutesAgo * MIN,
+    // Spread rather than `level: undefined`, so every fixture without one is
+    // byte-for-byte the shape rows had before the column existed.
+    ...(level !== undefined && { level }),
   };
 }
 
@@ -724,5 +728,139 @@ describe('latestReportAt', () => {
   it('is null with nothing but queue reports, or nothing at all', () => {
     expect(latestReportAt([report('queue', 'long', 'a', 1)])).toBeNull();
     expect(latestReportAt([])).toBeNull();
+  });
+});
+
+describe('summarize level (材料の推定残量)', () => {
+  it('reads what the sighting actually said', () => {
+    expect(summarize([report('coffeeBeans', 'available', 'a', 1, 95)], 'coffeeBeans', NOW).level).toBe(
+      95,
+    );
+    expect(summarize([report('ice', 'low', 'a', 1, 10)], 'ice', NOW).level).toBe(10);
+  });
+
+  it('falls back to the figure the action has always implied', () => {
+    // No level: a drink-expanded vote, or anything posted before the bands.
+    expect(summarize([report('ice', 'available', 'a', 1)], 'ice', NOW).level).toBe(70);
+    expect(summarize([report('ice', 'low', 'a', 1)], 'ice', NOW).level).toBe(30);
+    expect(summarize([report('ice', 'refilled', 'a', 1)], 'ice', NOW).level).toBe(100);
+    const out = [report('ice', 'unavailable', 'a', 1), report('ice', 'unavailable', 'b', 2)];
+    expect(summarize(out, 'ice', NOW).level).toBe(0);
+  });
+
+  it('averages the winning side, weighting the newer sighting heavier', () => {
+    // 95 at 25 min weighs 0.4, 60 at 1 min weighs 1: (38 + 60) / 1.4 = 70.
+    const s = summarize(
+      [report('coffeeBeans', 'available', 'a', 25, 95), report('coffeeBeans', 'available', 'b', 1, 60)],
+      'coffeeBeans',
+      NOW,
+    );
+    expect(s.status).toBe('available');
+    expect(s.level).toBe(70);
+  });
+
+  it('rounds to the nearest 5 rather than claiming a precision nobody reported', () => {
+    // 70 (no level) and 95, same age: 82.5, which rounds up to 85.
+    const s = summarize(
+      [report('ice', 'available', 'a', 1), report('ice', 'available', 'b', 1, 95)],
+      'ice',
+      NOW,
+    );
+    expect(s.level).toBe(85);
+  });
+
+  it('ignores the side that lost — an outvoted たっぷり must not lift the gauge', () => {
+    const s = summarize(
+      [
+        report('cocoaPowder', 'available', 'a', 2, 95),
+        report('cocoaPowder', 'low', 'b', 3, 30),
+        report('cocoaPowder', 'low', 'c', 1, 10),
+      ],
+      'cocoaPowder',
+      NOW,
+    );
+    expect(s.status).toBe('low');
+    expect(s.level).toBe(20);
+  });
+
+  it('reads a lone ほとんどない as 残り少なめ, never as empty', () => {
+    // 1割以下 is the floor a witness may claim; 「なくなっている」 stays with
+    // the person who actually tried and failed.
+    const s = summarize([report('ice', 'low', 'a', 1, 10)], 'ice', NOW);
+    expect(s.status).toBe('low');
+    expect(s.level).toBe(10);
+  });
+
+  it('averages a refill with the sighting that followed it', () => {
+    const s = summarize(
+      [
+        report('milkPowder', 'low', 'c', 20, 10),
+        report('milkPowder', 'refilled', 'a', 10),
+        report('milkPowder', 'available', 'b', 2, 60),
+      ],
+      'milkPowder',
+      NOW,
+    );
+    // The pre-refill shortage is wiped; refill 100 and sighting 60 both count.
+    expect(s.total).toBe(2);
+    expect(s.dominantAction).toBe('refilled');
+    expect(s.level).toBe(80);
+  });
+
+  it('counts one vote per person for the level too', () => {
+    const s = summarize(
+      [report('ice', 'available', 'a', 5, 95), report('ice', 'low', 'a', 1, 10)],
+      'ice',
+      NOW,
+    );
+    expect(s.total).toBe(1);
+    expect(s.status).toBe('low');
+    expect(s.level).toBe(10);
+  });
+
+  it('carries a sighting forward with the number it was carried from', () => {
+    const s = summarize([report('coffeeBeans', 'available', 'a', 45, 60)], 'coffeeBeans', NOW);
+    expect(s.carried).toBe(true);
+    expect(s.level).toBe(60);
+  });
+
+  it('reads 0 on an urgent outage, whatever the optimists saw', () => {
+    const s = summarize(
+      [
+        report('ice', 'available', 'a', 1, 95),
+        report('ice', 'unavailable', 'b', 2),
+        report('ice', 'unavailable', 'c', 1),
+      ],
+      'ice',
+      NOW,
+    );
+    expect(s.status).toBe('unavailable');
+    expect(s.level).toBe(0);
+  });
+
+  it('never gives the machine a level — it has no hopper', () => {
+    expect(summarize([report('machine', 'available', 'a', 1)], 'machine', NOW).level).toBeNull();
+    expect(summarize([report('machine', 'unavailable', 'a', 90)], 'machine', NOW).level).toBeNull();
+  });
+
+  it('has no level when it has no status', () => {
+    expect(summarize([], 'ice', NOW).level).toBeNull();
+  });
+});
+
+describe('aggregate levels from sightings', () => {
+  it('copies each material onto the gauge with its own number', () => {
+    const { levels, statuses } = aggregate(
+      [
+        report('coffeeBeans', 'available', 'a', 1, 95),
+        report('cocoaPowder', 'available', 'b', 1, 60),
+        report('milkPowder', 'low', 'c', 1, 10),
+      ],
+      NOW,
+    );
+    expect(levels).toEqual({ coffeeBeans: 95, cocoaPowder: 60, milkPowder: 10, ice: null });
+    expect(statuses.coffeeBeans).toBe('available');
+    expect(statuses.cocoaPowder).toBe('available');
+    expect(statuses.milkPowder).toBe('low');
   });
 });

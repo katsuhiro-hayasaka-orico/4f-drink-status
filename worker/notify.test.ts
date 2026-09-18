@@ -3,7 +3,7 @@ import type { Report, ReportRowValue, ReportSubject } from '../shared/domain.js'
 import { parseVapidJwk, postingNotificationBody } from './notify.js';
 import type { Env } from './env.js';
 
-function row(subject: ReportSubject, action: ReportRowValue): Report {
+function row(subject: ReportSubject, action: ReportRowValue, level?: number): Report {
   return {
     id: crypto.randomUUID(),
     subject,
@@ -11,6 +11,7 @@ function row(subject: ReportSubject, action: ReportRowValue): Report {
     userId: 'u1',
     userLabel: '利用者B',
     createdAt: 1_700_000_000_000,
+    ...(level !== undefined && { level }),
   };
 }
 
@@ -32,6 +33,15 @@ describe('postingNotificationBody', () => {
       'ミルク「補充された」',
     );
     expect(postingNotificationBody([row('queue', 'long')])).toContain('行列「6人以上」');
+  });
+
+  it('quotes the band a sighting was posted with, not the action behind it', () => {
+    expect(postingNotificationBody([row('milkPowder', 'available', 60)])).toContain(
+      'ミルク「半分くらい」',
+    );
+    expect(postingNotificationBody([row('ice', 'low', 10)])).toContain('氷「ほとんどない」');
+    // A refill is an event, and keeps its own word at every level.
+    expect(postingNotificationBody([row('ice', 'refilled', 100)])).toContain('氷「補充された」');
   });
 
   it('returns null for an empty posting', () => {

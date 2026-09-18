@@ -41,13 +41,15 @@ export function fetchReports(): Promise<ReportsResponse> {
   return request<ReportsResponse>('/api/reports');
 }
 
+/** `level` rides along on a material sighting only; null everywhere else. */
 export function postReport(
   subject: SubjectKey,
   action: ReportValue,
+  level: number | null = null,
 ): Promise<ReportsResponse & { report: Report }> {
   return request('/api/reports', {
     method: 'POST',
-    body: JSON.stringify({ subject, action }),
+    body: JSON.stringify({ subject, action, level }),
   });
 }
 

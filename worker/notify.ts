@@ -88,7 +88,7 @@ export function parseVapidJwk(env: Env): VapidJwk | null {
 export function postingNotificationBody(rows: readonly Report[]): string | null {
   const star = rows.find((r) => isDrinkKey(r.subject)) ?? rows[0];
   if (!star) return null;
-  return `${star.userLabel}さんが ${subjectLabel(star.subject)}「${reportValueQuote(star.subject, star.action)}」と投稿しました`;
+  return `${star.userLabel}さんが ${subjectLabel(star.subject)}「${reportValueQuote(star.subject, star.action, star.level)}」と投稿しました`;
 }
 
 /**

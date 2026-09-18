@@ -15,7 +15,7 @@
 | ファイル | 役割 |
 | --- | --- |
 | `shared/aggregate.ts` | 心臓部。集計・残照・マシンのラッチ・見出し文言（`overallState`）・行列集計。**冒頭 1-15 行のドックコメントに適用順6段階がある。まずここを読む** |
-| `shared/domain.ts` | 語彙の一元管理。列挙・ラベル・`ACTION_META`（状態→ラベル/残量%）・型ガード（`isSubjectKey` `isValidReportValue` `isMoodKey` `isEventName`） |
+| `shared/domain.ts` | 語彙の一元管理。列挙・ラベル・`ACTION_META`（状態→ラベル/既定の残量%）・`SIGHTING_LEVELS`（目撃の4段階→action と level）・型ガード（`isSubjectKey` `isValidReportValue` `isSightingLevel` `isMoodKey` `isEventName`） |
 | `shared/config.ts` | 定数（観測窓30分/行列窓10分/残照120分/undo 5秒/開放9-17時/ご意見500字・7日/内訳20件） |
 | `shared/drinkReport.ts` | ドリンク投稿の受理条件（`parseDrinkReport`）と材料票への展開（`buildDrinkReportRows`） |
 | `shared/drinks.ts` | RECIPES（8種）と `drinkAvailability`（材料状態→1杯の可否） |
@@ -42,13 +42,13 @@
 | `.github/workflows/` | `ci.yml`（main 以外の push と main 宛 PR）/ `deploy.yml`（main への push で本番）/ `stats.yml`（手動、または main への push で `scripts/stats/**` か自身が変わったとき。本番 D1 の利用状況を Job Summary に） |
 | `tools/blender/wmf1100s.py` | マシン画像とレイアウト座標の生成元（1000行超） |
 | `tools/icons/build-icons.mjs` | ファビコン／アプリアイコンの生成元。原本は `public/favicon.svg` の1枚で、PNG 5枚はここから作る |
-| `migrations/` | 0001 reports+users / 0002 feedback+feedback_likes / 0003 feedback.updated_at / 0004 events / 0005 reports.group_id / 0006 push_subscriptions |
+| `migrations/` | 0001 reports+users / 0002 feedback+feedback_likes / 0003 feedback.updated_at / 0004 events / 0005 reports.group_id / 0006 push_subscriptions / 0007 reports.level |
 
 `src/App.tsx` の画面の並び: ヘッダ → A2hsBanner / MobileInvite → overview（マシンの絵＋SummaryPanel）→ **ドリンクの作成可否**（`id="drinks"`、1行要約＋ドリンク別カード。カードは既定で展開、畳める）→ **ReportForm（折りたたみ。`open` prop、`goToReport` が展開する）** → 行列の待ち状況 → いつ切れやすい？ → 材料の推定残量 → ドリンクの人気度 → みんなの観測 → 投稿の内訳 → ご意見箱 → フッタ。加えてフォームが画面外のときだけ出る FAB。2026-08-13 の監査対応（8f28291）では ReportForm が overview の直後にあったが、2026-09-09 にユーザー判断で可否を前に出しフォームを折りたたんだ（`App.tsx` の該当コメントに経緯。計測で判断する前提）。
 
 ## タスク別の逆引き
 
-- **集計のしきい値を変える** → `shared/aggregate.ts` の `weight()` / `summarize()` の `urgent` と confidence 代入部 / `queueWeight()` / `summarizeQueue()` の confidence 代入部。窓の長さは `shared/config.ts`。**ゲージに出る残量%は別物**で `ACTION_META` の `level`（`shared/domain.ts:78-81`、available 70 / low 30 / unavailable 0 / refilled 100）、使用箇所は `shared/aggregate.ts:286-289`。テストは `shared/aggregate.test.ts`（61件）。
+- **集計のしきい値を変える** → `shared/aggregate.ts` の `weight()` / `summarize()` の `urgent` と confidence 代入部 / `queueWeight()` / `summarizeQueue()` の confidence 代入部。窓の長さは `shared/config.ts`。**ゲージに出る残量%は別物**で `summarize()` が計算する `Summary.level`（勝った状態を支持した票の残量を `weight()` で加重平均し5%刻みに丸める）。票ごとの残量は `Report.level`（目撃報告のみ、`SIGHTING_LEVELS`）で、無ければ `ACTION_META` の `level`（available 70 / low 30 / unavailable 0 / refilled 100）にフォールバックする。`aggregate()` は `s.level` を写すだけ。テストは `shared/aggregate.test.ts`（61件）。
 - **API を足す** → `worker/index.ts` の `route()` に分岐（順序に注意、不変条件参照）→ 返答は `json()` / `fail(status, 日本語)` のみ、本文は必ず `{ error: 日本語メッセージ }` → 入力検証は `shared/domain.ts` に `is*` 型ガードを足す（**スキーマライブラリは不使用**）→ 変更系は `snapshot()`（index.ts:100-107）をスプレッドして返す → クライアントは `src/lib/api.ts` に呼び出しを足す → 新しい secret は `worker/env.ts`、新しい表は `migrations/`（`0007_*.sql` の連番、冪等に書く）。
 - **カードを足す** → `src/components/` に作り、`src/App.tsx` の `<Section title=... note=...>` の列に挿す。独自マークアップではなく `Section` で包むこと。コンポーネントテストは走らない（落とし穴の項）。
 - **CI 失敗を手元で再現** → **Node 22** で `npm ci && npm test && npm run build`。`ci.yml` / `deploy.yml` はこの3つしか実行しない（`ci.yml:29,43,47,51`）。キャッシュを疑うときは workflow の key 先頭 `v1-` を上げる。
@@ -95,7 +95,7 @@
 
 5テーブル。`reports` は **undo（5秒窓の行削除）以外 append-only**（`migrations/0001:1-2`）。
 
-- `reports(id, subject, action, user_id, user_label, created_at, group_id)` — `group_id` は 0005 の後付けで**歴史行は NULL、undo はその場合 行 id にフォールバック**（`migrations/0005:1-5`）
+- `reports(id, subject, action, user_id, user_label, created_at, group_id, level)` — `group_id` は 0005 の後付けで**歴史行は NULL、undo はその場合 行 id にフォールバック**（`migrations/0005:1-5`）。`level` は 0007 の後付けで**目撃報告だけが持ち、ドリンク展開行・マシン・行列・歴史行は NULL**
 - `users(id, label, created_at)` / `feedback(id, mood, body, user_id, user_label, created_at, updated_at)`
 - `feedback_likes(feedback_id, user_id, created_at)` / `events(id, name, value, user_id, created_at)`
 - `push_subscriptions(endpoint PK, p256dh, auth, user_id, created_at)`
@@ -106,7 +106,8 @@
 - `ACTION_KEYS = available | low | unavailable | refilled`（:32）、マシン専用の `cleaning`（:46）
 - `QUEUE_LEVELS = empty | short | medium | long`（:36）
 - `DRINK_KEYS` 8種 = hotCoffee / caffeLatte / caffeMocha / hotCocoa / iceCoffee / iceCaffeLatte / iceCaffeMocha / iceCocoa（:180-189）
-- `SIGHTING_ACTIONS = available | low | refilled`（:261。目撃報告のボタン）
+- `SIGHTING_ACTIONS = available | low | refilled`（目撃が保存しうる語彙の境界。`unavailable` を含まない）
+- `SIGHTING_LEVELS` = たっぷり 95・半分くらい 60（どちらも `available`）／少なめ 30・ほとんどない 10（どちらも `low`）。フォームはこの表＋「補充された」（`refilled`＋100）を並べる
 
 ## 壊してはいけない不変条件
 
@@ -124,7 +125,7 @@
 - **在庫の同点は楽観側**（available>low>unavailable）、**行列の同点は混雑側**（long>medium>short>empty）に倒す。どちらも `Array.prototype.sort` の安定性と `STATUS_PRIORITY` / `QUEUE_PRIORITY` の配列順に依存しているので、並べ替えると答えが静かに変わる。
 - **ご意見の本文はどのエンドポイントからも返さない。** `GET /api/feedback` は満足度の件数のみ。`worker/store.ts` に本文を SELECT するクエリが1本も無く、`FeedbackResponse.feedback` は型レベルで `never[]`（`shared/domain.ts:369-374`）。
 - **原因不明の失敗は材料票を1つも生まない。** 成功は使った全材料＋machine を保証し、失敗は名指しされた1つだけを告発する。この非対称が設計の核（`shared/drinkReport.ts:8-12, 101-106`、テスト14件）。
-- **目撃報告に「なくなっている」を入れない。** 枯渇の断定は実際に試して失敗した人だけができる（`shared/labels.test.ts` が双方向に固定）。
+- **目撃報告に「なくなっている」を入れない。** 枯渇の断定は実際に試して失敗した人だけができる（`shared/labels.test.ts` が双方向に固定）。**残量も許可リストの組だけ**（`isSightingLevel`）で、`low` に 0 を載せて実質「なくなっている」を言う経路を作らない。目撃がゲージに与えられる下限は 10。
 - **「清掃中」はマシン専用**で `ActionKey` には入れない。`isValidReportValue`（`shared/domain.ts:166-170`）が唯一のゲート。
 - **開放時間の判定は `shared/hours.ts` の `loungeHours` 1箇所**、JST 固定（閲覧者のタイムゾーンを見ない）。時間外でも投稿は受け付ける。
 - **通知は undo 窓が閉じてから送る。** `SEND_DELAY_MS = CONFIG.undoWindowMs + 16_000`（21秒）は undo の DELETE 猶予（`undoWindowMs + 15_000`）より必ず1秒長い（`worker/notify.ts:25`、`worker/store.ts:180,195`）。送信直前に `groupExists` で生存を再確認し、自分の購読は除外する。
@@ -161,13 +162,14 @@
 
 ## 落とし穴
 
+- **`listRecentReports` の列リストは3箇所**（外側 SELECT と UNION の両腕、`worker/store.ts`）。片方だけ足すと SQLite が列数不一致で落ちるが、Worker にテストが無いので `wrangler dev` まで気づけない。D1 は `.bind(undefined)` も拒否するので、INSERT の `level` は必ず `?? null` を通す。
 - **`shared/` の import は必ず拡張子 `.js` 付き**（`from './domain.js'`）。ソースは .ts だが `moduleResolution:'bundler'` + `verbatimModuleSyntax`。落とすと動かない。
 - **`CONFIG.undoWindowMs` を触るとサーバー側が3箇所同時に動く**（undo の DELETE 猶予 +15秒、push 遅延 +16秒、クライアントUI）。`ctx.waitUntil` の30秒予算を食い潰すと通知が黙って届かなくなる。
 - **`shared/feedback.test.ts` と `shared/labels.test.ts` は `shared/domain.ts` のテスト**。同名の実装ファイルは存在しない。ファイル名だけ見て「domain.ts は未テスト」と誤判定しやすい。
 - **コンポーネントテストは書いても走らない。** `vitest.config.ts` の include が `*.test.ts` のみ（.tsx 無し）、environment は node、jsdom も testing-library も入っていない。
 - **D1（workerd の SQLite）は compound SELECT を 5 項まで**しか受け付けない（6 項で `too many terms in compound SELECT`。`wrangler d1 execute --local` で実測）。`scripts/stats/summary.sql` はこのために 8 指標を a / b の 2 CTE に分けている。`touch` の 5 項は上限ちょうどで、表を1つ足すと落ちる。`stats.test.ts` の `node:sqlite` は素の SQLite なのでこの制限を**検知できない**。SQL を変えたら `--persist-to` で隔離した D1 に migrations＋`scripts/stats/fixture.sql` を流し `run.mjs --local --persist-to=...` を通すこと。
 - **vitest（vite 6）は `node:sqlite` を builtin と認識せず** `Failed to load url sqlite` で落ちる。`scripts/stats/stats.test.ts` は `process.getBuiltinModule('node:sqlite')` で取っている。普通の `import` に戻すと壊れる。
-- **`npm run db:seed:local` は冪等ではなく破壊的**。出力 SQL の先頭が `DELETE FROM reports;`（`scripts/seed.mjs:45`）。手で作った検証データがあるなら流さない。さらに seed の INSERT は `group_id` を書かない（seed.mjs:58-62）ので seed 行は group_id NULL になり、クライアントのグルーピングと undo の挙動が本番の行と異なる。
+- **`npm run db:seed:local` は冪等ではなく破壊的**。出力 SQL の先頭が `DELETE FROM reports;`（`scripts/seed.mjs:45`）。手で作った検証データがあるなら流さない。さらに seed の INSERT は `group_id` を書かない（seed.mjs）ので seed 行は group_id NULL になり、クライアントのグルーピングと undo の挙動が本番の行と異なる。`level` は目撃行だけ入れてあり、平均の両側（残量あり・なし）を確認できる。
 - **seed を流してもリズムカードと人気度は空**。seed は18行しか入れず判定票が15（`INSUFFICIENT_BELOW=20` 未満）、しかもドリンク行が0件（ピボット前のまま）。
 - **`node scripts/announce.mjs "本文"` は動かない。** `--title` を省略すると `titleIdx = -1` → filter が `i !== 0` になり本文が落ちて body が undefined（使い方表示で exit 1）。README の「### 管理者からのお知らせ配信」節とスクリプト自身は `--title` を任意と書いているが実際には必須。
 - `POST /api/push/announce` の応答順は **404（トークン不一致・未設定・メソッド違い）→ 503（VAPID 未設定）→ 400（本文長）**。README の「本文を空にして 400 なら認証は通っている」という切り分けは **VAPID 設定済みの環境でのみ**成立する。
@@ -209,7 +211,7 @@
 - **SHA をここに書かない**。すぐ腐るので現在地は毎回コマンドで取る: `git fetch origin main && git log --oneline -5 origin/main && git rev-list --left-right --count origin/main...HEAD`。デプロイ履歴は Actions の Deploy ワークフローを見る。
 - **マシン集計の一連の修正は 2026-09-07 に本番反映済み**（Deploy 2回、いずれも全ステップ success）。内訳は4コミット: `bff903b` 未報告のマシンを正常扱いしない / `39b64ac` 壊れたマシンはラッチする / `5abb7e4` 良い知らせだけがラッチを解除する / `7c85126` ラッチの根拠行を共通200件枠の外に出す（+ 最終観測の逆行と確からしさピルの対象ずれ）。D1 のマイグレーション追加は無くスキーマは不変。
 - **どのデプロイも実機での目視確認はしていない**。本番URLが不明なため（「文脈が失われた範囲」参照）、根拠は CI と、`worker/store.ts` の SQL についてはローカル D1 での実行結果のみ。
-- テストは **16ファイル176件が全通過**（aggregate 65 / drinkReport 14 / hours 11 / rhythm 10 / labels 9 / drinks 6 / feedback 5、push 9 / notify 5、machineLayout 6 / shipped 6 / a2hs 5 / postings 3 / loadStatus 5 / postOutcome 5、stats 12）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
+- テストは **16ファイル204件が全通過**（aggregate 78 / labels 22 / drinkReport 15 / stats 12 / hours 11 / rhythm 10 / push 9 / drinks 6 / notify 6 / machineLayout 6 / shipped 6 / feedback 5 / loadStatus 5 / postOutcome 5 / a2hs 5 / postings 3）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
 - **本番の利用実態（Stats run #1、2026-09-11 16:48 JST 時点）**: 何らかの痕跡を残した端末 69、投稿かご意見で登録された端末 35（現存する投稿を持つのは 34）、投稿 515 件（目撃 164 / 行列 155 / ドリンク作れた 126 / 作れなかった 54 / マシン 16）、ご意見 16 件（13 端末）、通知購読 6 端末（`MAX_PUSH_PER_POST`=30 には遠い）。活動は平日のみ。8/27（木）に 18 端末が初出し（週 8/24 で 39 端末が初出・50 端末が活動）、以後は週 21〜34 端末が活動。**9/9 の `report_view` の意味変更以降は active ≒ posters**（開いただけの端末は見えない）。次回以降の比較はこの行ではなく Stats を再実行して取る。
 - 直近の作業の流れは、9/3 Blender レンダー化 → 9/4 目撃導線の作り直し・CI/デプロイの足回り整備 → 9/7 集計ロジックのバグ修正3連。UI の作り込みからロジックの正しさへ軸足が移っている。
 - コミット trailer から、**失われたセッションは `https://claude.ai/code/session_01Pq73qark1HNzZuwCmf9PXq`**（72コミットが持つ）。現行セッションは `session_01Au31ns5hDxA7y21maRPVci`（直近3件）。`git log --format='%h %(trailers:key=Claude-Session,valueonly)'` でどのコミットがどちらの産物か機械的に判別できる。
@@ -232,7 +234,6 @@
 - 「ご意見から改善した機能」リストが `FeedbackBox.tsx` のハードコード配列で、1件足すたびにコード変更とデプロイが要る。
 - 3つのダイアログにフォーカストラップとフォーカス復帰が無い。
 - `worker/push.ts:60` のコメントが「Tokens are cached per origin」と書いているがキャッシュは存在せず、購読1件ごとに署名している。
-- `ReportForm.tsx:437` が材料未選択時に `actionLabelFor(sighting ?? 'coffeeBeans', action)` とダミー subject を渡す。現状は全材料でラベル共通なので実害なし。
 - 削除したデザインバンドル（チャットログとアップロード画像）が public リポジトリの過去コミットに残っている。履歴の書き換えは未実施。
 - rhythm は平日（月〜金）のみ集計するが `loungeHours` は毎日9-17時。この非対称が意図的か未整理かはリポジトリからは判断できない。
 - **取り消し対象は直近1件のみ**（`useDrinkStatus.ts` の `undoTargetId` は単一 ref）。ドリンク投稿の5秒窓の途中で行列フォローアップを送ると上書きされ、ドリンク側はアプリのどこからも取り消せなくなる（サーバーは各投稿を20秒受けるので UI だけの制約）。同根で、後続の post が前の `undoTimer` を止めるため先行投稿の `track('post_done')` が落ちる。2026-09-09 のユーザー判断で見送り。直すなら `Toast` に `key` と `target` を持たせ配列化する。

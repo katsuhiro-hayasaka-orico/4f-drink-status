@@ -134,3 +134,20 @@ describe('summarizeDrinkReports', () => {
     expect(summarizeDrinkReports(reports, 'caffeMocha', NOW)).toBe('made');
   });
 });
+
+describe('buildDrinkReportRows and levels', () => {
+  it('expands into rows that carry no level — the gauge uses the fixed figures', () => {
+    // A drink report says what happened, not how full anything looked, so the
+    // material votes it implies must not pretend to a measurement.
+    const rows = buildDrinkReportRows({
+      drink: 'caffeMocha',
+      result: 'made',
+      low: ['milkPowder'],
+      cause: null,
+    });
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row, JSON.stringify(row)).not.toHaveProperty('level');
+    }
+  });
+});

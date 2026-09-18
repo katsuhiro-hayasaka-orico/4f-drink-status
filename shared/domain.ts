@@ -149,6 +149,10 @@ export function isSupplySubjectKey(v: unknown): v is SupplySubjectKey {
   return typeof v === 'string' && (SUPPLY_SUBJECT_KEYS as readonly string[]).includes(v);
 }
 
+export function isMaterialKey(v: unknown): v is MaterialKey {
+  return typeof v === 'string' && (MATERIAL_KEYS as readonly string[]).includes(v);
+}
+
 export function isActionKey(v: unknown): v is ActionKey {
   return typeof v === 'string' && (ACTION_KEYS as readonly string[]).includes(v);
 }
@@ -260,6 +264,84 @@ const MACHINE_ACTION_LABELS: Record<ActionKey, string> = {
  */
 export const SIGHTING_ACTIONS: ActionKey[] = ['available', 'low', 'refilled'];
 
+/**
+ * How much was left, as bands — the second question of a sighting.
+ *
+ * The feedback box asked what 「十分にある」 and 「残り少なめ」 were supposed to
+ * mean in tenths, and it was a fair question: they meant nothing in
+ * particular. A witness looking at a hopper knows roughly how full it is, and
+ * the board was throwing that away.
+ *
+ * Each band still stores one of SIGHTING_ACTIONS as its `action`, so the
+ * categorical vocabulary every other layer reasons over — the status ladder,
+ * the rhythm card's good/bad split, older client bundles left open on a wall
+ * display — is untouched. What is new is `level`: the band's midpoint, stored
+ * on the row and averaged into the gauge.
+ *
+ * 「ほとんどない」 maps to `low`, never `unavailable`. 1割以下 is as far as a
+ * witness may go; empty stays the failure report's word, where a cause has to
+ * be named. `refilled` is deliberately not a row here — it is an event rather
+ * than a quantity, and it resets the history behind it — so it keeps its own
+ * button beside these.
+ */
+export interface SightingLevel {
+  key: 'full' | 'half' | 'low' | 'trace';
+  /** What gets stored in `action`. Never `unavailable` — see above. */
+  action: Exclude<ActionKey, 'unavailable' | 'refilled'>;
+  /** Stored as `Report.level`; what the gauge averages. */
+  level: number;
+  /**
+   * Button copy, in two parts. The picker stacks them so the chips stay narrow
+   * enough to sit several to a row on a phone — spelled out on one line they
+   * each took a row of their own, which turned a two-tap flow into a long
+   * scroll without adding a single tap.
+   */
+  label: string;
+  /** The share the label means, shown under it in the picker. */
+  share: string;
+  /** Short form for the breakdown table, the push body and the toast. */
+  quote: string;
+}
+
+export const SIGHTING_LEVELS: readonly SightingLevel[] = [
+  { key: 'full', action: 'available', level: 95, label: 'たっぷり', share: '9割以上', quote: 'たっぷり' },
+  { key: 'half', action: 'available', level: 60, label: '半分くらい', share: '5〜7割', quote: '半分くらい' },
+  { key: 'low', action: 'low', level: 30, label: '少なめ', share: '3割ほど', quote: '少なめ' },
+  { key: 'trace', action: 'low', level: 10, label: 'ほとんどない', share: '1割以下', quote: 'ほとんどない' },
+];
+
+/** The band a stored (action, level) pair came from, if it came from one. */
+export function sightingLevelFor(
+  action: ReportRowValue,
+  level: number,
+): SightingLevel | undefined {
+  return SIGHTING_LEVELS.find((s) => s.action === action && s.level === level);
+}
+
+/**
+ * The one place that decides whether a (subject, action, level) triple is a
+ * sighting the API will store — the allowlist stance isValidReportValue takes,
+ * applied to the number.
+ *
+ * An allowlist rather than a 0–100 range check, for one reason above the
+ * others: a range would accept `low` with 0, which is 「なくなっている」 by
+ * another name, and withholding that from witnesses is a decision this
+ * codebase already made on purpose. Pairs make 10 the floor structurally.
+ *
+ * If the bands are ever re-tuned, keep the old numbers acceptable for a
+ * release or two — a wall display can sit on a stale bundle for days and will
+ * go on posting the values it shipped with.
+ */
+export function isSightingLevel(
+  subject: SubjectKey,
+  action: ReportValue,
+  level: unknown,
+): level is number {
+  if (!isMaterialKey(subject) || typeof level !== 'number') return false;
+  if (action === 'refilled') return level === ACTION_META.refilled.level;
+  return sightingLevelFor(action, level) !== undefined;
+}
+
 export function actionLabelFor(subject: SubjectKey, value: ReportValue): string {
   if (subject === QUEUE_SUBJECT) return QUEUE_META[value as QueueLevel].label;
   if (value === CLEANING_ACTION) return '清掃中';
@@ -272,13 +354,28 @@ export const DRINK_RESULT_QUOTES: Record<DrinkResult, string> = {
   failed: '作れなかった',
 };
 
-/** The label shown for a report's value in the breakdown table. */
-export function reportValueQuote(subject: ReportSubject, value: ReportRowValue): string {
+/**
+ * The label shown for a report's value in the breakdown table, the push body
+ * and the posting toast.
+ *
+ * A material sighting that carries a level quotes the band that was pressed —
+ * 「半分くらい」 — while the same stored action arriving from a drink report,
+ * or from before the bands existed, still reads 「取れた」. Both are honest:
+ * the first is what someone saw, the second is all the row knows.
+ */
+export function reportValueQuote(
+  subject: ReportSubject,
+  value: ReportRowValue,
+  level: number | null = null,
+): string {
   if (isDrinkKey(subject)) return DRINK_RESULT_QUOTES[value as DrinkResult];
   if (value === CLEANING_ACTION) return '清掃中';
-  return subject === QUEUE_SUBJECT
-    ? QUEUE_META[value as QueueLevel].quote
-    : ACTION_META[value as ActionKey].quote;
+  if (subject === QUEUE_SUBJECT) return QUEUE_META[value as QueueLevel].quote;
+  if (level !== null && isMaterialKey(subject)) {
+    const band = sightingLevelFor(value, level);
+    if (band) return band.quote;
+  }
+  return ACTION_META[value as ActionKey].quote;
 }
 
 /** A single observation posted by one person. */
@@ -296,6 +393,14 @@ export interface Report {
   userLabel: string;
   /** Epoch milliseconds. */
   createdAt: number;
+  /**
+   * What a material sighting saw, 0–100: one of SIGHTING_LEVELS, or 100 with
+   * `refilled`. Absent or null on everything else — the material votes a drink
+   * report expands into, the machine, the queue, drink rows, and every row
+   * written before the column existed. The gauge reads it when it is there and
+   * falls back to ACTION_META.level when it is not (shared/aggregate.ts).
+   */
+  level?: number | null;
 }
 
 /** All-time drink report counts, split by outcome. */
