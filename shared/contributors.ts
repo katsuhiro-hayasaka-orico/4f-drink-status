@@ -34,7 +34,7 @@ export const CONTRIBUTOR_TOP_N = 5;
 export const MILESTONE_EVERY = 10;
 
 export interface ContributorTier {
-  key: 'regular' | 'expert' | 'master';
+  key: 'regular' | 'expert' | 'master' | 'sage' | 'legend';
   /** Shown beside the poster's name. */
   label: string;
   /** All-time postings needed to reach it. */
@@ -59,15 +59,24 @@ export interface ContributorTier {
  * joke has to be one the person wearing it would enjoy.
  *
  * `at` counts postings, all time — not days, and not anything the ranking
- * below measures. That is the scale 10 / 50 / 100 is set against: the board
- * had taken 515 postings from 34 devices by 2026-09-11, so the first rung
- * arrives early enough to mean something, and the top one stays worth walking
- * towards rather than being handed out.
+ * below measures. That is the scale the rungs are set against: the board had
+ * taken 515 postings from 34 devices by 2026-09-11, so the first rung arrives
+ * early enough to mean something while the last stays worth walking towards.
+ *
+ * The ladder keeps going past 4Fの主 because people were going to. A top rung
+ * someone has already passed stops saying anything to them, and the cheapest
+ * way to keep it saying something is to add another rung — the code here reads
+ * the table rather than the three tiers it started with, so a sixth costs one
+ * line (plus its badge tint, see .tier-badge in src/styles.css). Keep every
+ * rung on a multiple of MILESTONE_EVERY: that is what makes the toast naming
+ * it land on the posting that earns it rather than a few postings later.
  */
 export const CONTRIBUTOR_TIERS: readonly ContributorTier[] = [
   { key: 'regular', label: '常連', at: 10, stars: 1 },
   { key: 'expert', label: 'ソムリエ', at: 50, stars: 2 },
   { key: 'master', label: '4Fの主', at: 100, stars: 3 },
+  { key: 'sage', label: '4F仙人', at: 150, stars: 4 },
+  { key: 'legend', label: '4Fの伝説', at: 200, stars: 5 },
 ];
 
 export type TierKey = ContributorTier['key'];
@@ -294,7 +303,7 @@ export function describeMine(mine: MyContribution, active: number, windowDays: n
   return `あなたは${active}端末中${mine.rank}位（${mine.recentDays}日・${mine.recentPostings}件）。${standing}${nextTierNote(mine.postings)}。`;
 }
 
-/** 「常連10件・ソムリエ50件・4Fの主100件」 — the ladder, for a footnote. */
+/** 「常連10件・ソムリエ50件・…」 — the whole ladder, for a footnote. */
 export function tierLadderNote(): string {
   return CONTRIBUTOR_TIERS.map((t) => `${t.label}${t.at}件`).join('・');
 }

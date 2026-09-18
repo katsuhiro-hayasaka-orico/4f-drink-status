@@ -20,7 +20,7 @@
 | `shared/drinkReport.ts` | ドリンク投稿の受理条件（`parseDrinkReport`）と材料票への展開（`buildDrinkReportRows`） |
 | `shared/drinks.ts` | RECIPES（8種）と `drinkAvailability`（材料状態→1杯の可否） |
 | `shared/rhythm.ts` | 「いつ切れやすい？」曜日×時間帯の判断（good/bad分類・6段階バケット・スロット導出） |
-| `shared/contributors.ts` | 投稿の常連さん。称号（**累計投稿件数**で10件=常連／50件=ソムリエ／100件=4Fの主。ランキングの「日数」とは別の数え方なので混同しない。表示名は差し替え自由、`key` はワイヤとCSSに出る安定側）・10件ごとの節目・直近30日の窓（JST暦日）・ランキングの並び（`buildContributors`）・自分の1行（`describeMine`）。**盤面の集計とは無関係**（1人1票の原則に触らない） |
+| `shared/contributors.ts` | 投稿の常連さん。称号（**累計投稿件数**で10=常連／50=ソムリエ／100=4Fの主／150=4F仙人／200=4Fの伝説。ランキングの「日数」とは別の数え方なので混同しない。段を足すのは `CONTRIBUTOR_TIERS` に1行＋CSSの色。表示名は差し替え自由、`key` はワイヤとCSSに出る安定側）・10件ごとの節目・直近30日の窓（JST暦日）・ランキングの並び（`buildContributors`）・自分の1行（`describeMine`）。**盤面の集計とは無関係**（1人1票の原則に触らない） |
 | `shared/hours.ts` | 開放時間の唯一の判定箇所（`loungeHours`）。JST 固定 |
 | `shared/time.ts` | `relativeTime`（「たった今」「12分前」「2時間前」）。**盤面唯一の時刻表記**（8行） |
 | `worker/index.ts` | API の唯一の入口。`route()` は 426-508 行。`json()` / `fail()`（85-98）以外でレスポンスを作らない。SQL は1行も無い |
@@ -218,7 +218,7 @@
 - **SHA をここに書かない**。すぐ腐るので現在地は毎回コマンドで取る: `git fetch origin main && git log --oneline -5 origin/main && git rev-list --left-right --count origin/main...HEAD`。デプロイ履歴は Actions の Deploy ワークフローを見る。
 - **マシン集計の一連の修正は 2026-09-07 に本番反映済み**（Deploy 2回、いずれも全ステップ success）。内訳は4コミット: `bff903b` 未報告のマシンを正常扱いしない / `39b64ac` 壊れたマシンはラッチする / `5abb7e4` 良い知らせだけがラッチを解除する / `7c85126` ラッチの根拠行を共通200件枠の外に出す（+ 最終観測の逆行と確からしさピルの対象ずれ）。D1 のマイグレーション追加は無くスキーマは不変。
 - **どのデプロイも実機での目視確認はしていない**。本番URLが不明なため（「文脈が失われた範囲」参照）、根拠は CI と、`worker/store.ts` の SQL についてはローカル D1 での実行結果のみ。
-- テストは **19ファイル246件が全通過**（aggregate 78 / contributors 27 / labels 22 / drinkReport 15 / stats 12 / hours 11 / rhythm 10 / milestones 9 / push 9 / drinks 6 / notify 6 / machineLayout 6 / shipped 6 / store 6 / feedback 5 / loadStatus 5 / postOutcome 5 / a2hs 5 / postings 3）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
+- テストは **19ファイル248件が全通過**（aggregate 78 / contributors 29 / labels 22 / drinkReport 15 / stats 12 / hours 11 / rhythm 10 / milestones 9 / push 9 / drinks 6 / notify 6 / machineLayout 6 / shipped 6 / store 6 / feedback 5 / loadStatus 5 / postOutcome 5 / a2hs 5 / postings 3）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
 - **本番の利用実態（Stats run #1、2026-09-11 16:48 JST 時点）**: 何らかの痕跡を残した端末 69、投稿かご意見で登録された端末 35（現存する投稿を持つのは 34）、投稿 515 件（目撃 164 / 行列 155 / ドリンク作れた 126 / 作れなかった 54 / マシン 16）、ご意見 16 件（13 端末）、通知購読 6 端末（`MAX_PUSH_PER_POST`=30 には遠い）。活動は平日のみ。8/27（木）に 18 端末が初出し（週 8/24 で 39 端末が初出・50 端末が活動）、以後は週 21〜34 端末が活動。**9/9 の `report_view` の意味変更以降は active ≒ posters**（開いただけの端末は見えない）。次回以降の比較はこの行ではなく Stats を再実行して取る。
 - 直近の作業の流れは、9/3 Blender レンダー化 → 9/4 目撃導線の作り直し・CI/デプロイの足回り整備 → 9/7 集計ロジックのバグ修正3連。UI の作り込みからロジックの正しさへ軸足が移っている。
 - コミット trailer から、**失われたセッションは `https://claude.ai/code/session_01Pq73qark1HNzZuwCmf9PXq`**（72コミットが持つ）。現行セッションは `session_01Au31ns5hDxA7y21maRPVci`（直近3件）。`git log --format='%h %(trailers:key=Claude-Session,valueonly)'` でどのコミットがどちらの産物か機械的に判別できる。
