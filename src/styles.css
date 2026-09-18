@@ -2265,6 +2265,15 @@ a:focus-visible {
   .contributors .popularity__row {
     grid-template-columns: 26px 1fr 84px;
   }
+
+  /* 利用者（あなた）＋ 称号 ＋ 30日間No.1 is wider than a phone, and the
+     inherited nowrap pushed the whole row past the screen edge instead of
+     breaking. Only this card needs it: the drink names above are short. */
+  .contributors .popularity__name {
+    white-space: normal;
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
 }
 
 /*
