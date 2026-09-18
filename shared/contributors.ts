@@ -70,13 +70,19 @@ export interface ContributorTier {
  * line (plus its badge tint, see .tier-badge in src/styles.css). Keep every
  * rung on a multiple of MILESTONE_EVERY: that is what makes the toast naming
  * it land on the posting that earns it rather than a few postings later.
+ *
+ * The gaps widen (40, 50, 100, 100) rather than repeating, and the two top
+ * rungs are spaced against the board's actual rate: roughly 130 postings a
+ * week across everyone, with the trial ending in 2026. 150 and 200 sat close
+ * enough together to be the same rung twice; 500 would have been a rung nobody
+ * reaches before the machine goes away.
  */
 export const CONTRIBUTOR_TIERS: readonly ContributorTier[] = [
   { key: 'regular', label: '常連', at: 10, stars: 1 },
   { key: 'expert', label: 'ソムリエ', at: 50, stars: 2 },
   { key: 'master', label: '4Fの主', at: 100, stars: 3 },
-  { key: 'sage', label: '4F仙人', at: 150, stars: 4 },
-  { key: 'legend', label: '4Fの伝説', at: 200, stars: 5 },
+  { key: 'sage', label: '4F仙人', at: 200, stars: 4 },
+  { key: 'legend', label: '4Fの伝説', at: 300, stars: 5 },
 ];
 
 export type TierKey = ContributorTier['key'];
