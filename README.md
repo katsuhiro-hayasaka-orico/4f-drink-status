@@ -126,7 +126,7 @@ Create Custom Token）:
 
 ```
 index.html            エントリ
-public/               そのまま配信される静的ファイル（ファビコン一式）
+public/               そのまま配信される静的ファイル（アイコン一式・マニフェスト・Service Worker）
 src/                  React クライアント
   App.tsx             画面の組み立て
   components/         各セクション（MachineIllustration がマシンの絵）
@@ -383,6 +383,27 @@ npm run render:machine          # 3枚の WebP と layout.json を作り直す
 `--theme light|dark|contents|all` と `--samples N` を取ります。PNG のマスターは
 `tools/blender/out/` に出ますが、リポジトリには入れません（履歴が重くなるため）。
 コミットするのは `src/assets/machine/` の WebP 3枚と `layout.json`、それにスクリプトです。
+
+### ファビコンとアプリアイコン
+
+原本は `public/favicon.svg` の1枚だけです（エスプレッソ地にクリームの「4」とテラコッタの
+ドリンクカップ）。配信する PNG 5枚はそこから生成します。
+
+```bash
+npm run render:icons              # 5枚の PNG を作り直す
+npm run render:icons -- --check   # SVG と PNG がずれていないか調べる（書き込みません）
+```
+
+| 生成物 | サイズ | 用途 |
+| --- | --- | --- |
+| `favicon-32.png` | 32 | タブ（SVG 非対応時）と通知バッジ。角の外は透過 |
+| `apple-touch-icon.png` | 180 | iOS のホーム画面と通知アイコン |
+| `icon-192.png` / `icon-512.png` | 192 / 512 | マニフェスト（`purpose: any`） |
+| `icon-maskable-512.png` | 512 | マニフェスト（`purpose: maskable`）。Android は円に切り抜くので図案を少し小さくしています |
+
+iOS と Android はアイコンに自前のマスクをかけるので、**タブ用の 32px だけが角丸＋透過**で、
+残りは角丸なしの全面塗り・透過なしです。角丸済みの画像を渡すと OS の角の内側に縁が出ます。
+図案を直すときは SVG だけを編集して `npm run render:icons` を流してください。
 
 ## 開放時間（9:00〜17:00）
 
