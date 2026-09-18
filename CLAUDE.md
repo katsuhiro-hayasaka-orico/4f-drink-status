@@ -20,7 +20,7 @@
 | `shared/drinkReport.ts` | ドリンク投稿の受理条件（`parseDrinkReport`）と材料票への展開（`buildDrinkReportRows`） |
 | `shared/drinks.ts` | RECIPES（8種）と `drinkAvailability`（材料状態→1杯の可否） |
 | `shared/rhythm.ts` | 「いつ切れやすい？」曜日×時間帯の判断（good/bad分類・6段階バケット・スロット導出） |
-| `shared/contributors.ts` | 投稿の常連さん。称号（累計10件=常連／30件=ソムリエ／50件=4Fの主。閾値が低いのは4Fのドリンクが2026年末までの期間限定で、100件では誰も届かないため。表示名は差し替え自由、`key` はワイヤとCSSに出る安定側）・10件ごとの節目・直近30日の窓（JST暦日）・ランキングの並び（`buildContributors`）・自分の1行（`describeMine`）。**盤面の集計とは無関係**（1人1票の原則に触らない） |
+| `shared/contributors.ts` | 投稿の常連さん。称号（**累計投稿件数**で10件=常連／50件=ソムリエ／100件=4Fの主。ランキングの「日数」とは別の数え方なので混同しない。表示名は差し替え自由、`key` はワイヤとCSSに出る安定側）・10件ごとの節目・直近30日の窓（JST暦日）・ランキングの並び（`buildContributors`）・自分の1行（`describeMine`）。**盤面の集計とは無関係**（1人1票の原則に触らない） |
 | `shared/hours.ts` | 開放時間の唯一の判定箇所（`loungeHours`）。JST 固定 |
 | `shared/time.ts` | `relativeTime`（「たった今」「12分前」「2時間前」）。**盤面唯一の時刻表記**（8行） |
 | `worker/index.ts` | API の唯一の入口。`route()` は 426-508 行。`json()` / `fail()`（85-98）以外でレスポンスを作らない。SQL は1行も無い |

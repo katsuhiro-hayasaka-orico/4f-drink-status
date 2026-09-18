@@ -53,22 +53,21 @@ export interface ContributorTier {
  * The keys are the stable part — they go over the wire in `tiersByUser` and
  * into the badge's CSS class — while the labels are display only and can be
  * re-worded without touching anything else. 「ソムリエ」 for someone who has
- * looked into a hopper thirty times, and 「4Fの主」 for the person who has
+ * looked into a hopper fifty times, and 「4Fの主」 for the person who has
  * become part of the floor's furniture, are meant with affection: these words
  * sit next to a real colleague's 利用者X on a page anyone can open, so the
  * joke has to be one the person wearing it would enjoy.
  *
- * The thresholds are deliberately low. The 4F drinks are a trial running to
- * the end of 2026, so a ladder topping out at a hundred postings would be a
- * ladder almost nobody reaches before the machine goes away — and a title
- * nobody can earn is not an incentive, it is decoration. Measured against the
- * real board (2026-09-11: 515 postings from 34 devices), 10 / 30 / 50 puts the
- * top rung within reach of the people already carrying the board.
+ * `at` counts postings, all time — not days, and not anything the ranking
+ * below measures. That is the scale 10 / 50 / 100 is set against: the board
+ * had taken 515 postings from 34 devices by 2026-09-11, so the first rung
+ * arrives early enough to mean something, and the top one stays worth walking
+ * towards rather than being handed out.
  */
 export const CONTRIBUTOR_TIERS: readonly ContributorTier[] = [
   { key: 'regular', label: '常連', at: 10, stars: 1 },
-  { key: 'expert', label: 'ソムリエ', at: 30, stars: 2 },
-  { key: 'master', label: '4Fの主', at: 50, stars: 3 },
+  { key: 'expert', label: 'ソムリエ', at: 50, stars: 2 },
+  { key: 'master', label: '4Fの主', at: 100, stars: 3 },
 ];
 
 export type TierKey = ContributorTier['key'];
@@ -275,7 +274,7 @@ export function buildContributors(
   };
 }
 
-/** 「「4Fの主」まであと18件」 — or nothing, at the top of the ladder. */
+/** 「「4Fの主」まであと38件」 — or nothing, at the top of the ladder. */
 function nextTierNote(postings: number): string {
   const next = nextTier(postings);
   return next ? `（「${next.tier.label}」まであと${next.remaining}件）` : '';
@@ -295,7 +294,7 @@ export function describeMine(mine: MyContribution, active: number, windowDays: n
   return `あなたは${active}端末中${mine.rank}位（${mine.recentDays}日・${mine.recentPostings}件）。${standing}${nextTierNote(mine.postings)}。`;
 }
 
-/** 「常連10件・ソムリエ30件・4Fの主50件」 — the ladder, for a footnote. */
+/** 「常連10件・ソムリエ50件・4Fの主100件」 — the ladder, for a footnote. */
 export function tierLadderNote(): string {
   return CONTRIBUTOR_TIERS.map((t) => `${t.label}${t.at}件`).join('・');
 }

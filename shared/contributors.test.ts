@@ -38,10 +38,10 @@ describe('contributorTier', () => {
     expect(contributorTier(0)).toBeNull();
     expect(contributorTier(9)).toBeNull();
     expect(contributorTier(10)?.key).toBe('regular');
-    expect(contributorTier(29)?.key).toBe('regular');
-    expect(contributorTier(30)?.key).toBe('expert');
-    expect(contributorTier(49)?.key).toBe('expert');
-    expect(contributorTier(50)?.key).toBe('master');
+    expect(contributorTier(49)?.key).toBe('regular');
+    expect(contributorTier(50)?.key).toBe('expert');
+    expect(contributorTier(99)?.key).toBe('expert');
+    expect(contributorTier(100)?.key).toBe('master');
     expect(contributorTier(10_000)?.key).toBe('master');
   });
 
@@ -58,12 +58,12 @@ describe('nextTier', () => {
     expect(nextTier(0)).toMatchObject({ remaining: 10 });
     expect(nextTier(9)).toMatchObject({ remaining: 1 });
     expect(nextTier(10)?.tier.key).toBe('expert');
-    expect(nextTier(23)).toMatchObject({ remaining: 7 });
-    expect(nextTier(49)).toMatchObject({ remaining: 1 });
+    expect(nextTier(23)).toMatchObject({ remaining: 27 });
+    expect(nextTier(99)).toMatchObject({ remaining: 1 });
   });
 
   it('is null at the top — there is nothing left to promise', () => {
-    expect(nextTier(50)).toBeNull();
+    expect(nextTier(100)).toBeNull();
     expect(nextTier(500)).toBeNull();
   });
 });
@@ -93,8 +93,8 @@ describe('isMilestone', () => {
 describe('tierNewlyReached', () => {
   it('names a tier the moment it is earned', () => {
     expect(tierNewlyReached(10, 0)?.key).toBe('regular');
-    expect(tierNewlyReached(30, 20)?.key).toBe('expert');
-    expect(tierNewlyReached(50, 40)?.key).toBe('master');
+    expect(tierNewlyReached(50, 40)?.key).toBe('expert');
+    expect(tierNewlyReached(100, 90)?.key).toBe('master');
   });
 
   it('stays quiet on a milestone inside a tier already held', () => {
@@ -103,10 +103,10 @@ describe('tierNewlyReached', () => {
   });
 
   it('still names a tier the device skipped past while away', () => {
-    // Cleared storage, or simply never saw the 10th toast: say 常連 once at 20
+    // Cleared storage, or simply never saw the 10th toast: say 常連 once at 30
     // rather than never.
-    expect(tierNewlyReached(20, 0)?.key).toBe('regular');
-    expect(tierNewlyReached(50, 0)?.key).toBe('master');
+    expect(tierNewlyReached(30, 0)?.key).toBe('regular');
+    expect(tierNewlyReached(60, 0)?.key).toBe('expert');
   });
 });
 
@@ -138,7 +138,7 @@ describe('contributorWindowStart', () => {
 describe('buildContributors', () => {
   // One device per tier, so the badge map below has something to tell apart.
   const rows = [
-    raw({ userId: 'a', postings: 35, recentDays: 8, recentPostings: 11 }),
+    raw({ userId: 'a', postings: 60, recentDays: 8, recentPostings: 11 }),
     raw({ userId: 'b', postings: 12, recentDays: 8, recentPostings: 20 }),
     raw({ userId: 'c', postings: 200, recentDays: 3, recentPostings: 40 }),
     raw({ userId: 'd', postings: 4, recentDays: 1, recentPostings: 1 }),
@@ -212,7 +212,7 @@ describe('buildContributors', () => {
     const res = buildContributors(rows, 'a', [], AFTERNOON);
     expect(res.top.filter((r) => r.isMe)).toHaveLength(1);
     expect(res.mine).toEqual({
-      postings: 35,
+      postings: 60,
       recentDays: 8,
       recentPostings: 11,
       rank: 2,
@@ -266,7 +266,7 @@ describe('describeMine', () => {
 
   it('states rank, window counts and the next rung', () => {
     expect(mine({ postings: 23, recentDays: 8, recentPostings: 11, rank: 3, tier: 'regular' })).toBe(
-      'あなたは12端末中3位（8日・11件）。累計23件・称号「常連」（「ソムリエ」まであと7件）。',
+      'あなたは12端末中3位（8日・11件）。累計23件・称号「常連」（「ソムリエ」まであと27件）。',
     );
   });
 
@@ -285,6 +285,6 @@ describe('describeMine', () => {
 
 describe('tierLadderNote', () => {
   it('spells the ladder the footnotes quote', () => {
-    expect(tierLadderNote()).toBe('常連10件・ソムリエ30件・4Fの主50件');
+    expect(tierLadderNote()).toBe('常連10件・ソムリエ50件・4Fの主100件');
   });
 });
