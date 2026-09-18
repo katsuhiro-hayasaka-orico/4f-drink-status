@@ -2244,8 +2244,13 @@ a:focus-visible {
  * because 「利用者（あなた）」 plus a badge is shorter than 「アイスカフェモカ」
  * plus ICE plus 人気No.1.
  */
+/* The name column is fixed so every row's bar starts at the same x (the drink
+   ranking above explains why). Sized to the worst case rather than the common
+   one: 利用者（あなた） wearing a five-star 4Fの伝説 badge and the 30日間No.1
+   pill measures 302px, and at 250px that row's pill sat on top of its own
+   bar. */
 .contributors .popularity__row {
-  grid-template-columns: 26px 250px 1fr 96px;
+  grid-template-columns: 26px 310px 1fr 96px;
 }
 
 .popularity__seg--days {
@@ -2308,7 +2313,14 @@ a:focus-visible {
   color: var(--hot-fg);
 }
 
-.tier-badge--master {
+/* The three top rungs share one fill. The palette has exactly three
+   contrast-checked pairs that survive both themes and red-green colour
+   vision, and inventing a fourth and fifth tint would put meaning back on
+   colour — which is what the star count and the word are for. 4Fの主,
+   4F仙人 and 4Fの伝説 are three, four and five stars. */
+.tier-badge--master,
+.tier-badge--sage,
+.tier-badge--legend {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--on-status);

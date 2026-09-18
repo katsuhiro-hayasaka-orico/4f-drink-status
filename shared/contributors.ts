@@ -34,7 +34,7 @@ export const CONTRIBUTOR_TOP_N = 5;
 export const MILESTONE_EVERY = 10;
 
 export interface ContributorTier {
-  key: 'regular' | 'expert' | 'master';
+  key: 'regular' | 'expert' | 'master' | 'sage' | 'legend';
   /** Shown beside the poster's name. */
   label: string;
   /** All-time postings needed to reach it. */
@@ -53,22 +53,30 @@ export interface ContributorTier {
  * The keys are the stable part — they go over the wire in `tiersByUser` and
  * into the badge's CSS class — while the labels are display only and can be
  * re-worded without touching anything else. 「ソムリエ」 for someone who has
- * looked into a hopper thirty times, and 「4Fの主」 for the person who has
+ * looked into a hopper fifty times, and 「4Fの主」 for the person who has
  * become part of the floor's furniture, are meant with affection: these words
  * sit next to a real colleague's 利用者X on a page anyone can open, so the
  * joke has to be one the person wearing it would enjoy.
  *
- * The thresholds are deliberately low. The 4F drinks are a trial running to
- * the end of 2026, so a ladder topping out at a hundred postings would be a
- * ladder almost nobody reaches before the machine goes away — and a title
- * nobody can earn is not an incentive, it is decoration. Measured against the
- * real board (2026-09-11: 515 postings from 34 devices), 10 / 30 / 50 puts the
- * top rung within reach of the people already carrying the board.
+ * `at` counts postings, all time — not days, and not anything the ranking
+ * below measures. That is the scale the rungs are set against: the board had
+ * taken 515 postings from 34 devices by 2026-09-11, so the first rung arrives
+ * early enough to mean something while the last stays worth walking towards.
+ *
+ * The ladder keeps going past 4Fの主 because people were going to. A top rung
+ * someone has already passed stops saying anything to them, and the cheapest
+ * way to keep it saying something is to add another rung — the code here reads
+ * the table rather than the three tiers it started with, so a sixth costs one
+ * line (plus its badge tint, see .tier-badge in src/styles.css). Keep every
+ * rung on a multiple of MILESTONE_EVERY: that is what makes the toast naming
+ * it land on the posting that earns it rather than a few postings later.
  */
 export const CONTRIBUTOR_TIERS: readonly ContributorTier[] = [
   { key: 'regular', label: '常連', at: 10, stars: 1 },
-  { key: 'expert', label: 'ソムリエ', at: 30, stars: 2 },
-  { key: 'master', label: '4Fの主', at: 50, stars: 3 },
+  { key: 'expert', label: 'ソムリエ', at: 50, stars: 2 },
+  { key: 'master', label: '4Fの主', at: 100, stars: 3 },
+  { key: 'sage', label: '4F仙人', at: 150, stars: 4 },
+  { key: 'legend', label: '4Fの伝説', at: 200, stars: 5 },
 ];
 
 export type TierKey = ContributorTier['key'];
@@ -275,7 +283,7 @@ export function buildContributors(
   };
 }
 
-/** 「「4Fの主」まであと18件」 — or nothing, at the top of the ladder. */
+/** 「「4Fの主」まであと38件」 — or nothing, at the top of the ladder. */
 function nextTierNote(postings: number): string {
   const next = nextTier(postings);
   return next ? `（「${next.tier.label}」まであと${next.remaining}件）` : '';
@@ -295,7 +303,7 @@ export function describeMine(mine: MyContribution, active: number, windowDays: n
   return `あなたは${active}端末中${mine.rank}位（${mine.recentDays}日・${mine.recentPostings}件）。${standing}${nextTierNote(mine.postings)}。`;
 }
 
-/** 「常連10件・ソムリエ30件・4Fの主50件」 — the ladder, for a footnote. */
+/** 「常連10件・ソムリエ50件・…」 — the whole ladder, for a footnote. */
 export function tierLadderNote(): string {
   return CONTRIBUTOR_TIERS.map((t) => `${t.label}${t.at}件`).join('・');
 }
