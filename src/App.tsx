@@ -386,7 +386,7 @@ export function App() {
 
         <Section
           title="材料の推定残量"
-          note="ドリンクの報告と、見かけた残量の報告から推定した目安です"
+          note="ドリンクの報告と見かけた残量の報告から、新しいものを重めに平均した目安です"
         >
           <IngredientLevels
             statuses={view.statuses}

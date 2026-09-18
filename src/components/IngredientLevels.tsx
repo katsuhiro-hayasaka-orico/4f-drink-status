@@ -29,6 +29,11 @@ export interface IngredientLevelsProps {
  * correct the board, and until now this card was read-only — the nearest way
  * to act on that thought was to scroll back up and claim a drink they had not
  * made. The button hands the material straight to the sighting picker.
+ *
+ * 「約N%」 is the recency-weighted mean of what the winning side reported
+ * (Summary.level), so 「約60%」 beside 「十分にあります」 is one person saying
+ * 半分くらい, not a contradiction: the number is the amount, the sentence is
+ * the verdict.
  */
 export function IngredientLevels({ statuses, levels, onReport }: IngredientLevelsProps) {
   const reportButton = (key: MaterialKey, label: string) => (

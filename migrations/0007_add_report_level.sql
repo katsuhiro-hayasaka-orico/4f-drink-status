@@ -1,0 +1,21 @@
+-- How much a witness saw, 0-100, for sightings posted from the quantity
+-- picker (たっぷり／半分くらい／少なめ／ほとんどない, and 補充された at 100).
+--
+-- Every other row stays NULL and keeps reading as the fixed figure its action
+-- has always implied (ACTION_META.level in shared/domain.ts): the material
+-- votes a drink report expands into, the machine, the queue, drink rows, and
+-- every row written before this column existed. That fallback is why adding
+-- the column changes nothing about existing data.
+--
+-- The stored `action` vocabulary is deliberately unchanged — a level refines a
+-- vote, it never replaces one — so a client bundle from before this migration
+-- can go on reading the board without meeting a word it does not know.
+--
+-- No CHECK constraint: the accepted (action, level) pairs are an allowlist in
+-- shared/domain.ts (isSightingLevel), which both the API and the client go
+-- through. One gate, in one language.
+--
+-- Idempotency: SQLite has no ADD COLUMN IF NOT EXISTS. Like 0005 this relies on
+-- wrangler's own record of applied migrations to skip it; running the file by
+-- hand a second time fails with "duplicate column name", which is the signal.
+ALTER TABLE reports ADD COLUMN level INTEGER;

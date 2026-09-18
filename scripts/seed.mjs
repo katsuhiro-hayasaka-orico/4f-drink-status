@@ -13,24 +13,30 @@
 const MINUTE = 60_000;
 const now = Date.now();
 
-/** [subject, action, user letter, minutes ago] */
+/**
+ * [subject, action, user letter, minutes ago, level?]
+ *
+ * `level` is what a sighting saw (shared/domain.ts SIGHTING_LEVELS). Rows
+ * without one stand in for drink-expanded votes and for anything posted before
+ * the bands existed, so the sample board exercises both halves of the average.
+ */
 const SEED = [
-  ['coffeeBeans', 'available', 'A', 2],
-  ['coffeeBeans', 'available', 'E', 4],
+  ['coffeeBeans', 'available', 'A', 2, 95],
+  ['coffeeBeans', 'available', 'E', 4, 60],
   ['coffeeBeans', 'available', 'F', 6],
-  ['coffeeBeans', 'available', 'G', 9],
-  ['coffeeBeans', 'low', 'H', 8],
-  ['cocoaPowder', 'low', 'B', 7],
-  ['cocoaPowder', 'low', 'I', 4],
-  ['cocoaPowder', 'low', 'J', 9],
-  ['cocoaPowder', 'available', 'K', 5],
+  ['coffeeBeans', 'available', 'G', 9, 95],
+  ['coffeeBeans', 'low', 'H', 8, 30],
+  ['cocoaPowder', 'low', 'B', 7, 30],
+  ['cocoaPowder', 'low', 'I', 4, 10],
+  ['cocoaPowder', 'low', 'J', 9, 30],
+  ['cocoaPowder', 'available', 'K', 5, 60],
   ['milkPowder', 'refilled', 'C', 18],
-  ['milkPowder', 'available', 'L', 16],
+  ['milkPowder', 'available', 'L', 16, 95],
   ['machine', 'available', 'D', 24],
   // Ice runs down faster than the powders, so the sample data shows it low.
-  ['ice', 'low', 'A', 3],
-  ['ice', 'low', 'E', 6],
-  ['ice', 'available', 'M', 11],
+  ['ice', 'low', 'A', 3, 10],
+  ['ice', 'low', 'E', 6, 30],
+  ['ice', 'available', 'M', 11, 60],
   // Queue reports sit inside the 10-minute queue window; the older one is
   // there to show the recency weighting doing its job.
   ['queue', 'medium', 'B', 1],
@@ -52,11 +58,11 @@ for (const letter of users) {
   );
 }
 
-for (const [subject, action, letter, minutesAgo] of SEED) {
+for (const [subject, action, letter, minutesAgo, level] of SEED) {
   const createdAt = now - minutesAgo * MINUTE;
   lines.push(
-    `INSERT INTO reports (id, subject, action, user_id, user_label, created_at) VALUES ` +
-      `('seed-${subject}-${letter}', '${subject}', '${action}', 'seed-${letter}', '利用者${letter}', ${createdAt});`,
+    `INSERT INTO reports (id, subject, action, user_id, user_label, created_at, level) VALUES ` +
+      `('seed-${subject}-${letter}', '${subject}', '${action}', 'seed-${letter}', '利用者${letter}', ${createdAt}, ${level ?? 'NULL'});`,
   );
 }
 

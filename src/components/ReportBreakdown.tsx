@@ -100,7 +100,7 @@ export function ReportBreakdown({ reports, me, now, filter, onFilter }: ReportBr
               <span className="reports__subject">{subjectLabel(r.subject)}</span>
               <span>
                 <span className="tag" style={tagStyle(r.subject, r.action)}>
-                  {reportValueQuote(r.subject, r.action)}
+                  {reportValueQuote(r.subject, r.action, r.level)}
                 </span>
               </span>
               <span className="reports__muted">{relativeTime(r.createdAt, now)}</span>
