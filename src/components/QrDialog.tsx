@@ -69,22 +69,27 @@ export function QrDialog({ onClose }: QrDialogProps) {
             QRコードで紹介
           </h2>
         </div>
-        <p className="dialog__body">
-          スマホのカメラで読み取ると、このサイトが開きます。ラウンジで隣の人に
-          そのまま見せてください。
-        </p>
-        {/* The QR sits on a fixed white card in both themes — scanners want
-            contrast, not brand palette. */}
-        <div className="qr__card">
-          {dataUrl ? (
-            <img className="qr__image" src={dataUrl} alt={`このサイトのQRコード（${url}）`} />
-          ) : (
-            <p className="dialog__body">QRコードを生成できませんでした</p>
-          )}
+        {/* Scrolls on a landscape phone, where the 220px code alone is most
+            of the screen; the buttons below stay put. Focusable for the same
+            reason as the About dialog's: nothing inside to tab into. */}
+        <div className="dialog__content" tabIndex={0}>
+          <p className="dialog__body">
+            スマホのカメラで読み取ると、このサイトが開きます。ラウンジで隣の人に
+            そのまま見せてください。
+          </p>
+          {/* The QR sits on a fixed white card in both themes — scanners want
+              contrast, not brand palette. */}
+          <div className="qr__card">
+            {dataUrl ? (
+              <img className="qr__image" src={dataUrl} alt={`このサイトのQRコード（${url}）`} />
+            ) : (
+              <p className="dialog__body">QRコードを生成できませんでした</p>
+            )}
+          </div>
+          <p className="qr__url" aria-label="このサイトのURL">
+            {url}
+          </p>
         </div>
-        <p className="qr__url" aria-label="このサイトのURL">
-          {url}
-        </p>
         <div className="dialog__foot">
           <button type="button" className="qr__copy" onClick={copy} aria-live="polite">
             {copied ? 'コピーしました ✓' : 'URLをコピー'}

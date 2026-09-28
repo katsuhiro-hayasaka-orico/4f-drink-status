@@ -81,54 +81,62 @@ export function FeedbackDialog({ variant, onSubmit, onClose }: FeedbackDialogPro
         </div>
 
         {sent ? (
-          <p className="dialog__body feedback__done">
-            ご意見ありがとうございました！今後の改善に役立てます。
-          </p>
+          <div className="dialog__content">
+            <p className="dialog__body feedback__done">
+              ご意見ありがとうございました！今後の改善に役立てます。
+            </p>
+          </div>
         ) : (
           <>
-            <p className="dialog__body">
-              このサイトの使い心地はいかがですか？困ったことや改善してほしい点があれば、
-              ぜひ聞かせてください。満足度だけの送信でも助かります。
-              <strong className="feedback__privacy">
-                お寄せいただいた内容はサイト上には公開されず、管理者だけが確認します。
-              </strong>
-            </p>
-
-            <div className="feedback__moods" role="radiogroup" aria-label="満足度">
-              {MOOD_KEYS.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  role="radio"
-                  aria-checked={mood === key}
-                  className={`feedback__mood${mood === key ? ' feedback__mood--on' : ''}`}
-                  onClick={() => setMood(key)}
-                >
-                  <span className="feedback__mood-emoji" aria-hidden="true">
-                    {MOOD_META[key].emoji}
-                  </span>
-                  {MOOD_META[key].label}
-                </button>
-              ))}
-            </div>
-
-            <textarea
-              className="feedback__textarea"
-              value={body}
-              maxLength={CONFIG.feedbackMaxLength}
-              rows={4}
-              placeholder="改善してほしい点や困ったことがあれば（任意）"
-              onChange={(e) => setBody(e.target.value)}
-            />
-            <div className="feedback__counter" aria-hidden="true">
-              あと{remaining}文字
-            </div>
-
-            {error && (
-              <p role="alert" className="feedback__error">
-                {error}
+            {/* Scrolls when the window is short (a landscape phone, or the
+                keyboard up); また今度 and 送信する stay below it. No tabIndex:
+                the moods and the textarea are focusable, and focusing one
+                scrolls it into view. */}
+            <div className="dialog__content">
+              <p className="dialog__body">
+                このサイトの使い心地はいかがですか？困ったことや改善してほしい点があれば、
+                ぜひ聞かせてください。満足度だけの送信でも助かります。
+                <strong className="feedback__privacy">
+                  お寄せいただいた内容はサイト上には公開されず、管理者だけが確認します。
+                </strong>
               </p>
-            )}
+
+              <div className="feedback__moods" role="radiogroup" aria-label="満足度">
+                {MOOD_KEYS.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="radio"
+                    aria-checked={mood === key}
+                    className={`feedback__mood${mood === key ? ' feedback__mood--on' : ''}`}
+                    onClick={() => setMood(key)}
+                  >
+                    <span className="feedback__mood-emoji" aria-hidden="true">
+                      {MOOD_META[key].emoji}
+                    </span>
+                    {MOOD_META[key].label}
+                  </button>
+                ))}
+              </div>
+
+              <textarea
+                className="feedback__textarea"
+                value={body}
+                maxLength={CONFIG.feedbackMaxLength}
+                rows={4}
+                placeholder="改善してほしい点や困ったことがあれば（任意）"
+                onChange={(e) => setBody(e.target.value)}
+              />
+              <div className="feedback__counter" aria-hidden="true">
+                あと{remaining}文字
+              </div>
+
+              {error && (
+                <p role="alert" className="feedback__error">
+                  {error}
+                </p>
+              )}
+            </div>
 
             <div className="dialog__foot">
               <button type="button" ref={closeRef} className="feedback__skip" onClick={onClose}>

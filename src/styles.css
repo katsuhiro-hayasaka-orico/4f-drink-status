@@ -1429,21 +1429,75 @@ a:focus-visible {
   place-items: center;
   padding: 20px;
   background: var(--scrim);
+  /* Last resort only. .dialog below never outgrows the window, so this
+     scrolls just when even its fixed head and buttons cannot fit (a
+     landscape phone at 200% zoom) — the case where clipping would put the
+     buttons out of reach again. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
+/*
+ * A dialog is a column the height of its content, capped at the window: the
+ * head and the buttons stay put and only .dialog__content scrolls between
+ * them. Before this the dialog grew with its text and the fixed backdrop
+ * simply clipped whatever passed the bottom of the window — which was the
+ * button row. このアプリについて lost its 閉じる on anything shorter than
+ * ~900px, and ご意見箱 and the QR dialog lost theirs on landscape phones.
+ *
+ * dvh follows mobile browsers' collapsing toolbars; the vh line is the
+ * fallback for browsers that do not know it. 40px is the backdrop's padding.
+ */
 .dialog {
+  display: flex;
+  flex-direction: column;
   width: min(560px, 100%);
-  padding: 28px;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  padding: 28px 0;
   background: var(--card);
   border-radius: 22px;
   box-shadow: var(--dialog-shadow);
+  /* Only reached if the head and buttons alone are taller than the cap. */
+  overflow-y: auto;
+}
+
+.dialog__head,
+.dialog__content,
+.dialog__foot {
+  padding-inline: 28px;
 }
 
 .dialog__head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 10px;
   margin-bottom: 14px;
+}
+
+/*
+ * The part that scrolls. The four backgrounds are scroll shadows: the two
+ * `local` covers travel with the text and hide the two `scroll` shadows when
+ * there is nothing more to see in that direction, so a shadow appears at an
+ * edge exactly when there is more text beyond it. Without a cue, a paragraph
+ * that ends at the fold reads as the end of the dialog.
+ */
+.dialog__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background:
+    linear-gradient(var(--card) 30%, transparent) top / 100% 28px no-repeat local,
+    linear-gradient(transparent, var(--card) 70%) bottom / 100% 28px no-repeat local,
+    radial-gradient(farthest-side at 50% 0, var(--drop), transparent) top / 100% 10px no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, var(--drop), transparent) bottom / 100% 10px no-repeat scroll;
+}
+
+.dialog__content:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .dialog__dot {
@@ -1471,6 +1525,7 @@ a:focus-visible {
 }
 
 .dialog__foot {
+  flex: none;
   display: flex;
   justify-content: flex-end;
   margin-top: 20px;
