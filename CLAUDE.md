@@ -184,7 +184,9 @@
 - クライアントの localStorage キーは4つ。`drink-status-theme`（`useTheme.ts:11`、`index.html:39` のインラインも同じキーを読む）、`drink-status-feedback-prompted`（`lib/feedbackPrompt.ts:13`）、`drink-status-a2hs-dismissed`（`lib/a2hs.ts:9`）、`drink-status-celebrated`（`lib/milestones.ts`、値は `<userId>:<件数>`）。「バナーが出ない」「ご意見ダイアログが開かない」「お礼が出ない／何度も出る」の第一容疑者。
 - **`worker/*.test.ts` は `tsconfig.worker.json` で型検査される**ので Node の型が無い。`node:sqlite` は `process.getBuiltinModule` をキャストして取り、`node:fs` に渡すパスは `URL` ではなく `fileURLToPath(...)` の文字列にする（workers-types の `URL` は Node の `URL` と別物で代入できない）。`scripts/**` はどちらの tsconfig の include にも入っておらず型検査されないので、同じ書き方が通っても参考にならない。
 - **お礼のトーストは `contributors.mine.postings`（サーバーの数）で判定する。** 変更系の応答にしか載らないので、投稿を経由しない限り最新化されない。`openUndoWindow` は `useCallback([])` なので、読む値は全て ref（`contributorsRef` / `meRef`）。`thanksTimer` の消去条件は `thanks || celebrate` の両方（片方だけにすると祝いのトーストが消えない）。
-- **ダイアログは3部構成を守る。** `.dialog` は画面の高さ（`100dvh - 40px`）で頭打ちの縦 flex で、`.dialog__head` と `.dialog__foot` は固定、**スクロールするのは `.dialog__content` だけ**。本文やフォームを `.dialog__content` の外に置くとまた伸び、ボタン行が画面外に押し出される（2026-09-28 にご意見箱で「閉じるボタンが押せない」と報告された不具合。`.backdrop` は fixed でスクロールしないので、はみ出した分はただ切れる）。操作要素を含まない本文は `tabIndex={0}` を付けてキーボードでスクロールできるようにする（Safari はスクローラーを自動でフォーカス可能にしない）。
+- **ダイアログは3部構成を守る。** `.dialog` は画面の高さ（`max(100dvh - 40px, 15rem)`）で頭打ちの縦 flex で、`.dialog__head` と `.dialog__foot` は固定、**スクロールするのは `src/components/DialogContent.tsx` が描く `.dialog__content` だけ**。本文やフォームをその外に置くとまた伸び、ボタン行が画面外に押し出される（2026-09-28 にご意見箱で「閉じるボタンが押せない」と報告された不具合。当時は `.backdrop` がスクロールせず、はみ出した分はただ切れていた）。例外は常に見せたいもの（ご意見箱の送信エラー）で、`.dialog` の直下・ボタン行の直前に置く。`DialogContent` は実際のスクロール位置から上下の影（`data-more-above/below`）を出し、本文が溢れているときだけタブ停止（`tabIndex=0`＋`role=region`）になる。初期フォーカスは `initialFocus()`（本文が溢れていれば本文、でなければ閉じる）。**フォーカスは mount 時に1回だけ**移す — `onClose` を依存に入れた effect で移すと、30秒ごとの再描画で新しい `onClose` が渡るたびにフォーカスが「閉じる」へ飛び、次の Space でダイアログが閉じる（App 側の `onClose` も `useCallback` で安定化済み）。`.backdrop` は grid 中央寄せではなく flex＋`margin:auto`（はみ出したときに上端が届かなくならない「安全な」中央寄せ）。ダイアログ表示中は FAB を描かない。
+- **日本語の文章を JSX で複数行に折り返すと、改行が半角スペースになる**（「新しさから、 いまの状態」）。ダイアログの本文は `src/lib/jp.ts` の `jp` タグ付きテンプレートで書いている。他のコンポーネントの本文にも同じ空白が残っている（未対応）。
+- **幅370px未満の端末ではページ全体が横にはみ出していた**（`.overview` の `minmax(340px, 1fr)` と `.header__brand`）。スマホではこれでレイアウトビューポート自体が広がり、`position: fixed` の層がすべて画面より大きくなる（ダイアログが右にずれてボタンが画面外に出た）。固定幅のグリッド列は `minmax(min(Npx, 100%), 1fr)` で書く。
 - **`public/sw.js` は push を受けたら必ず1件通知を表示する**（ペイロードが壊れていても既定文で）。表示しないと iOS がプッシュ許可を停止する。
 - **通知バッジは 32px ファビコンの流用のまま**（`public/sw.js:31`）。Android はバッジをアルファだけの単色シルエットで描くので、2026-09-18 に角を透過にした結果「角丸の塊」になる（以前は「四角い塊」）。直すにはマーク形状だけの専用バッジ画像と `sw.js` の変更が要る。favicon-32 の透過は**不具合ではない**ので戻さないこと（暗いタブで角が白く浮くのを直したもの）。
 - 通知の **tag が衝突すると無言で置き換わる**（バナーも音も出ない）。有効化確認は `drink-status-hello`、投稿は `drink-status-reports`、お知らせは `drink-status-announce`。過去に同 tag で「有効化したのに何も来ない」事故が起きた（6e40bae）。
@@ -219,7 +221,7 @@
 - **SHA をここに書かない**。すぐ腐るので現在地は毎回コマンドで取る: `git fetch origin main && git log --oneline -5 origin/main && git rev-list --left-right --count origin/main...HEAD`。デプロイ履歴は Actions の Deploy ワークフローを見る。
 - **マシン集計の一連の修正は 2026-09-07 に本番反映済み**（Deploy 2回、いずれも全ステップ success）。内訳は4コミット: `bff903b` 未報告のマシンを正常扱いしない / `39b64ac` 壊れたマシンはラッチする / `5abb7e4` 良い知らせだけがラッチを解除する / `7c85126` ラッチの根拠行を共通200件枠の外に出す（+ 最終観測の逆行と確からしさピルの対象ずれ）。D1 のマイグレーション追加は無くスキーマは不変。
 - **どのデプロイも実機での目視確認はしていない**。本番URLが不明なため（「文脈が失われた範囲」参照）、根拠は CI と、`worker/store.ts` の SQL についてはローカル D1 での実行結果のみ。
-- テストは **19ファイル248件が全通過**（aggregate 78 / contributors 29 / labels 22 / drinkReport 15 / stats 12 / hours 11 / rhythm 10 / milestones 9 / push 9 / drinks 6 / notify 6 / machineLayout 6 / shipped 6 / store 6 / feedback 5 / loadStatus 5 / postOutcome 5 / a2hs 5 / postings 3）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
+- テストは **20ファイル253件が全通過**（aggregate 78 / contributors 29 / labels 22 / drinkReport 15 / stats 12 / hours 11 / rhythm 10 / milestones 9 / push 9 / drinks 6 / notify 6 / machineLayout 6 / shipped 6 / store 6 / feedback 5 / loadStatus 5 / postOutcome 5 / a2hs 5 / jp 5 / postings 3）。`npm run typecheck` もエラーなし。作業用の一時テストを `src/` `shared/` `worker/` 配下に置くと `vitest.config.ts:6` の include に拾われて件数が増える。
 - **本番の利用実態（Stats run #1、2026-09-11 16:48 JST 時点）**: 何らかの痕跡を残した端末 69、投稿かご意見で登録された端末 35（現存する投稿を持つのは 34）、投稿 515 件（目撃 164 / 行列 155 / ドリンク作れた 126 / 作れなかった 54 / マシン 16）、ご意見 16 件（13 端末）、通知購読 6 端末（`MAX_PUSH_PER_POST`=30 には遠い）。活動は平日のみ。8/27（木）に 18 端末が初出し（週 8/24 で 39 端末が初出・50 端末が活動）、以後は週 21〜34 端末が活動。**9/9 の `report_view` の意味変更以降は active ≒ posters**（開いただけの端末は見えない）。次回以降の比較はこの行ではなく Stats を再実行して取る。
 - 直近の作業の流れは、9/3 Blender レンダー化 → 9/4 目撃導線の作り直し・CI/デプロイの足回り整備 → 9/7 集計ロジックのバグ修正3連。UI の作り込みからロジックの正しさへ軸足が移っている。
 - コミット trailer から、**失われたセッションは `https://claude.ai/code/session_01Pq73qark1HNzZuwCmf9PXq`**（72コミットが持つ）。現行セッションは `session_01Au31ns5hDxA7y21maRPVci`（直近3件）。`git log --format='%h %(trailers:key=Claude-Session,valueonly)'` でどのコミットがどちらの産物か機械的に判別できる。
@@ -241,7 +243,7 @@
 - `tallyDrinkReports` は30秒ポーリングごとに reports 全件を走る（`subject IN (8種)` の GROUP BY）。contributors を別エンドポイントに出した理由と同じコストが、人気度には残ったまま。件数が増えたらこちらも切り出す。
 - README の「UI/UX 監査対応（2026-08）」節と「つくり」ディレクトリツリーが実装に追随していない。
 - 「ご意見から改善した機能」リストが `FeedbackBox.tsx` のハードコード配列で、1件足すたびにコード変更とデプロイが要る。
-- 3つのダイアログにフォーカストラップとフォーカス復帰が無い。
+- 3つのダイアログにフォーカストラップとフォーカス復帰が無い。ダイアログ表示中も背後のページはホイールで動き（背景・見出し・ボタン行の上で回したとき）、本文内で始めた文字選択のドラッグを背景の上で離すとダイアログが閉じる（2026-09-28 の検証で確認、到達性とは無関係なので見送り）。
 - `worker/push.ts:60` のコメントが「Tokens are cached per origin」と書いているがキャッシュは存在せず、購読1件ごとに署名している。
 - 削除したデザインバンドル（チャットログとアップロード画像）が public リポジトリの過去コミットに残っている。履歴の書き換えは未実施。
 - rhythm は平日（月〜金）のみ集計するが `loungeHours` は毎日9-17時。この非対称が意図的か未整理かはリポジトリからは判断できない。

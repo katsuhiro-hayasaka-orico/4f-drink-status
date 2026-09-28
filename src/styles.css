@@ -250,8 +250,10 @@ a:focus-visible {
 
 .header__brand {
   display: flex;
+  flex-wrap: wrap; /* the other half of the narrow-phone overflow above */
   align-items: center;
   gap: 11px;
+  min-width: 0;
 }
 
 .header__dot {
@@ -319,7 +321,11 @@ a:focus-visible {
 
 .overview {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  /* min(…, 100%): below ~370px a hard 340px column was wider than the page,
+     and on a phone that widens the layout viewport itself — every fixed
+     layer then sizes to the wider box, which put a dialog's right edge and
+     its buttons past the edge of the screen. */
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
   gap: 24px;
   align-items: stretch;
   margin-bottom: 34px;
@@ -1425,14 +1431,14 @@ a:focus-visible {
   position: fixed;
   inset: 0;
   z-index: 50;
-  display: grid;
-  place-items: center;
+  /* Flex plus margin:auto on .dialog, not grid + place-items:center: auto
+     margins centre "safely". If a dialog ever outgrows the window (a phone at
+     200% zoom), grid centring pushes its top into negative overflow that no
+     scrollbar can reach — the title and first lines gone for good — while
+     auto margins collapse to 0 and let the backdrop scroll it from the top. */
+  display: flex;
   padding: 20px;
   background: var(--scrim);
-  /* Last resort only. .dialog below never outgrows the window, so this
-     scrolls just when even its fixed head and buttons cannot fit (a
-     landscape phone at 200% zoom) — the case where clipping would put the
-     buttons out of reach again. */
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -1447,13 +1453,17 @@ a:focus-visible {
  *
  * dvh follows mobile browsers' collapsing toolbars; the vh line is the
  * fallback for browsers that do not know it. 40px is the backdrop's padding.
+ * The 15rem floor keeps a few lines of text between head and buttons in a
+ * very short window, where the cap alone would squeeze the text to nothing;
+ * below it the backdrop scrolls instead (see above).
  */
 .dialog {
   display: flex;
   flex-direction: column;
   width: min(560px, 100%);
-  max-height: calc(100vh - 40px);
-  max-height: calc(100dvh - 40px);
+  max-height: max(calc(100vh - 40px), 15rem);
+  max-height: max(calc(100dvh - 40px), 15rem);
+  margin: auto;
   padding: 28px 0;
   background: var(--card);
   border-radius: 22px;
@@ -1476,28 +1486,68 @@ a:focus-visible {
   margin-bottom: 14px;
 }
 
-/*
- * The part that scrolls. The four backgrounds are scroll shadows: the two
- * `local` covers travel with the text and hide the two `scroll` shadows when
- * there is nothing more to see in that direction, so a shadow appears at an
- * edge exactly when there is more text beyond it. Without a cue, a paragraph
- * that ends at the fold reads as the end of the dialog.
- */
+/* The part that scrolls — rendered by src/components/DialogContent.tsx. */
 .dialog__content {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background:
-    linear-gradient(var(--card) 30%, transparent) top / 100% 28px no-repeat local,
-    linear-gradient(transparent, var(--card) 70%) bottom / 100% 28px no-repeat local,
-    radial-gradient(farthest-side at 50% 0, var(--drop), transparent) top / 100% 10px no-repeat scroll,
-    radial-gradient(farthest-side at 50% 100%, var(--drop), transparent) bottom / 100% 10px no-repeat scroll;
+  /* When the browser scrolls a focused control into view, leave room for its
+     focus ring and for the line after it (the textarea's character count). */
+  scroll-padding-block: 12px 28px;
 }
 
+/* Room for focus rings at the scroller's top and bottom edges, which it would
+   otherwise clip. Padding lives here rather than on the scroller so the
+   sticky shadows below pin to the scroller's true edges. */
+.dialog__inner {
+  padding-block: 6px;
+}
+
+/*
+ * "More text this way" shadows. Sticky overlays rather than backgrounds, so
+ * they paint above opaque children — the textarea, a mood button, the white
+ * QR card — instead of vanishing beneath them. DialogContent sets
+ * data-more-above / data-more-below from the real scroll position, so a
+ * shadow shows exactly while there is something past that edge. The negative
+ * margins make them take no room; the inline ones run them edge to edge.
+ */
+.dialog__content::before,
+.dialog__content::after {
+  content: '';
+  position: sticky;
+  z-index: 1;
+  display: block;
+  height: 14px;
+  margin-inline: -28px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.dialog__content::before {
+  top: 0;
+  margin-bottom: -14px;
+  background: linear-gradient(var(--drop), transparent);
+}
+
+.dialog__content::after {
+  bottom: 0;
+  margin-top: -14px;
+  background: linear-gradient(transparent, var(--drop));
+}
+
+.dialog__content[data-more-above]::before,
+.dialog__content[data-more-below]::after {
+  opacity: 1;
+}
+
+/* Inset and rounded so it reads as "this text is focused", not as a box
+   drawn flush against the card's edges. */
 .dialog__content:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline-offset: -4px;
+  border-radius: 14px;
 }
 
 .dialog__dot {
@@ -1527,8 +1577,16 @@ a:focus-visible {
 .dialog__foot {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 8px;
   margin-top: 20px;
+}
+
+/* A button's label never breaks mid-word (「閉じ／る」); when two do not fit
+   side by side, the second moves to its own line instead. */
+.dialog__foot button {
+  white-space: nowrap;
 }
 
 .dialog__close {
@@ -1543,6 +1601,22 @@ a:focus-visible {
 
 .dialog__close:hover {
   background: var(--accent);
+}
+
+/* A landscape phone gives the dialog ~350px in all; the 28px frame and the
+   gaps around the head and buttons were eating half of it. */
+@media (max-height: 460px) {
+  .dialog {
+    padding-block: 16px;
+  }
+
+  .dialog__head {
+    margin-bottom: 8px;
+  }
+
+  .dialog__foot {
+    margin-top: 10px;
+  }
 }
 
 /* ------------------------------------------------- いつ切れやすい？ card -- */
@@ -1854,15 +1928,42 @@ a:focus-visible {
   margin: 4px auto 14px;
   padding: 10px;
   width: fit-content;
+  /* At 320px the 240px card was wider than the 224px content box and the
+     scroller scrolled sideways. */
+  max-width: 100%;
   background: #ffffff;
   border-radius: 16px;
   box-shadow: var(--card-shadow);
 }
 
+/*
+ * 220px when there is room, otherwise whatever lets the whole card sit inside
+ * .dialog__content at once — a QR cut by the scroller's edge does not scan,
+ * and on a landscape phone the fixed 220px never fit. The subtraction is the
+ * window's share taken by everything else: the backdrop's 40px, the head and
+ * button row with the dialog's padding (~162px), and the card's own frame and
+ * margins (30px). 112px is the floor tested to still decode.
+ */
 .qr__image {
   display: block;
   width: 220px;
-  height: 220px;
+  width: clamp(112px, calc(100vh - 232px), 220px);
+  width: clamp(112px, calc(100dvh - 232px), 220px);
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+/* The compact dialog frame on short windows (see .dialog) leaves more. */
+@media (max-height: 460px) {
+  .qr__image {
+    width: clamp(112px, calc(100vh - 192px), 220px);
+    width: clamp(112px, calc(100dvh - 192px), 220px);
+  }
+}
+
+.qr__lead {
+  text-align: center;
 }
 
 .qr__url {
@@ -1961,7 +2062,9 @@ a:focus-visible {
 }
 
 .feedback__error {
+  flex: none;
   margin: 10px 0 0;
+  padding-inline: 28px; /* a direct child of .dialog, like its head and foot */
   font-size: 13px;
   font-weight: 700;
   color: var(--unavailable);

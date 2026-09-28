@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { CONFIG } from '../../shared/config.js';
 import { MOOD_KEYS, MOOD_META, type MoodKey } from '../../shared/domain.js';
 import { ApiError } from '../lib/api.js';
+import { jp } from '../lib/jp.js';
+import { DialogContent } from './DialogContent.js';
 
 export interface FeedbackDialogProps {
   /** `auto` = opened itself after a post; `manual` = the user asked for it. */
@@ -30,8 +32,14 @@ export function FeedbackDialog({ variant, onSubmit, onClose }: FeedbackDialogPro
   const closeRef = useRef<HTMLButtonElement>(null);
   const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Once, on open — see AboutDialog for why this is not keyed on onClose.
+  // (App already passes a stable closeFeedback here; this makes the dialog
+  // correct on its own rather than by its caller's care.)
   useEffect(() => {
     closeRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -81,21 +89,21 @@ export function FeedbackDialog({ variant, onSubmit, onClose }: FeedbackDialogPro
         </div>
 
         {sent ? (
-          <div className="dialog__content">
+          <DialogContent focusable={false}>
             <p className="dialog__body feedback__done">
               ご意見ありがとうございました！今後の改善に役立てます。
             </p>
-          </div>
+          </DialogContent>
         ) : (
           <>
             {/* Scrolls when the window is short (a landscape phone, or the
-                keyboard up); また今度 and 送信する stay below it. No tabIndex:
-                the moods and the textarea are focusable, and focusing one
+                keyboard up); また今度 and 送信する stay below it. Not a tab
+                stop itself: the moods and the textarea are, and focusing one
                 scrolls it into view. */}
-            <div className="dialog__content">
+            <DialogContent focusable={false}>
               <p className="dialog__body">
-                このサイトの使い心地はいかがですか？困ったことや改善してほしい点があれば、
-                ぜひ聞かせてください。満足度だけの送信でも助かります。
+                {jp`このサイトの使い心地はいかがですか？困ったことや改善してほしい点があれば、
+                  ぜひ聞かせてください。満足度だけの送信でも助かります。`}
                 <strong className="feedback__privacy">
                   お寄せいただいた内容はサイト上には公開されず、管理者だけが確認します。
                 </strong>
@@ -130,13 +138,16 @@ export function FeedbackDialog({ variant, onSubmit, onClose }: FeedbackDialogPro
               <div className="feedback__counter" aria-hidden="true">
                 あと{remaining}文字
               </div>
+            </DialogContent>
 
-              {error && (
-                <p role="alert" className="feedback__error">
-                  {error}
-                </p>
-              )}
-            </div>
+            {/* Outside the scrolling part, directly above the buttons: inside
+                it, a failed send on a short screen rendered below the fold and
+                looked like nothing had happened at all. */}
+            {error && (
+              <p role="alert" className="feedback__error">
+                {error}
+              </p>
+            )}
 
             <div className="dialog__foot">
               <button type="button" ref={closeRef} className="feedback__skip" onClick={onClose}>

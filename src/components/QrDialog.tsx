@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { jp } from '../lib/jp.js';
 import { qrDataUrl } from '../lib/qr.js';
+import { DialogContent, initialFocus } from './DialogContent.js';
 
 /**
  * 「このサイト、QRで読んで」— the site's own URL as a QR code, for showing a
@@ -14,12 +16,17 @@ export interface QrDialogProps {
 
 export function QrDialog({ onClose }: QrDialogProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const url = window.location.origin;
 
+  // Once, on open — see AboutDialog for why this is not keyed on onClose.
   useEffect(() => {
-    closeRef.current?.focus();
+    initialFocus(contentRef.current, closeRef.current)?.focus();
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -69,14 +76,11 @@ export function QrDialog({ onClose }: QrDialogProps) {
             QRコードで紹介
           </h2>
         </div>
-        {/* Scrolls on a landscape phone, where the 220px code alone is most
-            of the screen; the buttons below stay put. Focusable for the same
-            reason as the About dialog's: nothing inside to tab into. */}
-        <div className="dialog__content" tabIndex={0}>
-          <p className="dialog__body">
-            スマホのカメラで読み取ると、このサイトが開きます。ラウンジで隣の人に
-            そのまま見せてください。
-          </p>
+        {/* The code comes first. On a landscape phone the scrolling area is
+            barely taller than the code itself, and with the sentence above it
+            the code could never be on screen whole — a clipped QR does not
+            scan. .qr__image also sizes itself to the height available. */}
+        <DialogContent ref={contentRef} labelledBy="qr-title">
           {/* The QR sits on a fixed white card in both themes — scanners want
               contrast, not brand palette. */}
           <div className="qr__card">
@@ -86,10 +90,14 @@ export function QrDialog({ onClose }: QrDialogProps) {
               <p className="dialog__body">QRコードを生成できませんでした</p>
             )}
           </div>
+          <p className="dialog__body qr__lead">
+            {jp`スマホのカメラで読み取ると、このサイトが開きます。ラウンジで隣の人に
+              そのまま見せてください。`}
+          </p>
           <p className="qr__url" aria-label="このサイトのURL">
             {url}
           </p>
-        </div>
+        </DialogContent>
         <div className="dialog__foot">
           <button type="button" className="qr__copy" onClick={copy} aria-live="polite">
             {copied ? 'コピーしました ✓' : 'URLをコピー'}
