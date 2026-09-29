@@ -78,6 +78,10 @@
 
   --toast-shadow: 0 14px 34px rgba(43, 31, 24, 0.35);
   --dialog-shadow: 0 20px 60px rgba(43, 31, 24, 0.35);
+  /* The dialog's "more text this way" cue. Translucent on purpose: it darkens
+     whatever sits under it — text, the textarea, the white QR card — instead
+     of laying an opaque band of surface colour over it. */
+  --scroll-shade: rgba(43, 31, 24, 0.16);
 
   --shell: 1200px;
   --card-shadow: 0 4px 0 var(--drop);
@@ -152,6 +156,8 @@
 
   --toast-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
   --dialog-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+
+  --scroll-shade: rgba(0, 0, 0, 0.4);
 }
 
 * {
@@ -252,6 +258,27 @@ a:focus-visible {
   display: flex;
   align-items: center;
   gap: 11px;
+  min-width: 0;
+}
+
+/* The title, then the place and the デモ badge as one unit that wraps under
+   the title (indented to it) when the row runs out — the other half of the
+   narrow-phone overflow fix above. Letting each piece wrap on its own left
+   the tiny badge alone on a line at 336–384px, 375px iPhones included. */
+.header__names {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 11px;
+  row-gap: 2px;
+  min-width: 0;
+}
+
+.header__sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  white-space: nowrap;
 }
 
 .header__dot {
@@ -319,7 +346,11 @@ a:focus-visible {
 
 .overview {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  /* min(…, 100%): below ~370px a hard 340px column was wider than the page,
+     and on a phone that widens the layout viewport itself — every fixed
+     layer then sizes to the wider box, which put a dialog's right edge and
+     its buttons past the edge of the screen. */
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
   gap: 24px;
   align-items: stretch;
   margin-bottom: 34px;
@@ -362,6 +393,19 @@ a:focus-visible {
   font-size: clamp(34px, 4vw, 46px);
   font-weight: 900;
   line-height: 1.12;
+  /* Break at the <wbr> 文節 boundaries SummaryPanel inserts (src/lib/
+     phrases.ts), not between any two characters: at 34px a phone column
+     left one kana alone on the last line (まだ情報がありませ／ん). The
+     anywhere fallback keeps an unlisted headline from overflowing. */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* The gap before the pill lives on the label's end, not the pill's start: a
+   trailing margin vanishes at a line break, so a pill that wraps under the
+   headline starts flush with it instead of 14px in. */
+.summary__label {
+  margin-right: 14px;
 }
 
 .summary__reason {
@@ -372,7 +416,6 @@ a:focus-visible {
 
 /* The pill rides inside the h1 but must not inherit its 40px type. */
 .summary__confidence {
-  margin-left: 14px;
   font-size: 13px;
   line-height: 1;
   vertical-align: middle;
@@ -505,13 +548,15 @@ a:focus-visible {
 
 .grid-240 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  /* min(…, 100%) for the same reason as .overview: a hard minimum wider than
+     the page overflows it sideways on a narrow phone. */
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 16px;
 }
 
 .grid-250 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -1280,6 +1325,15 @@ a:focus-visible {
 
 .reports__scroll {
   overflow-x: auto;
+  /* A scroller clips only what it is the containing block for. Without this,
+     each 称号 badge's position:absolute screen-reader text (.visually-hidden)
+     was positioned against an ancestor outside the scroller, escaped its clip
+     at the table's 560px width, and made the whole page 551px wide on a phone
+     — which widens the layout viewport itself, so every fixed layer followed:
+     dialogs slid right and 閉じる went off the edge of the screen. It began
+     with the badges (2026-09-18) and hit any board whose last 20 postings
+     included a 常連. */
+  position: relative;
 }
 
 .reports__table {
@@ -1425,25 +1479,140 @@ a:focus-visible {
   position: fixed;
   inset: 0;
   z-index: 50;
-  display: grid;
-  place-items: center;
+  /* Flex plus margin:auto on .dialog, not grid + place-items:center: auto
+     margins centre "safely". If a dialog ever outgrows the window (a phone at
+     200% zoom), grid centring pushes its top into negative overflow that no
+     scrollbar can reach — the title and first lines gone for good — while
+     auto margins collapse to 0 and let the backdrop scroll it from the top. */
+  display: flex;
   padding: 20px;
   background: var(--scrim);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
+/*
+ * A dialog is a column the height of its content, capped at the window: the
+ * head and the buttons stay put and only .dialog__content scrolls between
+ * them. Before this the dialog grew with its text and the fixed backdrop
+ * simply clipped whatever passed the bottom of the window — which was the
+ * button row. このアプリについて lost its 閉じる on anything shorter than
+ * ~900px, and ご意見箱 and the QR dialog lost theirs on landscape phones.
+ *
+ * dvh follows mobile browsers' collapsing toolbars; the vh line is the
+ * fallback for browsers that do not know it. 40px is the backdrop's padding.
+ * Windows too short for this arrangement (300px and under) switch to a
+ * single scroller — see the @media block after .dialog__close.
+ */
 .dialog {
+  display: flex;
+  flex-direction: column;
   width: min(560px, 100%);
-  padding: 28px;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  margin: auto;
+  padding: 28px 0;
   background: var(--card);
   border-radius: 22px;
   box-shadow: var(--dialog-shadow);
+  /* Only reached if the head and buttons alone are taller than the cap. */
+  overflow-y: auto;
+}
+
+.dialog__head,
+.dialog__content,
+.dialog__foot {
+  padding-inline: 28px;
 }
 
 .dialog__head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 10px;
   margin-bottom: 14px;
+}
+
+/* The part that scrolls — rendered by src/components/DialogContent.tsx. */
+.dialog__content {
+  /* So anything absolutely positioned inside is clipped by this scroller
+     rather than escaping it (see .reports__scroll). */
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* When the browser scrolls a focused control into view, leave room for its
+     focus ring and for the line after it (the textarea's character count). */
+  scroll-padding-block: 12px 28px;
+  /* A classic (non-overlay) scrollbar in the theme's colours rather than the
+     browser's grey strip. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+/* Room for focus rings at the scroller's top and bottom edges, which it would
+   otherwise clip. Padding lives here rather than on the scroller so the
+   sticky shadows below pin to the scroller's true edges. */
+.dialog__inner {
+  padding-block: 6px;
+}
+
+/*
+ * "More text this way" shadows. Sticky overlays rather than backgrounds, so
+ * they paint above opaque children — the textarea, a mood button, the white
+ * QR card — instead of vanishing beneath them. DialogContent sets
+ * data-more-above / data-more-below from the real scroll position, so a
+ * shadow shows exactly while there is something past that edge. The negative
+ * margins make them take no room; the inline ones run them edge to edge.
+ */
+.dialog__content::before,
+.dialog__content::after {
+  content: '';
+  position: sticky;
+  z-index: 1;
+  display: block;
+  height: 14px;
+  margin-inline: -28px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.dialog__content::before {
+  top: 0;
+  margin-bottom: -14px;
+  background: linear-gradient(var(--scroll-shade), transparent);
+}
+
+.dialog__content::after {
+  bottom: 0;
+  margin-top: -14px;
+  background: linear-gradient(transparent, var(--scroll-shade));
+}
+
+.dialog__content[data-more-above]::before,
+.dialog__content[data-more-below]::after {
+  opacity: 1;
+}
+
+/* Inset and rounded so it reads as "this text is focused", not as a box
+   drawn flush against the card's edges. The shadows step inside the ring
+   while it shows; drawn over it, they washed its top and bottom edges out. */
+.dialog__content:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
+  border-radius: 14px;
+}
+
+.dialog__content:focus-visible::before {
+  top: 4px;
+  margin-inline: -24px;
+}
+
+.dialog__content:focus-visible::after {
+  bottom: 4px;
+  margin-inline: -24px;
 }
 
 .dialog__dot {
@@ -1471,9 +1640,18 @@ a:focus-visible {
 }
 
 .dialog__foot {
+  flex: none;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 8px;
   margin-top: 20px;
+}
+
+/* A button's label never breaks mid-word (「閉じ／る」); when two do not fit
+   side by side, the second moves to its own line instead. */
+.dialog__foot button {
+  white-space: nowrap;
 }
 
 .dialog__close {
@@ -1488,6 +1666,44 @@ a:focus-visible {
 
 .dialog__close:hover {
   background: var(--accent);
+}
+
+/* A landscape phone gives the dialog ~350px in all; the 28px frame and the
+   gaps around the head and buttons were eating half of it. */
+@media (max-height: 460px) {
+  .dialog {
+    padding-block: 16px;
+  }
+
+  .dialog__head {
+    margin-bottom: 8px;
+  }
+
+  .dialog__foot {
+    margin-top: 10px;
+  }
+}
+
+/*
+ * 300px and under — a landscape phone at high zoom — the capped layout has
+ * nothing left to give the text: head and buttons take most of the window,
+ * and a second scroller inside the first meant a swipe on the text ran to its
+ * end without ever reaching the buttons, while the QR could not fit at any
+ * scroll position. So below this the dialog stops scrolling inside itself and
+ * grows with its content, and the backdrop scrolls the whole thing, top to
+ * bottom: one scroller, which a finger anywhere moves. The backdrop's safe
+ * centring (see .backdrop) keeps the title on screen when it opens.
+ */
+@media (max-height: 300px) {
+  .dialog {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .dialog__content {
+    flex: none;
+    overflow: visible;
+  }
 }
 
 /* ------------------------------------------------- いつ切れやすい？ card -- */
@@ -1799,15 +2015,49 @@ a:focus-visible {
   margin: 4px auto 14px;
   padding: 10px;
   width: fit-content;
+  /* At 320px the 240px card was wider than the 224px content box and the
+     scroller scrolled sideways. */
+  max-width: 100%;
   background: #ffffff;
   border-radius: 16px;
   box-shadow: var(--card-shadow);
 }
 
+/*
+ * 220px when there is room, otherwise whatever lets the whole card sit inside
+ * .dialog__content at once — a QR cut by the scroller's edge does not scan,
+ * and on a landscape phone the fixed 220px never fit. The subtraction is the
+ * window's share taken by everything else: the backdrop's 40px, the head and
+ * button row with the dialog's padding (~162px), and the card's own frame and
+ * margins (30px). 112px is the floor tested to still decode.
+ */
 .qr__image {
   display: block;
   width: 220px;
-  height: 220px;
+  width: clamp(112px, calc(100vh - 232px), 220px);
+  width: clamp(112px, calc(100dvh - 232px), 220px);
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+/* The compact dialog frame on short windows (see .dialog) leaves more. */
+@media (max-height: 460px) {
+  .qr__image {
+    width: clamp(112px, calc(100vh - 192px), 220px);
+    width: clamp(112px, calc(100dvh - 192px), 220px);
+  }
+}
+
+.qr__lead {
+  text-align: center;
+  /* Break only at the <wbr> phrase boundaries the markup gives it (anywhere,
+     as a last resort, if a phrase alone is wider than the line). Centred
+     Japanese left to break per character read as 「読み取ると、このサイトが開
+     ／きます」. */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .qr__url {
@@ -1836,6 +2086,21 @@ a:focus-visible {
   color: var(--selected-fg);
 }
 
+/* Both labels share one grid cell and the button is always as wide as the
+   longer one, so 「コピー済み ✓」 cannot re-wrap the button row (and shrink
+   the space the QR code was sized for) for the two seconds it shows. */
+.qr__copy-labels {
+  display: inline-grid;
+}
+
+.qr__copy-labels > span {
+  grid-area: 1 / 1;
+}
+
+.qr__copy-labels > .is-hidden {
+  visibility: hidden;
+}
+
 /* ---------------------------------------------------- feedback dialog ---- */
 
 .feedback__privacy {
@@ -1846,6 +2111,7 @@ a:focus-visible {
 
 .feedback__moods {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin: 4px 0 14px;
 }
@@ -1906,7 +2172,9 @@ a:focus-visible {
 }
 
 .feedback__error {
+  flex: none;
   margin: 10px 0 0;
+  padding-inline: 28px; /* a direct child of .dialog, like its head and foot */
   font-size: 13px;
   font-weight: 700;
   color: var(--unavailable);
@@ -1961,6 +2229,13 @@ a:focus-visible {
 .dialog__close:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* 送信中 — dimmed like :disabled, but still focusable, so focus stays on the
+   button through the request and Enter can retry after a failure. */
+.dialog__close[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: progress;
 }
 
 /* -------------------------------------------------------------- voices --- */
@@ -2224,11 +2499,31 @@ a:focus-visible {
 
 /* Below this the fixed name column starves the bar: wrap the bar onto its
    own full-width line instead (threshold set above phone width because the
-   232px column + counts leave little room even on small tablets). */
+   232px column + counts leave little room even on small tablets).
+
+   minmax(0, 1fr) and the wrapping name are what stop the page itself from
+   overflowing on a 320-360px phone. A bare 1fr cannot shrink below its
+   content, and the name was nowrap: 「HOT アイスカフェモカ 人気No.1」 held
+   the column at ~200px and pushed the card, and with it the whole page, past
+   the screen — which on a phone widens the layout viewport and throws every
+   fixed layer, dialogs included, off-centre. It only showed once the board
+   had drink reports; an empty tally renders no names. */
 @media (max-width: 720px) {
   .popularity__row {
-    grid-template-columns: 26px 1fr 72px;
+    grid-template-columns: 26px minmax(0, 1fr) 72px;
     row-gap: 4px;
+  }
+
+  .popularity__name {
+    white-space: normal;
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  /* The count stays beside the name rather than dropping under the rank. */
+  .popularity__count {
+    grid-row: 1;
+    grid-column: 3;
   }
 
   .popularity__bar {
@@ -2268,16 +2563,7 @@ a:focus-visible {
 
 @media (max-width: 720px) {
   .contributors .popularity__row {
-    grid-template-columns: 26px 1fr 84px;
-  }
-
-  /* 利用者（あなた）＋ 称号 ＋ 30日間No.1 is wider than a phone, and the
-     inherited nowrap pushed the whole row past the screen edge instead of
-     breaking. Only this card needs it: the drink names above are short. */
-  .contributors .popularity__name {
-    white-space: normal;
-    flex-wrap: wrap;
-    row-gap: 4px;
+    grid-template-columns: 26px minmax(0, 1fr) 84px;
   }
 }
 
@@ -2287,6 +2573,9 @@ a:focus-visible {
  * than inventing new ones.
  */
 .tier-badge {
+  /* Keeps its .visually-hidden text inside its own box wherever it is used
+     (see .reports__scroll for what happened when it was not). */
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 3px;

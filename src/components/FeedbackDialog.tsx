@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FocusEvent } from 'react';
 import { CONFIG } from '../../shared/config.js';
 import { MOOD_KEYS, MOOD_META, type MoodKey } from '../../shared/domain.js';
 import { ApiError } from '../lib/api.js';
+import { jp } from '../lib/jp.js';
+import { DialogContent } from './DialogContent.js';
 
 export interface FeedbackDialogProps {
   /** `auto` = opened itself after a post; `manual` = the user asked for it. */
@@ -30,8 +32,16 @@ export function FeedbackDialog({ variant, onSubmit, onClose }: FeedbackDialogPro
   const closeRef = useRef<HTMLButtonElement>(null);
   const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Once, on open — see AboutDialog for why this is not keyed on onClose.
+  // (App already passes a stable closeFeedback here; this makes the dialog
+  // correct on its own rather than by its caller's care.)
+  // preventScroll: in a window so short that the backdrop scrolls, focusing
+  // また今度 (at the bottom) opened the dialog scrolled past its own title.
   useEffect(() => {
-    closeRef.current?.focus();
+    closeRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -48,6 +58,14 @@ export function FeedbackDialog({ variant, onSubmit, onClose }: FeedbackDialogPro
   }, []);
 
   const remaining = CONFIG.feedbackMaxLength - body.length;
+
+  // Chromium scrolls only a focused textarea's caret line into view, which on
+  // a short screen left half the box and the character count below the fold,
+  // and clipped focus rings at the scroller's edge. Bring the whole control
+  // in; the content's scroll-padding leaves room for the ring and the count.
+  const revealOnFocus = (e: FocusEvent<HTMLElement>) => {
+    e.currentTarget.scrollIntoView({ block: 'nearest' });
+  };
 
   const submit = async () => {
     if (!mood || sending || sent) return;
@@ -81,49 +99,62 @@ export function FeedbackDialog({ variant, onSubmit, onClose }: FeedbackDialogPro
         </div>
 
         {sent ? (
-          <p className="dialog__body feedback__done">
-            ご意見ありがとうございました！今後の改善に役立てます。
-          </p>
+          <DialogContent focusable={false}>
+            <p className="dialog__body feedback__done">
+              ご意見ありがとうございました！今後の改善に役立てます。
+            </p>
+          </DialogContent>
         ) : (
           <>
-            <p className="dialog__body">
-              このサイトの使い心地はいかがですか？困ったことや改善してほしい点があれば、
-              ぜひ聞かせてください。満足度だけの送信でも助かります。
-              <strong className="feedback__privacy">
-                お寄せいただいた内容はサイト上には公開されず、管理者だけが確認します。
-              </strong>
-            </p>
+            {/* Scrolls when the window is short (a landscape phone, or the
+                keyboard up); また今度 and 送信する stay below it. Not a tab
+                stop itself: the moods and the textarea are, and focusing one
+                scrolls it into view. */}
+            <DialogContent focusable={false}>
+              <p className="dialog__body">
+                {jp`このサイトの使い心地はいかがですか？困ったことや改善してほしい点があれば、
+                  ぜひ聞かせてください。満足度だけの送信でも助かります。`}
+                <strong className="feedback__privacy">
+                  お寄せいただいた内容はサイト上には公開されず、管理者だけが確認します。
+                </strong>
+              </p>
 
-            <div className="feedback__moods" role="radiogroup" aria-label="満足度">
-              {MOOD_KEYS.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  role="radio"
-                  aria-checked={mood === key}
-                  className={`feedback__mood${mood === key ? ' feedback__mood--on' : ''}`}
-                  onClick={() => setMood(key)}
-                >
-                  <span className="feedback__mood-emoji" aria-hidden="true">
-                    {MOOD_META[key].emoji}
-                  </span>
-                  {MOOD_META[key].label}
-                </button>
-              ))}
-            </div>
+              <div className="feedback__moods" role="radiogroup" aria-label="満足度">
+                {MOOD_KEYS.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="radio"
+                    aria-checked={mood === key}
+                    className={`feedback__mood${mood === key ? ' feedback__mood--on' : ''}`}
+                    onClick={() => setMood(key)}
+                    onFocus={revealOnFocus}
+                  >
+                    <span className="feedback__mood-emoji" aria-hidden="true">
+                      {MOOD_META[key].emoji}
+                    </span>
+                    {MOOD_META[key].label}
+                  </button>
+                ))}
+              </div>
 
-            <textarea
-              className="feedback__textarea"
-              value={body}
-              maxLength={CONFIG.feedbackMaxLength}
-              rows={4}
-              placeholder="改善してほしい点や困ったことがあれば（任意）"
-              onChange={(e) => setBody(e.target.value)}
-            />
-            <div className="feedback__counter" aria-hidden="true">
-              あと{remaining}文字
-            </div>
+              <textarea
+                className="feedback__textarea"
+                value={body}
+                maxLength={CONFIG.feedbackMaxLength}
+                rows={4}
+                placeholder="改善してほしい点や困ったことがあれば（任意）"
+                onChange={(e) => setBody(e.target.value)}
+                onFocus={revealOnFocus}
+              />
+              <div className="feedback__counter" aria-hidden="true">
+                あと{remaining}文字
+              </div>
+            </DialogContent>
 
+            {/* Outside the scrolling part, directly above the buttons: inside
+                it, a failed send on a short screen rendered below the fold and
+                looked like nothing had happened at all. */}
             {error && (
               <p role="alert" className="feedback__error">
                 {error}
@@ -137,7 +168,11 @@ export function FeedbackDialog({ variant, onSubmit, onClose }: FeedbackDialogPro
               <button
                 type="button"
                 className="dialog__close"
-                disabled={!mood || sending}
+                // Not `disabled` while sending: a disabled button drops focus
+                // to <body>, so after a failed send Enter could not retry and
+                // Tab left the dialog. submit() already ignores a second press.
+                disabled={!mood}
+                aria-disabled={sending || undefined}
                 onClick={() => void submit()}
               >
                 {sending ? '送信中…' : '送信する'}

@@ -135,6 +135,13 @@ export function App() {
     markPrompted(Date.now());
     setFeedbackOpen(null);
   }, []);
+  // Stable for the same reason. An inline arrow here was a new function on
+  // every 30-second tick, and the dialogs used to re-run their focus effect
+  // whenever onClose changed — pulling focus off the text a reader was
+  // scrolling. The dialogs no longer do that, but a stable handler is what
+  // they are written to expect.
+  const closeAbout = useCallback(() => setAboutOpen(false), []);
+  const closeQr = useCallback(() => setQrOpen(false), []);
 
   // Report-form visibility hides the floating CTA while the form's section is
   // reachable. `null` = not measured yet — neither.
@@ -467,22 +474,28 @@ export function App() {
         </footer>
       </main>
 
-      {/* Floating fallback CTA: only once we know the form is off-screen. */}
-      {reportInView === false && (
+      {/* Floating fallback CTA: only once we know the form is off-screen, and
+          never under an open dialog — dimmed by the scrim, its corners showed
+          round the bottom of a height-capped dialog like a dark ledge. */}
+      {reportInView === false && !aboutOpen && !qrOpen && feedbackOpen === null && (
         <button type="button" className="report-fab" onClick={() => goToReport()}>
           ＋ 投稿する
         </button>
       )}
 
-      {toast && (
+      {/* Not under an open dialog either, for the FAB's reason: dimmed by the
+          scrim it showed as dark ledges beside the dialog, and a tap on it
+          landed on the backdrop and closed the dialog. The toast itself is
+          kept — it comes back on close if its time has not run out. */}
+      {toast && !aboutOpen && !qrOpen && feedbackOpen === null && (
         <ToastBar
           toast={toast}
           onUndo={() => void undo()}
           onFeedback={() => setFeedbackOpen('manual')}
         />
       )}
-      {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
-      {qrOpen && <QrDialog onClose={() => setQrOpen(false)} />}
+      {aboutOpen && <AboutDialog onClose={closeAbout} />}
+      {qrOpen && <QrDialog onClose={closeQr} />}
       {feedbackOpen && (
         <FeedbackDialog variant={feedbackOpen} onSubmit={feedback.submit} onClose={closeFeedback} />
       )}

@@ -63,9 +63,14 @@ export function Header({
       <div className="shell header__inner">
         <div className="header__brand">
           <div className="header__dot" aria-hidden="true" />
-          <span className="header__title">4Fドリンク速報</span>
-          <span className="header__place">弘済ビル 4Fラウンジ</span>
-          {BADGE && <span className="header__badge">{BADGE}</span>}
+          {/* Place and badge wrap under the title together, never apart. */}
+          <div className="header__names">
+            <span className="header__title">4Fドリンク速報</span>
+            <span className="header__sub">
+              <span className="header__place">弘済ビル 4Fラウンジ</span>
+              {BADGE && <span className="header__badge">{BADGE}</span>}
+            </span>
+          </div>
         </div>
         <div className="header__meta">
           {/* Opening hours sit next to the clock, since both answer 「いま行けるか」. */}
