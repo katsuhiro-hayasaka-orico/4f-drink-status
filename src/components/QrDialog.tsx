@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { jp } from '../lib/jp.js';
+import { splitPhrases } from '../lib/phrases.js';
 import { qrDataUrl } from '../lib/qr.js';
 import { DialogContent, initialFocus } from './DialogContent.js';
+import { Phrased } from './Phrased.js';
+
+/** Where the caption may break (see src/lib/phrases.ts). */
+const LEAD = splitPhrases(
+  'スマホの|カメラで|読み取ると、|このサイトが|開きます。|ラウンジで|隣の人に|そのまま|見せてください。',
+);
 
 /**
  * 「このサイト、QRで読んで」— the site's own URL as a QR code, for showing a
@@ -17,13 +23,21 @@ export interface QrDialogProps {
 export function QrDialog({ onClose }: QrDialogProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  /**
+   * undefined while the code is being drawn, null if it could not be, else
+   * the image. Loading and failure used to share null, so every open flashed
+   * 「QRコードを生成できませんでした」 for a moment — and the dialog measured
+   * its layout for initial focus with that one line where the code would be.
+   */
+  const [dataUrl, setDataUrl] = useState<string | null | undefined>(undefined);
   const [copied, setCopied] = useState(false);
   const url = window.location.origin;
 
   // Once, on open — see AboutDialog for why this is not keyed on onClose.
+  // The code's box is already in place (a same-size placeholder while it is
+  // drawn), so this sees the layout the user will see.
   useEffect(() => {
-    initialFocus(contentRef.current, closeRef.current)?.focus();
+    initialFocus(contentRef.current, closeRef.current)?.focus({ preventScroll: true });
   }, []);
 
   useEffect(() => {
@@ -86,21 +100,27 @@ export function QrDialog({ onClose }: QrDialogProps) {
           <div className="qr__card">
             {dataUrl ? (
               <img className="qr__image" src={dataUrl} alt={`このサイトのQRコード（${url}）`} />
+            ) : dataUrl === undefined ? (
+              <div className="qr__image" aria-hidden="true" />
             ) : (
               <p className="dialog__body">QRコードを生成できませんでした</p>
             )}
           </div>
           <p className="dialog__body qr__lead">
-            {jp`スマホのカメラで読み取ると、このサイトが開きます。ラウンジで隣の人に
-              そのまま見せてください。`}
+            <Phrased parts={LEAD} />
           </p>
           <p className="qr__url" aria-label="このサイトのURL">
             {url}
           </p>
         </DialogContent>
         <div className="dialog__foot">
+          {/* Both labels are always laid out (one hidden), so the button
+              keeps one width and the row cannot re-wrap on copy. */}
           <button type="button" className="qr__copy" onClick={copy} aria-live="polite">
-            {copied ? 'コピーしました ✓' : 'URLをコピー'}
+            <span className="qr__copy-labels">
+              <span className={copied ? 'is-hidden' : undefined}>URLをコピー</span>
+              <span className={copied ? undefined : 'is-hidden'}>コピー済み ✓</span>
+            </span>
           </button>
           <button type="button" ref={closeRef} className="dialog__close" onClick={onClose}>
             閉じる

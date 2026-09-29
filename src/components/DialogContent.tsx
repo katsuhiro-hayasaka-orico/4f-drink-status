@@ -26,6 +26,24 @@ interface Edges {
 }
 
 /**
+ * Whether text is hidden past each edge. The inner wrapper's own padding
+ * (room for focus rings) is allowed for: when only that padding runs past the
+ * edge, every line is still on screen, and a "more below" shadow over a fully
+ * visible last line read as a clipping bug.
+ */
+function edgesOf(scroller: HTMLElement): Edges {
+  const inner = scroller.firstElementChild;
+  const style = inner ? getComputedStyle(inner) : null;
+  const padTop = style ? parseFloat(style.paddingTop) || 0 : 0;
+  const padBottom = style ? parseFloat(style.paddingBottom) || 0 : 0;
+  const max = scroller.scrollHeight - scroller.clientHeight;
+  return {
+    above: scroller.scrollTop > padTop + 1,
+    below: scroller.scrollTop < max - padBottom - 1,
+  };
+}
+
+/**
  * The middle of a dialog: the one part that scrolls, between a head and a
  * button row that never move (see .dialog in src/styles.css for why).
  *
@@ -53,6 +71,10 @@ export const DialogContent = forwardRef(function DialogContent(
   const scroller = useRef<HTMLDivElement | null>(null);
   const inner = useRef<HTMLDivElement | null>(null);
   const [edges, setEdges] = useState<Edges>({ above: false, below: false });
+  // Held while the region itself has focus, so a window that grows mid-read
+  // does not strip the role and name from under a focused element (and leave
+  // a ring on something that is no longer a stop).
+  const [focused, setFocused] = useState(false);
 
   const setScroller = useCallback(
     (node: HTMLDivElement | null) => {
@@ -68,8 +90,7 @@ export const DialogContent = forwardRef(function DialogContent(
     const body = inner.current;
     if (!el || !body) return;
     const measure = () => {
-      const max = el.scrollHeight - el.clientHeight;
-      const next = { above: el.scrollTop > 1, below: el.scrollTop < max - 1 };
+      const next = edgesOf(el);
       setEdges((prev) => (prev.above === next.above && prev.below === next.below ? prev : next));
     };
     measure();
@@ -87,7 +108,7 @@ export const DialogContent = forwardRef(function DialogContent(
   }, []);
 
   const scrolls = edges.above || edges.below;
-  const stop = focusable && scrolls;
+  const stop = focusable && (scrolls || focused);
 
   return (
     <div
@@ -98,6 +119,8 @@ export const DialogContent = forwardRef(function DialogContent(
       tabIndex={focusable ? (stop ? 0 : -1) : undefined}
       role={stop ? 'region' : undefined}
       aria-labelledby={stop ? labelledBy : undefined}
+      onFocus={focusable ? (e) => e.target === e.currentTarget && setFocused(true) : undefined}
+      onBlur={focusable ? (e) => e.target === e.currentTarget && setFocused(false) : undefined}
     >
       <div ref={inner} className="dialog__inner">
         {children}
@@ -110,11 +133,16 @@ export const DialogContent = forwardRef(function DialogContent(
  * Where a dialog should put focus when it opens: its scrolling text when there
  * is more of it than fits — so the first PageDown or arrow press reads on
  * instead of scrolling the page behind — and otherwise its close button.
+ * Measured the same way as the shadows, so the two never disagree.
+ *
+ * Callers focus with preventScroll: in a window so short that the backdrop
+ * itself scrolls, focusing a button at the bottom would open the dialog
+ * scrolled past its own title.
  */
 export function initialFocus(
   content: HTMLElement | null,
   fallback: HTMLElement | null,
 ): HTMLElement | null {
-  if (content && content.scrollHeight > content.clientHeight + 1) return content;
+  if (content && edgesOf(content).below) return content;
   return fallback;
 }

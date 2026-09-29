@@ -483,7 +483,11 @@ export function App() {
         </button>
       )}
 
-      {toast && (
+      {/* Not under an open dialog either, for the FAB's reason: dimmed by the
+          scrim it showed as dark ledges beside the dialog, and a tap on it
+          landed on the backdrop and closed the dialog. The toast itself is
+          kept — it comes back on close if its time has not run out. */}
+      {toast && !aboutOpen && !qrOpen && feedbackOpen === null && (
         <ToastBar
           toast={toast}
           onUndo={() => void undo()}

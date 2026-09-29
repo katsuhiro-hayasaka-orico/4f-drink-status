@@ -21,7 +21,7 @@ export function AboutDialog({ onClose }: AboutDialogProps) {
   // 30-second tick, which handed the dialog a fresh onClose and yanked focus
   // back to 閉じる mid-read. The next Space then closed the dialog.
   useEffect(() => {
-    initialFocus(contentRef.current, closeRef.current)?.focus();
+    initialFocus(contentRef.current, closeRef.current)?.focus({ preventScroll: true });
   }, []);
 
   useEffect(() => {

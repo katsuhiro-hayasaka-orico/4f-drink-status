@@ -3,6 +3,8 @@ import type { ConfidenceKey } from '../../shared/domain.js';
 import type { LoungeHours } from '../../shared/hours.js';
 import { CONFIDENCE_LABEL, confidenceStyle } from '../lib/confidence.js';
 import { statusColor } from '../lib/palette.js';
+import { headlinePhrases } from '../lib/phrases.js';
+import { Phrased } from './Phrased.js';
 
 export interface Metric {
   label: string;
@@ -52,21 +54,30 @@ export function SummaryPanel({
         <div className="summary__eyebrow">{closed ? '4Fラウンジ' : 'いまのマシン'}</div>
         {closed ? (
           <>
-            <h1 className="summary__headline summary__headline--closed">いまは閉まっています</h1>
+            <h1 className="summary__headline summary__headline--closed">
+              <Phrased parts={headlinePhrases('いまは閉まっています')} />
+            </h1>
             <p className="summary__reason">{hours.note}</p>
             <p className="summary__aside">開放時間 {hours.rangeLabel}</p>
           </>
         ) : pending ? (
           <>
-            <h1 className="summary__headline summary__headline--closed">{pending.headline}</h1>
+            <h1 className="summary__headline summary__headline--closed">
+              <Phrased parts={headlinePhrases(pending.headline)} />
+            </h1>
             <p className="summary__reason">{pending.reason}</p>
           </>
         ) : (
           <>
             <h1 className="summary__headline">
-              <span style={{ color: statusColor(overall.tone) }}>{overall.label}</span>
+              <span className="summary__label" style={{ color: statusColor(overall.tone) }}>
+                <Phrased parts={headlinePhrases(overall.label)} />
+              </span>
               {/* The green verdict and 確からしさ：低 used to sit a column
-                  apart, reading as a contradiction. Same line now. */}
+                  apart, reading as a contradiction. Same line now — with a
+                  break allowed before the pill, which keep-all would
+                  otherwise glue to the headline's last phrase. */}
+              <wbr />
               <span className="pill summary__confidence" style={confidenceStyle(confidence)}>
                 {CONFIDENCE_LABEL[confidence]}
               </span>
