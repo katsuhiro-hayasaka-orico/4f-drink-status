@@ -2,7 +2,7 @@
 /**
  * 利用状況の集計（scripts/stats/*.sql）を D1 に投げ、結果を Markdown の表で出します。
  *
- *   node scripts/stats/run.mjs --remote summary trend breakdown              # 本番 D1（CLOUDFLARE_API_TOKEN が必要）
+ *   node scripts/stats/run.mjs --remote summary trend retention breakdown    # 本番 D1（CLOUDFLARE_API_TOKEN が必要）
  *   node scripts/stats/run.mjs --local  summary                              # ローカル D1（.wrangler/state）
  *   node scripts/stats/run.mjs --local --persist-to=.stats-fixture.local summary   # 隔離した検証用 DB
  *
@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 export const QUERIES = {
   summary: '累計（端末数）',
   trend: '日別・週別の推移（JST、週は月曜起点）',
+  retention: '投稿端末の週次継続（reports、JST 月曜起点、途中週は暫定）',
   breakdown: '投稿の内訳',
   detail: '端末ごとの明細（ラベルのみ）',
 };

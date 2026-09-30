@@ -14,12 +14,12 @@ const { DatabaseSync } = process.getBuiltinModule('node:sqlite') as typeof impor
 
 type Row = Record<string, unknown>;
 
-function open(): Db {
+function open(withFixture = true): Db {
   const db = new DatabaseSync(':memory:');
   for (const f of readdirSync(migrations).sort()) {
     db.exec(readFileSync(new URL(f, migrations), 'utf8'));
   }
-  db.exec(readFileSync(new URL('fixture.sql', import.meta.url), 'utf8'));
+  if (withFixture) db.exec(readFileSync(new URL('fixture.sql', import.meta.url), 'utf8'));
   return db;
 }
 
@@ -129,6 +129,90 @@ describe('trend.sql', () => {
   });
 });
 
+describe('retention.sql', () => {
+  // Fix the SQL clock: the current week must stay provisional on future CI runs.
+  const sql = loadSql('retention').replaceAll("'now'", "'2026-09-30T06:02:25Z'");
+  function sample(): Row[] {
+    const db = open(false);
+    const insert = db.prepare(
+      'INSERT INTO reports (id, subject, action, user_id, user_label, created_at, group_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    );
+    let n = 0;
+    const post = (user: string, at: string, group: string | null = null) =>
+      insert.run(`retfx-${++n}`, 'machine', 'available', user, '非公開ラベル', Date.parse(at), group);
+    post('retfx-C', '2026-08-24T01:00:00Z');
+    post('retfx-A', '2026-08-31T01:00:00Z', 'expanded');
+    post('retfx-A', '2026-08-31T01:00:00Z', 'expanded');
+    post('retfx-A', '2026-09-01T01:00:00Z');
+    post('retfx-B', '2026-09-06T14:59:59Z'); // Sunday 23:59:59 JST
+    post('retfx-A', '2026-09-06T15:00:00Z'); // Monday 00:00 JST
+    post('retfx-D', '2026-09-08T01:00:00Z'); // first report, not a return
+    post('retfx-C', '2026-09-10T01:00:00Z'); // returning after a gap
+    post('retfx-A', '2026-09-14T01:00:00Z');
+    post('retfx-D', '2026-09-14T01:00:00Z');
+    // 9/21 is quiet. A returns after that empty week; E is new.
+    post('retfx-A', '2026-09-28T01:00:00Z');
+    post('retfx-E', '2026-09-30T01:00:00Z');
+    post('retfx-F', '2026-10-05T01:00:00Z'); // future week must not appear
+    db.exec(`
+      INSERT INTO events VALUES ('retfx-event', 'report_view', NULL, 'events-only', 1788742800000);
+      INSERT INTO feedback (id, mood, body, user_id, user_label, created_at)
+      VALUES ('retfx-feedback', 'happy', '秘密の本文', 'feedback-only', '秘密のラベル', 1788742800000);
+    `);
+    try {
+      return db.prepare(sql).all() as Row[];
+    } finally {
+      db.close();
+    }
+  }
+  const rows = sample();
+  const week = byKey(rows, 'week');
+
+  it('counts shared posters once, including historical and expanded reports, in JST weeks', () => {
+    expect(week['2026-09-07']).toMatchObject({
+      prev_week: '2026-08-31', status: '確定', prev_posters: 2, posters: 3,
+      retained: 1, retention_pct: 50, returning_posters: 1,
+    });
+    expect(week['2026-09-14']).toMatchObject({ prev_posters: 3, posters: 2, retained: 2, retention_pct: 66.7, returning_posters: 0 });
+  });
+
+  it('keeps quiet weeks and does not treat non-adjacent weeks as retention', () => {
+    expect(week['2026-09-21']).toMatchObject({ prev_posters: 2, posters: 0, retained: 0, retention_pct: 0, returning_posters: 0 });
+    expect(week['2026-09-28']).toMatchObject({ prev_posters: 0, posters: 2, retained: 0, retention_pct: null, returning_posters: 1 });
+  });
+
+  it('marks only the current week provisional and leaves a zero denominator undefined', () => {
+    expect(rows.filter((r) => r.status === '途中').map((r) => r.week)).toEqual(['2026-09-28']);
+    expect(week['2026-08-03']).toMatchObject({ prev_posters: 0, retention_pct: null });
+    expect(week['2026-10-05']).toBeUndefined();
+  });
+
+  it('keeps posters consistent with trend on the shared fixture', () => {
+    const db = open();
+    const trendSql = loadSql('trend').replaceAll("'now'", "'2026-09-30T06:02:25Z'");
+    const trend = byKey((db.prepare(trendSql).all() as Row[]).filter((r) => r.grain === '週'), 'period');
+    for (const r of db.prepare(sql).all() as Row[]) expect(r.posters).toBe(trend[String(r.week)].posters);
+    db.close();
+  });
+
+  it('handles an empty reports table without counting events or feedback', () => {
+    const db = open();
+    db.exec('DELETE FROM reports');
+    const empty = db.prepare(sql).all() as Row[];
+    db.close();
+    expect(empty.length).toBeGreaterThan(0);
+    for (const r of empty) expect(r).toMatchObject({ posters: 0, prev_posters: 0, retained: 0, retention_pct: null, returning_posters: 0 });
+  });
+
+  it('renders only aggregate counts and dates in the public summary', () => {
+    expect(Object.keys(rows[0])).toEqual(['week', 'prev_week', 'status', 'prev_posters', 'posters', 'retained', 'retention_pct', 'returning_posters']);
+    const md = renderMarkdown('retention', [{ results: rows, meta: {} }]);
+    expect(md).toContain('投稿端末の週次継続');
+    expect(md).toContain('| 2026-09-28 | 2026-09-21 | 途中 | 0 | 2 | 0 |  | 1 |');
+    expect(md).not.toMatch(/retfx-|events-only|feedback-only|秘密|非公開/);
+  });
+});
+
 describe('detail.sql', () => {
   const rows = run('detail');
 
@@ -143,7 +227,7 @@ describe('detail.sql', () => {
   });
 
   it('never leaks the feedback body through any query', () => {
-    for (const name of ['summary', 'trend', 'breakdown', 'detail']) {
+    for (const name of ['summary', 'trend', 'retention', 'breakdown', 'detail']) {
       expect(JSON.stringify(run(name))).not.toContain('本文は出力に現れてはいけない');
     }
   });
