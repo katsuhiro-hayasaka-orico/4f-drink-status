@@ -59,8 +59,8 @@ jobs:
       # wrangler の `d1 execute --remote --file` は D1 のインポート経路で SELECT の結果を返さないため、
       # run.mjs が SQL を --command で渡し、--json の結果を Markdown の表にします。
       # 表は Run ページ上部の Job Summary にも出ます（ログの生 Markdown より読みやすい）。
-      - name: 累計・推移・内訳
-        run: node scripts/stats/run.mjs --remote summary trend breakdown | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: 累計・推移・継続・内訳
+        run: node scripts/stats/run.mjs --remote summary trend retention breakdown | tee -a "$GITHUB_STEP_SUMMARY"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
